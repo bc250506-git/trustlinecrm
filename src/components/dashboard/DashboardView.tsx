@@ -25,9 +25,19 @@ import {
   Kanban,
   Bell,
   ArrowUpRight,
+  Zap,
+  UserPlus,
+  CalendarPlus,
+  FileCheck,
+  Calculator,
 } from "lucide-react";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { NotificationCenterDrawer } from "@/components/automation/NotificationCenterDrawer";
+import { AddDealModal } from "@/components/modals/AddDealModal";
+import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
+import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
+import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
+import { AddMandateModal } from "@/components/modals/AddMandateModal";
 
 interface DashboardViewProps {
   onNavigate: (tab: any) => void;
@@ -53,6 +63,13 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   const [completeOutcome, setCompleteOutcome] = useState("attended");
   const [dashboardTab, setDashboardTab] = useState<"operations" | "analytics">("operations");
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
+
+  // Hızlı İşlem Modalları State
+  const [isAddDealModalOpen, setIsAddDealModalOpen] = useState(false);
+  const [isAddFollowUpModalOpen, setIsAddFollowUpModalOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
+  const [isAddMandateModalOpen, setIsAddMandateModalOpen] = useState(false);
 
   // Sayım Mantığı
   const hotCustomers = customers.filter((c) => c.temperature === "hot");
@@ -387,6 +404,162 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
           </div>
         );
       })()}
+
+      {/* Hızlı İşlemler Paneli (6 Doğrudan Eylem Kutusu) */}
+      <div className="sharp-card p-4 bg-white border border-slate-200 shadow-2xs">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-[#00adb5]" />
+            <h2 className="text-xs font-bold text-[#1d2566] tracking-wide font-mono uppercase">
+              Hızlı İşlemler
+            </h2>
+            <span className="text-slate-300">•</span>
+            <span className="text-[11px] text-slate-500 font-mono">
+              Tek tıkla modal açıp yeni kayıt oluşturun
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* 1. İşlem Kapama Butonu */}
+          <button
+            type="button"
+            onClick={() => setIsAddDealModalOpen(true)}
+            className="p-3 bg-slate-50/70 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-400 text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Yeni Satış / Komisyon Anlaşması Ekle"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-emerald-100/60 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Calculator className="w-4 h-4" />
+              </div>
+              <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-800 transition-colors leading-tight">
+                İşlem Kapama
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                Satış & Komisyon
+              </div>
+            </div>
+          </button>
+
+          {/* 2. İş Ekleme Butonu */}
+          <button
+            type="button"
+            onClick={() => setIsAddFollowUpModalOpen(true)}
+            className="p-3 bg-slate-50/70 hover:bg-amber-50/60 border border-slate-200 hover:border-amber-400 text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Ajandaya Yeni Randevu / Takip Ekle"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-amber-100/60 text-amber-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <CalendarPlus className="w-4 h-4" />
+              </div>
+              <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 transition-colors" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800 group-hover:text-amber-800 transition-colors leading-tight">
+                İş Ekle
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                Randevu & Ajanda
+              </div>
+            </div>
+          </button>
+
+          {/* 3. Müşteri Ekleme Butonu */}
+          <button
+            type="button"
+            onClick={() => setIsAddCustomerModalOpen(true)}
+            className="p-3 bg-slate-50/70 hover:bg-cyan-50/60 border border-slate-200 hover:border-[#00adb5] text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Yeni Müşteri Kaydı Oluştur"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-cyan-100/60 text-[#00adb5] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <UserPlus className="w-4 h-4" />
+              </div>
+              <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#00adb5] transition-colors" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
+                Müşteri Ekle
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                Müşteri Havuzu
+              </div>
+            </div>
+          </button>
+
+          {/* 4. Portföy Ekleme Butonu */}
+          <button
+            type="button"
+            onClick={() => setIsAddPropertyModalOpen(true)}
+            className="p-3 bg-slate-50/70 hover:bg-indigo-50/60 border border-slate-200 hover:border-[#1d2566] text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Yeni Gayrimenkul Portföyü Ekle"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-indigo-100/60 text-[#1d2566] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Building className="w-4 h-4" />
+              </div>
+              <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1d2566] transition-colors" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
+                Portföy Ekle
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                Yeni Gayrimenkul
+              </div>
+            </div>
+          </button>
+
+          {/* 5. Yetki Ekleme Butonu */}
+          <button
+            type="button"
+            onClick={() => setIsAddMandateModalOpen(true)}
+            className="p-3 bg-slate-50/70 hover:bg-purple-50/60 border border-slate-200 hover:border-purple-400 text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Yeni Tek / Genel Yetki Sözleşmesi Kaydet"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-purple-100/60 text-purple-700 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <FileCheck className="w-4 h-4" />
+              </div>
+              <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 transition-colors" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-800 group-hover:text-purple-800 transition-colors leading-tight">
+                Yetki Ekle
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                Sözleşme Kaydı
+              </div>
+            </div>
+          </button>
+
+          {/* 6. Akıllı Eşleştirme Motoru Butonu */}
+          <button
+            type="button"
+            onClick={() => onNavigate("matchmaker")}
+            className="p-3 bg-gradient-to-br from-[#00adb5]/5 to-[#1d2566]/5 hover:from-[#00adb5]/10 hover:to-[#1d2566]/10 border border-[#00adb5]/30 hover:border-[#00adb5] text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
+            title="Akıllı Eşleştirme Motoru Ekranını Aç"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-8 h-8 bg-[#00adb5]/15 text-[#00adb5] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <ArrowRight className="w-3.5 h-3.5 text-[#00adb5] group-hover:translate-x-0.5 transition-transform" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-[#1d2566] group-hover:text-[#00adb5] transition-colors leading-tight">
+                Eşleştirme Motoru
+              </div>
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+                AI / Algoritma ↗
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
 
       {/* İki Kolonlu Ana Çalışma Alanı */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -947,6 +1120,28 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
         isOpen={isNotificationDrawerOpen}
         onClose={() => setIsNotificationDrawerOpen(false)}
         onNavigateTab={(tab) => onNavigate(tab)}
+      />
+
+      {/* Standart Hızlı İşlem Modalları */}
+      <AddDealModal
+        isOpen={isAddDealModalOpen}
+        onClose={() => setIsAddDealModalOpen(false)}
+      />
+      <AddFollowUpModal
+        isOpen={isAddFollowUpModalOpen}
+        onClose={() => setIsAddFollowUpModalOpen(false)}
+      />
+      <AddCustomerModal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+      />
+      <AddPropertyModal
+        isOpen={isAddPropertyModalOpen}
+        onClose={() => setIsAddPropertyModalOpen(false)}
+      />
+      <AddMandateModal
+        isOpen={isAddMandateModalOpen}
+        onClose={() => setIsAddMandateModalOpen(false)}
       />
     </div>
   );

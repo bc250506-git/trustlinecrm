@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
 
 export function CalendarView() {
   const {
@@ -84,32 +85,11 @@ export function CalendarView() {
     setEditingFollowUp(null);
   };
 
-  // Form State
-  const [formTitle, setFormTitle] = useState("");
-  const [formCustomerId, setFormCustomerId] = useState("");
-  const [formPropertyId, setFormPropertyId] = useState("");
-  const [formKind, setFormKind] = useState<string>("");
-  const [formDate, setFormDate] = useState("2026-10-12");
-  const [formTime, setFormTime] = useState("");
-  const [formIsOfficeEvent, setFormIsOfficeEvent] = useState(false);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
 
   React.useEffect(() => {
     setCurrentDate(new Date());
-    setFormDate(new Date().toISOString().split("T")[0]);
-    setFormTime("");
   }, []);
-
-  const handleOpenAddModal = () => {
-    setFormTitle("");
-    setFormCustomerId("");
-    setFormPropertyId("");
-    setFormKind("");
-    setFormDate(new Date().toISOString().split("T")[0]);
-    setFormTime("");
-    setFormIsOfficeEvent(false);
-    setIsAddModalOpen(true);
-  };
 
   React.useEffect(() => {
     if (isAddModalOpen || editingFollowUp || followUpToDelete) {
@@ -133,44 +113,6 @@ export function CalendarView() {
     if (filterStatus !== "ALL" && f.status !== filterStatus) return false;
     return true;
   });
-
-  const handleCreateFollowUp = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cust = formCustomerId ? activeCustomers.find((c) => c.id === formCustomerId) : null;
-    const prop = formPropertyId ? activeProperties.find((p) => p.id === formPropertyId) : null;
-
-    const isOffice = isBroker && formIsOfficeEvent;
-    const finalKind = (formKind as any) || (isOffice ? "office_event" : "other");
-    const hasSpecificTime = !!formTime.trim();
-    const dueAt = hasSpecificTime ? `${formDate}T${formTime}:00` : `${formDate}T00:00:00`;
-
-    addFollowUp({
-      customerId: cust?.id || undefined,
-      customerName: cust?.fullName || undefined,
-      customerPhone: cust?.phone || undefined,
-      propertyId: prop?.id || undefined,
-      propertyTitle: prop?.title || undefined,
-      title: formTitle.trim(),
-      kind: finalKind,
-      dueAt,
-      hasSpecificTime,
-      isOfficeEvent: isOffice,
-      status: "open",
-      outcome: "pending",
-      assignedToId: isOffice ? undefined : currentUser.id,
-      assignedToName: isOffice ? "Tüm Ofis Ekibi" : currentUser.name,
-      createdById: currentUser.id,
-      createdByName: currentUser.name,
-    });
-
-    setIsAddModalOpen(false);
-    setFormTitle("");
-    setFormCustomerId("");
-    setFormPropertyId("");
-    setFormKind("");
-    setFormTime("");
-    setFormIsOfficeEvent(false);
-  };
 
   return (
     <div className="space-y-6">
@@ -197,7 +139,7 @@ export function CalendarView() {
         </div>
 
         <button
-          onClick={handleOpenAddModal}
+          onClick={() => setIsAddModalOpen(true)}
           className="sharp-btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer self-start md:self-auto shadow-xs"
         >
           <Plus className="w-4 h-4" />
@@ -441,172 +383,11 @@ export function CalendarView() {
         )}
       </div>
 
-      {/* Yeni Takip / Randevu Ekle Modalı */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="sharp-card w-full max-w-lg bg-white border border-slate-300 shadow-2xl my-8">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="w-4 h-4 text-[#00adb5]" />
-                <h3 className="text-xs font-bold text-[#1d2566]">
-                  Yeni Takip & Randevu Oluştur
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateFollowUp} className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                  Randevu / Takip Başlığı *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Örn: Bebek Dubleksi 2. Yer Gösterimi veya Haftalık Ofis Toplantısı"
-                  className="sharp-input w-full p-2"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    İlgili Müşteri (Opsiyonel)
-                  </label>
-                  <select
-                    value={formCustomerId}
-                    onChange={(e) => setFormCustomerId(e.target.value)}
-                    className="sharp-input w-full p-2 bg-white"
-                  >
-                    <option value="">-- Müşteri Seçilmedi (Boş) --</option>
-                    {activeCustomers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    İşlem Türü (Opsiyonel)
-                  </label>
-                  <select
-                    value={formKind}
-                    onChange={(e) => setFormKind(e.target.value)}
-                    className="sharp-input w-full p-2 bg-white"
-                  >
-                    <option value="">-- Tür Seçilmedi (Genel Görev) --</option>
-                    <option value="showing">Yer Gösterme</option>
-                    <option value="meeting">Yüz Yüze Görüşme</option>
-                    <option value="call">Telefon Araması</option>
-                    <option value="office_event">Ofis Toplantısı / Etkinlik</option>
-                    <option value="other">Diğer</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                  İlgili Portföy (Opsiyonel)
-                </label>
-                <select
-                  value={formPropertyId}
-                  onChange={(e) => setFormPropertyId(e.target.value)}
-                  className="sharp-input w-full p-2 bg-white"
-                >
-                  <option value="">Portföy Seçilmedi</option>
-                  {activeProperties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Tarih *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Saat (Opsiyonel)
-                  </label>
-                  <input
-                    type="time"
-                    value={formTime}
-                    onChange={(e) => setFormTime(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
-                  />
-                </div>
-              </div>
-
-              {/* Yalnızca Ofis Kullanıcısı (Broker / Admin) İçin Ofis Etkinliği Checkbox */}
-              {isBroker && (
-                <div className="p-3 bg-purple-50/80 border border-purple-200">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formIsOfficeEvent}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setFormIsOfficeEvent(checked);
-                        if (checked && !formKind) {
-                          setFormKind("office_event");
-                        }
-                      }}
-                      className="mt-0.5 w-4 h-4 text-purple-600 rounded-none border-purple-300 focus:ring-purple-500 cursor-pointer"
-                    />
-                    <div>
-                      <span className="font-bold text-purple-900 text-xs flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-purple-600" />
-                        Ofis Etkinliği (Tüm Ekibin Ajandasına Ekle & Duyur)
-                      </span>
-                      <p className="text-[11px] text-purple-700 mt-0.5 leading-normal">
-                        İşaretlendiğinde bu kayıt (ofis toplantısı, saha gezisi, eğitim vs.) tüm danışmanların ajandasına özel bir tasarımla eklenir ve herkese bildirilir.
-                      </p>
-                    </div>
-                  </label>
-                </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
-                >
-                  Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Standardize Yeni Takip & Randevu Ekle Modalı */}
+      <AddFollowUpModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
 
       {/* GÖREV DÜZENLEME MODALI */}
       {editingFollowUp && (

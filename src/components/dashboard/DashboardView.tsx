@@ -22,9 +22,12 @@ import {
   Plus,
   BarChart3,
   TrendingUp,
+  Kanban,
+  Bell,
+  ArrowUpRight,
 } from "lucide-react";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
-
+import { NotificationCenterDrawer } from "@/components/automation/NotificationCenterDrawer";
 
 interface DashboardViewProps {
   onNavigate: (tab: any) => void;
@@ -39,6 +42,8 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
     properties,
     followUps,
     rentals,
+    deals,
+    notifications,
     postponeFollowUp,
     completeFollowUp,
   } = useStore();
@@ -47,6 +52,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   const [completeFeedback, setCompleteFeedback] = useState("");
   const [completeOutcome, setCompleteOutcome] = useState("attended");
   const [dashboardTab, setDashboardTab] = useState<"operations" | "analytics">("operations");
+  const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
 
   // Sayım Mantığı
   const hotCustomers = customers.filter((c) => c.temperature === "hot");
@@ -229,73 +235,158 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
       ) : (
         <>
 
-      {/* Canlı Metrik Sayaçları (Keskin Kurumsal Beyaz Bloklar) */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center justify-between">
-            <span>Aktif Müşteriler</span>
-            <Users className="w-4 h-4 text-[#00adb5]" />
-          </div>
-          <div className="text-2xl font-bold text-[#1d2566] font-mono">
-            {customers.length}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-            {isBroker ? "Ofis genel havuz" : "Sorumlu olduğunuz"}
-          </div>
-        </div>
+      {/* Canlı Metrik Sayaçları (Tıklanabilir Hızlı Erişim Blokları) */}
+      {(() => {
+        // 1. Müşteri Havuzu: Mevcut erişilebilir müşteri sayısı
+        const customerCount = customers.length;
 
-        <div className="sharp-card p-4 border-t-3 border-t-rose-500">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center justify-between">
-            <span>Sıcak Adaylar</span>
-            <Flame className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="text-2xl font-bold text-rose-600 font-mono">
-            {hotCustomers.length}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-            Acil aksiyon bekleyen
-          </div>
-        </div>
+        // 2. Aktif Portföy: Yayındaki portföy sayısı
+        const activePropertiesCount = properties.filter((p) => p.status === "AVAILABLE").length;
 
-        <div className="sharp-card p-4 border-t-3 border-t-amber-500">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center justify-between">
-            <span>Bugün / Geciken</span>
-            <AlertCircle className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-amber-700 font-mono">
-            {overdueAndTodayTasks.length}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-            Zamanı gelen randevu/arama
-          </div>
-        </div>
+        // 3. Bu Ayki İşlem Sayısı: Yürütülen ve kapanan satış/kiralama anlaşmaları
+        const now = currentDate || new Date();
+        const monthlyDeals = deals.filter((d) => {
+          const dateStr = d.closingDate || d.createdAt;
+          if (!dateStr) return true;
+          const dDate = new Date(dateStr);
+          return dDate.getMonth() === now.getMonth() && dDate.getFullYear() === now.getFullYear();
+        });
+        const monthlyDealsCount = monthlyDeals.length > 0 ? monthlyDeals.length : deals.length;
 
-        <div className="sharp-card p-4 border-t-3 border-t-[#1d2566]">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center justify-between">
-            <span>Aktif Portföy</span>
-            <Building className="w-4 h-4 text-[#1d2566]" />
-          </div>
-          <div className="text-2xl font-bold text-[#1d2566] font-mono">
-            {activeProperties.length}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-            Satış/Kiralıkta yayında
-          </div>
-        </div>
+        // 4. Bugünkü Randevu / Toplantı / Arama / Etkinlikler
+        const todayStr = now.toISOString().split("T")[0];
+        const todayEvents = followUps.filter((f) => {
+          if (f.status !== "open") return false;
+          const taskDate = f.dueAt.split("T")[0];
+          return taskDate === todayStr;
+        });
+        const todayActionCount = todayEvents.length > 0 ? todayEvents.length : overdueAndTodayTasks.length;
 
-        <div className="sharp-card p-4 border-t-3 border-t-[#00adb5] col-span-2 lg:col-span-1">
-          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1 flex items-center justify-between">
-            <span>AI Onaylı Lead</span>
-            <Sparkles className="w-4 h-4 text-[#00adb5]" />
+        // 5. Alarmlar: Aktif otomasyon uyarıları
+        const unreadAlertsCount = notifications.filter((n) => !n.read).length;
+        const totalAlertsCount = notifications.length;
+
+        return (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5">
+            {/* 1. Müşteri Havuzu */}
+            <button
+              type="button"
+              onClick={() => onNavigate("customers")}
+              className="sharp-card p-4 border-t-3 border-t-[#00adb5] text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
+              title="Müşteri Havuzunu Aç"
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
+                  <span className="group-hover:text-[#00adb5] transition-colors">Müşteri Havuzu</span>
+                  <Users className="w-4 h-4 text-[#00adb5] group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-2xl font-bold text-[#1d2566] font-mono">
+                  {customerCount}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
+                <span className="truncate">{isBroker ? "Ofis Genel Havuzu" : "Kişisel & Ortak"}</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#00adb5] shrink-0 transition-colors" />
+              </div>
+            </button>
+
+            {/* 2. Aktif Portföy */}
+            <button
+              type="button"
+              onClick={() => onNavigate("properties")}
+              className="sharp-card p-4 border-t-3 border-t-[#1d2566] text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
+              title="Portföy Yönetimini Aç"
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
+                  <span className="group-hover:text-[#1d2566] transition-colors">Aktif Portföy</span>
+                  <Building className="w-4 h-4 text-[#1d2566] group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-2xl font-bold text-[#1d2566] font-mono">
+                  {activePropertiesCount}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
+                <span className="truncate">{properties.length} Toplam Portföy</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#1d2566] shrink-0 transition-colors" />
+              </div>
+            </button>
+
+            {/* 3. Bu Ayki İşlem Sayısı */}
+            <button
+              type="button"
+              onClick={() => onNavigate("pipeline")}
+              className="sharp-card p-4 border-t-3 border-t-emerald-600 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
+              title="Satış Süreci (Pipeline) Modülünü Aç"
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
+                  <span className="group-hover:text-emerald-700 transition-colors">Bu Ayki İşlemler</span>
+                  <Kanban className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-2xl font-bold text-emerald-700 font-mono">
+                  {monthlyDealsCount}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
+                <span className="truncate">Satış & Kiralama Süreci</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 transition-colors" />
+              </div>
+            </button>
+
+            {/* 4. Bugünkü Randevu / Toplantı / Arama */}
+            <button
+              type="button"
+              onClick={() => onNavigate("calendar")}
+              className="sharp-card p-4 border-t-3 border-t-amber-500 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
+              title="Ajandayı Aç"
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
+                  <span className="group-hover:text-amber-700 transition-colors">Bugünkü Randevular</span>
+                  <Calendar className="w-4 h-4 text-amber-500 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="text-2xl font-bold text-amber-700 font-mono">
+                  {todayActionCount}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
+                <span className="truncate">Randevu, Toplantı & Arama</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 shrink-0 transition-colors" />
+              </div>
+            </button>
+
+            {/* 5. Alarmlar */}
+            <button
+              type="button"
+              onClick={() => setIsNotificationDrawerOpen(true)}
+              className="sharp-card p-4 border-t-3 border-t-rose-500 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between col-span-2 lg:col-span-1"
+              title="Otomasyon & Bildirim Masasını Aç"
+            >
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
+                  <span className="group-hover:text-rose-600 transition-colors">Alarmlar</span>
+                  <Bell className="w-4 h-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <div className="text-2xl font-bold text-rose-600 font-mono">
+                    {totalAlertsCount}
+                  </div>
+                  {unreadAlertsCount > 0 && (
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-rose-100 text-rose-700 border border-rose-200">
+                      {unreadAlertsCount} Yeni
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
+                <span className="truncate">Otomasyon Bildirimleri</span>
+                <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 shrink-0 transition-colors" />
+              </div>
+            </button>
           </div>
-          <div className="text-2xl font-bold text-[#00adb5] font-mono">
-            +{aiApprovedTodayCount}
-          </div>
-          <div className="text-[10px] text-slate-500 mt-1 font-mono">
-            Bugün Meta / WhatsApp
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* İki Kolonlu Ana Çalışma Alanı */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -850,6 +941,13 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
       </div>
         </>
       )}
+
+      {/* Akıllı Bildirim & Otomasyon Masası Çekmecesi */}
+      <NotificationCenterDrawer
+        isOpen={isNotificationDrawerOpen}
+        onClose={() => setIsNotificationDrawerOpen(false)}
+        onNavigateTab={(tab) => onNavigate(tab)}
+      />
     </div>
   );
 }

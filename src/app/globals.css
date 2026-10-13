@@ -1,0 +1,127 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #f1f5f9;
+    --border-subtle: #e2e8f0;
+    --border-focus: #00adb5;
+    --brand-navy: #1d2566;
+    --brand-turquoise: #00adb5;
+    --brand-emerald: #059669;
+    --brand-rose: #dc2626;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* Sharp, Crisp Corporate Architectural Styling — Ferah Beyaz Tema */
+.sharp-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04);
+}
+
+.sharp-card-hover {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.sharp-card-hover:hover {
+  border-color: #00adb5;
+  box-shadow: 0 4px 6px -1px rgba(0, 173, 181, 0.08);
+}
+
+/* Buton Stilleri */
+.sharp-btn-primary {
+  background-color: #00adb5;
+  color: #ffffff;
+  border: 1px solid #00939a;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.sharp-btn-primary:hover {
+  background-color: #00939a;
+  border-color: #00797f;
+}
+
+.sharp-btn-navy {
+  background-color: #1d2566;
+  color: #ffffff;
+  border: 1px solid #151b4d;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.sharp-btn-navy:hover {
+  background-color: #151b4d;
+  border-color: #0e1236;
+}
+
+.sharp-btn-emerald {
+  background-color: #059669;
+  color: #ffffff;
+  border: 1px solid #047857;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.sharp-btn-emerald:hover {
+  background-color: #047857;
+  border-color: #065f46;
+}
+
+.sharp-btn-danger {
+  background-color: #dc2626;
+  color: #ffffff;
+  border: 1px solid #b91c1c;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.sharp-btn-danger:hover {
+  background-color: #b91c1c;
+  border-color: #991b1b;
+}
+
+/* İnput ve Seçici Alanlar */
+.sharp-input {
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sharp-input:focus {
+  border-color: #00adb5;
+  box-shadow: 0 0 0 1px #00adb5;
+}
+
+/* Custom Scrollbar — Ferah Tema */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

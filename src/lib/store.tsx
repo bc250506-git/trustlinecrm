@@ -81,7 +81,7 @@ interface StoreContextType {
   postponeFollowUp: (id: string) => void;
   completeFollowUp: (id: string, outcome: string, feedback?: string) => void;
   updateDealStage: (id: string, newStage: "offer" | "won" | "lost", closingNotes?: string) => void;
-  addDeal: (deal: Omit<Deal, "id" | "createdAt">) => void;
+  addDeal: (deal: Omit<Deal, "id" | "createdAt"> & { createdAt?: string }) => void;
   updateDeal: (id: string, updates: Partial<Deal>) => boolean;
   deleteDeal: (id: string) => boolean;
   addRentalContract: (contract: Omit<RentalContract, "id" | "createdAt" | "payments"> & { payments?: RentalMonthPayment[] }) => RentalContract;
@@ -735,11 +735,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
-  const addDeal = (dealData: Omit<Deal, "id" | "createdAt">) => {
+  const addDeal = (dealData: Omit<Deal, "id" | "createdAt"> & { createdAt?: string }) => {
+    const dealDateIso = dealData.closingDate
+      ? `${dealData.closingDate}T12:00:00.000Z`
+      : new Date().toISOString();
     const newDeal: Deal = {
       ...dealData,
       id: `deal-${Date.now()}`,
-      createdAt: new Date().toISOString(),
+      createdAt: dealData.createdAt || dealDateIso,
     };
     setDeals((prev) => [newDeal, ...prev]);
   };

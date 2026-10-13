@@ -217,7 +217,7 @@ export function FinanceView() {
     setEditCommissionRate([1, 2, 3, 4, 5, 10, 15, 100].includes(rate) ? rate : 5);
     setEditOrigin(deal.portfolioOrigin || "advisor");
     setEditStage(deal.stage);
-    setEditPaymentDue(deal.paymentDue || "");
+    setEditPaymentDue(deal.closingDate || deal.paymentDue || (deal.createdAt ? deal.createdAt.split("T")[0] : ""));
     setEditAdvisorId(deal.createdById || currentUser.id);
   };
 
@@ -261,6 +261,7 @@ export function FinanceView() {
       portfolioOrigin: editOrigin,
       stage: editStage,
       paymentDue: editPaymentDue,
+      closingDate: editPaymentDue,
       createdById: selectedAdvisor.id,
       createdByName: selectedAdvisor.name,
     });

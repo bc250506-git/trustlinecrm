@@ -10,6 +10,7 @@ import {
   Building,
   CheckCircle2,
   UserPlus,
+  Calendar,
 } from "lucide-react";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
@@ -30,10 +31,17 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
     addDeal,
   } = useStore();
 
+  const getTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
   const [formTitle, setFormTitle] = useState("");
   const [formAdvisorId, setFormAdvisorId] = useState(currentUser.id);
   const [formCustomerId, setFormCustomerId] = useState("");
   const [formPropertyId, setFormPropertyId] = useState("");
+  const [formDealDate, setFormDealDate] = useState<string>(getTodayStr());
+  const [formStage, setFormStage] = useState<"offer" | "won" | "lost">("won");
   const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
   const [formAgreedPrice, setFormAgreedPrice] = useState("");
   const [formOrigin, setFormOrigin] = useState<"advisor" | "office">("advisor");
@@ -47,6 +55,8 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       setFormAdvisorId(currentUser.id);
       setFormCustomerId("");
       setFormPropertyId("");
+      setFormDealDate(getTodayStr());
+      setFormStage("won");
       setFormCurrency("GBP");
       setFormAgreedPrice("");
       setFormOrigin("advisor");
@@ -77,6 +87,8 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
     const selectedProp = properties.find((p) => p.id === formPropertyId);
     const selectedCust = customers.find((c) => c.id === formCustomerId);
 
+    const dealDate = formDealDate || getTodayStr();
+
     addDeal({
       title: formTitle,
       customerId: formCustomerId,
@@ -84,17 +96,19 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       propertyId: formPropertyId,
       propertyTitle: selectedProp ? selectedProp.title : undefined,
       currency: formCurrency,
-      stage: "offer",
+      stage: formStage,
       askingPrice: selectedProp ? selectedProp.price : numericPrice,
       offeredPrice: numericPrice,
       agreedPrice: numericPrice,
       deposit: 0,
       commissionExpected: calculatedCommission,
-      commissionReceived: 0,
+      commissionReceived: formStage === "won" ? calculatedCommission : 0,
       portfolioOrigin: formOrigin,
+      closingDate: dealDate,
+      paymentDue: dealDate,
       createdById: formAdvisorId,
       createdByName: assignedUser.name,
-      notes: "Hızlı işlem kapama modalından oluşturuldu.",
+      notes: "İşlem kapama / kayıt modalından oluşturuldu.",
     });
 
     onClose();
@@ -233,6 +247,43 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                     {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency})
                   </option>
                 ))}
+              </select>
+            </div>
+          </div>
+
+          {/* İşlem Tarihi & Anlaşma Aşaması */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+                  İşlem Tarihi *
+                </span>
+                <span className="text-[10px] text-slate-400 font-normal">
+                  (Geriye dönük seçilebilir)
+                </span>
+              </label>
+              <input
+                type="date"
+                required
+                value={formDealDate}
+                onChange={(e) => setFormDealDate(e.target.value)}
+                className="sharp-input w-full p-2 bg-white font-mono font-medium text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                İşlem Aşaması
+              </label>
+              <select
+                value={formStage}
+                onChange={(e) => setFormStage(e.target.value as any)}
+                className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
+              >
+                <option value="won">Tamamlandı / Kazanıldı (Tahsil Edildi)</option>
+                <option value="offer">Teklif / Sözleşme Aşamasında</option>
+                <option value="lost">İptal / Kaybedildi</option>
               </select>
             </div>
           </div>

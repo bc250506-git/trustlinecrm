@@ -224,7 +224,7 @@ export function RentalsView() {
 
   // Yalnızca kira tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
   const getRentalReminderStatus = (r: RentalContract) => {
-    const now = currentDate || new Date(2026, 9, 14);
+    const now = currentDate || new Date();
     const currentMonthNum = now.getMonth() + 1; // 1-12
     const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 

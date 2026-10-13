@@ -8,11 +8,7 @@ import {
   findMatchesForCustomer,
   findMatchesForProperty,
 } from "@/lib/matchmaker";
-import {
-  getCurrentExchangeRates,
-  updateLiveExchangeRates,
-  ExchangeRates,
-} from "@/lib/currency";
+import { updateLiveExchangeRates } from "@/lib/currency";
 import {
   Sparkles,
   User,
@@ -22,8 +18,6 @@ import {
   Share2,
   Phone,
   MessageSquare,
-  RefreshCw,
-  Coins,
   Flame,
   Star,
   MapPin,
@@ -57,34 +51,18 @@ export function MatchmakerView({
     initialProperty?.id || properties[0]?.id || ""
   );
 
-  // Canlı Kur Durumu
-  const [fxData, setFxData] = useState(() => getCurrentExchangeRates());
-  const [isUpdatingFx, setIsUpdatingFx] = useState(false);
-
   useEffect(() => {
-    // Sayfa açıldığında veya periyodik 10 dk'da bir kurları güncelle
-    updateLiveExchangeRates().then(() => {
-      setFxData(getCurrentExchangeRates());
-    });
+    updateLiveExchangeRates();
     const interval = setInterval(() => {
-      updateLiveExchangeRates().then(() => {
-        setFxData(getCurrentExchangeRates());
-      });
+      updateLiveExchangeRates();
     }, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleRefreshFx = async () => {
-    setIsUpdatingFx(true);
-    await updateLiveExchangeRates();
-    setFxData(getCurrentExchangeRates());
-    setIsUpdatingFx(false);
-  };
-
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
 
-  // Eşleştirme Motoru Sonuçları
+  // Eşleştirme Sonuçları
   const matchesForCustomer = selectedCustomer
     ? findMatchesForCustomer(selectedCustomer, properties)
     : [];
@@ -94,27 +72,16 @@ export function MatchmakerView({
     : [];
 
   return (
-    <div className="space-y-6">
-      {/* Üst Bilgi Başlığı */}
-      <div className="sharp-card p-6 border-l-4 border-l-[#00adb5] flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-5">
+      {/* Üst Başlık & Mod Seçici */}
+      <div className="sharp-card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono text-xs text-[#00adb5] font-bold tracking-wider uppercase">
-              YAPAY ZEKA & ALGORİTMA MOTORU (V2)
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs text-slate-500 font-mono">
-              Sert Niyet Filtresi & Anlık FX Kur Çevirici
-            </span>
-          </div>
-          <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
+          <h1 className="text-lg sm:text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-[#00adb5]" />
-            Akıllı Portföy & Müşteri Eşleştirme Motoru
+            Eşleştirme
           </h1>
-          <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-            • <strong>Sert Niyet Kuralı:</strong> Alıcıya kiralık, kiracıya satılık portföy ASLA önerilmez.<br />
-            • <strong>Canlı Kur Çevirici:</strong> Para birimi engeli yok; bütçe anlık KKTC / MB kurlarıyla otomatik dönüştürülerek karşılaştırılır.<br />
-            • <strong>Çoklu Tercih Desteği:</strong> Müşterinin seçtiği alternatif bölgeler, konut tipleri ve oda sayıları tam taranır.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Müşteri kriterleri ile portföyleri otomatik eşleştirin.
           </p>
         </div>
 
@@ -141,38 +108,6 @@ export function MatchmakerView({
             <Building className="w-3.5 h-3.5" /> Portföye Müşteri Bul
           </button>
         </div>
-      </div>
-
-      {/* Canlı Kur Göstergesi Bandı */}
-      <div className="sharp-card p-3 bg-gradient-to-r from-slate-900 to-[#1d2566] text-white flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="flex items-center gap-1 text-[#00adb5] font-bold uppercase tracking-wider">
-            <Coins className="w-4 h-4 text-[#00adb5]" /> Canlı FX Kurları:
-          </span>
-          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
-            1 GBP = <strong>{fxData.rates.GBP.toFixed(2)} ₺</strong>
-          </span>
-          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
-            1 EUR = <strong>{fxData.rates.EUR.toFixed(2)} ₺</strong>
-          </span>
-          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
-            1 USD = <strong>{fxData.rates.USD.toFixed(2)} ₺</strong>
-          </span>
-          <span className="text-[10px] text-slate-300">
-            ({fxData.lastUpdated})
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleRefreshFx}
-          disabled={isUpdatingFx}
-          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[11px] font-mono flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
-          title="Kurları Şimdi Güncelle"
-        >
-          <RefreshCw className={`w-3 h-3 ${isUpdatingFx ? "animate-spin" : ""}`} />
-          <span>{isUpdatingFx ? "Çekiliyor..." : "Kurları Güncelle"}</span>
-        </button>
       </div>
 
       {/* Kaynak Seçim Alanı */}
@@ -396,8 +331,8 @@ export function MatchmakerView({
                   : `Uygun Müşteriler (${matchesForProperty.length} Eşleşme)`}
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-500 font-bold">
-              Skor &ge; %50 Olanlar • Niyeti Uyuşmayanlar Elendi
+            <span className="text-[10px] font-mono text-slate-400">
+              Min. %50 Uyum
             </span>
           </div>
 
@@ -405,12 +340,9 @@ export function MatchmakerView({
           {mode === "customer_to_property" && (
             <div className="space-y-3">
               {matchesForCustomer.length === 0 ? (
-                <div className="sharp-card p-12 text-center text-slate-500 font-mono text-xs space-y-2">
-                  <p className="font-bold text-slate-700">
-                    Bu müşterinin işlem niyetine ({selectedCustomer?.category === "BUYER" ? "Satılık" : "Kiralık"}) ve bütçesine uygun aktif portföy bulunamadı.
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Satılık arayan alıcılara kiralık portföyler kural gereği kesinlikle önerilmemektedir.
+                <div className="sharp-card p-8 text-center text-slate-500 font-mono text-xs">
+                  <p className="font-semibold text-slate-600">
+                    Bu müşteriye uygun aktif portföy bulunamadı.
                   </p>
                 </div>
               ) : (
@@ -526,12 +458,9 @@ export function MatchmakerView({
           {mode === "property_to_customer" && (
             <div className="space-y-3">
               {matchesForProperty.length === 0 ? (
-                <div className="sharp-card p-12 text-center text-slate-500 font-mono text-xs space-y-2">
-                  <p className="font-bold text-slate-700">
-                    Bu portföyün işlem türüne ({selectedProperty?.listingType === "sale" ? "Satılık Alıcı" : "Kiralık Kiracı"}) ve fiyatına uygun müşteri adayı bulunamadı.
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Satılık portföylere kiracı müşteriler kesinlikle önerilmemektedir.
+                <div className="sharp-card p-8 text-center text-slate-500 font-mono text-xs">
+                  <p className="font-semibold text-slate-600">
+                    Bu portföye uygun müşteri adayı bulunamadı.
                   </p>
                 </div>
               ) : (

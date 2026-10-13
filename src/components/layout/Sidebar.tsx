@@ -105,9 +105,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     },
     {
       id: "matchmaker" as NavTab,
-      label: "Akıllı Eşleştirme",
+      label: "Eşleştirme",
       icon: Sparkles,
-      badge: "AI/Algo",
+      badge: null,
       brokerOnly: false,
     },
     {

@@ -568,10 +568,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
             </div>
             <div>
               <div className="text-xs font-bold text-[#1d2566] group-hover:text-[#00adb5] transition-colors leading-tight">
-                Eşleştirme Motoru
+                Eşleştirme
               </div>
               <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
-                AI / Algoritma ↗
+                Portföy & Müşteri ↗
               </div>
             </div>
           </button>

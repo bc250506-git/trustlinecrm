@@ -12,11 +12,7 @@ export interface MatchResult {
 }
 
 /**
- * Müşteri ve Portföy Eşleştirme Algoritması (V2 - Gelişmiş Deterministik Motor)
- * - Niyet Uyumu: Sert eleme (Alıcıya kiralık, kiracıya satılık ASLA önerilmez)
- * - Canlı Döviz Çevirici: Para birimi cezası yok, bütçe anlık kurla dönüştürülerek karşılaştırılır
- * - Çoklu Seçim: Çoklu bölge, çoklu mülk tipi ve çoklu oda sayısı etiketlerini tam destekler
- * - Sıcaklık & VIP: Sıcak (Hot) ve VIP müşteriler önceliklendirilir
+ * Müşteri ve Portföy Eşleştirme Fonksiyonu
  */
 export function matchCustomerAndProperty(
   customer: Customer,
@@ -81,10 +77,8 @@ export function matchCustomerAndProperty(
     const margin = convertedBudget - property.price;
     matchedCriteria.push(
       margin === 0
-        ? `Tam Bütçe Uyumu (${formatCurrencyAmount(property.price, property.currency)})`
-        : `Bütçe Fazlası (+${formatCurrencyAmount(margin, property.currency)})${
-            fxNote ? ` [Kur Çevrimi: ${fxNote}]` : ""
-          }`
+        ? `Bütçe Uyumu (${formatCurrencyAmount(property.price, property.currency)})`
+        : `Bütçe Fazlası (+${formatCurrencyAmount(margin, property.currency)})`
     );
   } else {
     // Bütçe eksikliği - Pazarlık Toleransı
@@ -93,27 +87,18 @@ export function matchCustomerAndProperty(
     const tolerance20 = property.price * 0.2;
 
     if (diff <= tolerance10) {
-      // %10 Pazarlık Payı İçinde
       score += 25;
       matchedCriteria.push(
-        `%10 Pazarlık Payı İçinde (-${formatCurrencyAmount(diff, property.currency)})${
-          fxNote ? ` [${fxNote}]` : ""
-        }`
+        `%10 Pazarlık Payı İçinde (-${formatCurrencyAmount(diff, property.currency)})`
       );
     } else if (diff <= tolerance20) {
-      // %10-%20 Arası Yakın
       score += 12;
       missingCriteria.push(
-        `Bütçe %10-%20 Yakın (-${formatCurrencyAmount(diff, property.currency)})${
-          fxNote ? ` [${fxNote}]` : ""
-        }`
+        `Bütçe %10-%20 Yakın (-${formatCurrencyAmount(diff, property.currency)})`
       );
     } else {
-      // Bütçe Yetersiz
       missingCriteria.push(
-        `Bütçe Yetersiz (-${formatCurrencyAmount(diff, property.currency)})${
-          fxNote ? ` [${fxNote}]` : ""
-        }`
+        `Bütçe Yetersiz (-${formatCurrencyAmount(diff, property.currency)})`
       );
     }
   }

@@ -222,6 +222,44 @@ export function RentalsView() {
     return `${adjustedDay} ${months[monthIndex - 1].name}`;
   };
 
+  // Yalnızca kira tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
+  const getRentalReminderStatus = (r: RentalContract) => {
+    const now = currentDate || new Date(2026, 9, 14);
+    const currentMonthNum = now.getMonth() + 1; // 1-12
+    const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Bu aya ait ödemeyi kontrol et
+    const currentMonthPayment = r.payments?.find((p) => p.month === currentMonthNum);
+
+    // Bu ayın ödemesi zaten yapıldıysa hatırlatma gerekmez
+    if (currentMonthPayment?.status === "paid") {
+      return null;
+    }
+
+    // Vade tarihini hesapla
+    let dueDateStr = currentMonthPayment?.dueDate;
+    if (!dueDateStr) {
+      const daysInCurrentMonth = new Date(now.getFullYear(), currentMonthNum, 0).getDate();
+      const adjustedDay = Math.min(r.dueDay, daysInCurrentMonth);
+      dueDateStr = `${now.getFullYear()}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+    }
+
+    const [y, m, d] = dueDateStr.split("-").map(Number);
+    const dueDate = new Date(y, m - 1, d);
+    const diffDays = Math.ceil((dueDate.getTime() - todayDateOnly.getTime()) / (1000 * 3600 * 24));
+
+    // Kural: Yalnızca kira tarihine 3 gün veya daha az kala belirsin (diffDays <= 3)
+    if (diffDays <= 3) {
+      return {
+        diffDays,
+        isOverdue: diffDays < 0,
+        dueDateStr,
+      };
+    }
+
+    return null;
+  };
+
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -573,6 +611,7 @@ export function RentalsView() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rentals.map((r) => {
+                const reminderStatus = getRentalReminderStatus(r);
                 return (
                   <tr key={r.id} className="hover:bg-slate-50/80 transition">
                     {/* Mülk & Kiracı Bilgisi */}
@@ -598,24 +637,43 @@ export function RentalsView() {
                           Ev Sahibi: {r.landlordName}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const text = encodeURIComponent(
-                              `Merhaba ${r.tenantName}, ${r.propertyTitle} mülkünüz için her ayın ${r.dueDay}. günü vadeli ${r.monthlyRent} ${r.currency} kira ödemeniz yaklaşmıştır. Ofis Banka IBAN: GB29NWBK60161331926819 (Trustline Real Estate). Dekontunuzu WhatsApp üzerinden iletebilirsiniz. Teşekkür ederiz.`
-                            );
-                            const phone = r.tenantPhone.replace(/[^0-9]/g, "");
-                            window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
-                          }}
-                          className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                          title="Kiracıya tek tıkla resmi WhatsApp kira hatırlatması gönder"
-                        >
-                          <MessageCircle className="w-3 h-3 text-emerald-600" />
-                          <span>WhatsApp Vade Hatırlat</span>
-                        </button>
-                        <span className="text-[10px] text-slate-400 font-mono">({r.tenantPhone})</span>
-                      </div>
+                      {reminderStatus ? (
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = encodeURIComponent(
+                                `Merhaba ${r.tenantName}, ${r.propertyTitle} mülkünüz için her ayın ${r.dueDay}. günü vadeli ${r.monthlyRent} ${r.currency} kira ödemeniz ${
+                                  reminderStatus.isOverdue
+                                    ? "vadesi geçmiş durumdadır."
+                                    : reminderStatus.diffDays === 0
+                                    ? "için bugün son gündür."
+                                    : `${reminderStatus.diffDays} gün sonra vadesi dolacaktır.`
+                                } Ofis Banka IBAN: GB29NWBK60161331926819 (Trustline Real Estate). Dekontunuzu WhatsApp üzerinden iletebilirsiniz. Teşekkür ederiz.`
+                              );
+                              const phone = r.tenantPhone.replace(/[^0-9]/g, "");
+                              window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+                            }}
+                            className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                            title="Kiracıya tek tıkla resmi WhatsApp kira hatırlatması gönder"
+                          >
+                            <MessageCircle className="w-3 h-3 text-emerald-600" />
+                            <span>
+                              WhatsApp Vade Hatırlat{" "}
+                              {reminderStatus.isOverdue
+                                ? "(Gecikmiş)"
+                                : reminderStatus.diffDays === 0
+                                ? "(Bugün)"
+                                : `(${reminderStatus.diffDays} Gün Kaldı)`}
+                            </span>
+                          </button>
+                          <span className="text-[10px] text-slate-400 font-mono">({r.tenantPhone})</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono">
+                          <span>Kiracı İletişim: {r.tenantPhone}</span>
+                        </div>
+                      )}
                     </td>
 
 

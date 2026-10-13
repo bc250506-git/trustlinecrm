@@ -1050,7 +1050,7 @@ export const initialRentals: RentalContract[] = [
       { month: 7, amount: 1200, currency: "GBP", dueDate: "2026-07-31", status: "paid", paidAmount: 1200, paidDate: "2026-07-31" },
       { month: 8, amount: 1200, currency: "GBP", dueDate: "2026-08-31", status: "paid", paidAmount: 1200, paidDate: "2026-08-31" },
       { month: 9, amount: 1200, currency: "GBP", dueDate: "2026-09-30", status: "paid", paidAmount: 1200, paidDate: "2026-09-30" },
-      { month: 10, amount: 1200, currency: "GBP", dueDate: "2026-10-31", status: "overdue", paidAmount: 0 },
+      { month: 10, amount: 1200, currency: "GBP", dueDate: "2026-10-31", status: "unpaid", paidAmount: 0 },
       { month: 11, amount: 1200, currency: "GBP", dueDate: "2026-11-30", status: "unpaid", paidAmount: 0 },
       { month: 12, amount: 1200, currency: "GBP", dueDate: "2026-12-31", status: "unpaid", paidAmount: 0 },
     ],

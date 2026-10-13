@@ -64,6 +64,9 @@ export interface Customer {
   region: string;
   propertyType: string;
   rooms?: string;
+  regions?: string[];
+  propertyTypes?: string[];
+  roomsList?: string[];
   budget: number;
   budgetCurrency: Currency;
   notes?: string;

@@ -10,6 +10,8 @@ import {
   Share2,
   Star,
   AlertTriangle,
+  Plus,
+  MapPin,
 } from "lucide-react";
 
 interface AddCustomerModalProps {
@@ -36,8 +38,11 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
   const [formTemperature, setFormTemperature] = useState<"hot" | "warm" | "cold">("warm");
   const [customerDistrict, setCustomerDistrict] = useState(KKTC_DISTRICTS[0]);
   const [customerSubRegion, setCustomerSubRegion] = useState(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
-  const [formType, setFormType] = useState("Daire");
-  const [formRooms, setFormRooms] = useState("2+1");
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([
+    `${KKTC_DISTRICTS[0]} / ${getRegionsByDistrict(KKTC_DISTRICTS[0])[0]}`,
+  ]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(["Daire"]);
+  const [selectedRooms, setSelectedRooms] = useState<string[]>(["2+1"]);
   const [formBudget, setFormBudget] = useState("");
   const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
   const [formNotes, setFormNotes] = useState("");
@@ -57,8 +62,11 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setFormTemperature("warm");
       setCustomerDistrict(KKTC_DISTRICTS[0]);
       setCustomerSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
-      setFormType("Daire");
-      setFormRooms("2+1");
+      setSelectedRegions([
+        `${KKTC_DISTRICTS[0]} / ${getRegionsByDistrict(KKTC_DISTRICTS[0])[0]}`,
+      ]);
+      setSelectedTypes(["Daire"]);
+      setSelectedRooms(["2+1"]);
       setFormBudget("");
       setFormCurrency("GBP");
       setFormNotes("");
@@ -77,6 +85,37 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
     setCustomerSubRegion(subs[0] || "");
   };
 
+  const handleAddRegion = () => {
+    const full = `${customerDistrict} / ${customerSubRegion}`;
+    if (!selectedRegions.includes(full)) {
+      setSelectedRegions((prev) => [...prev, full]);
+    }
+  };
+
+  const handleRemoveRegion = (reg: string) => {
+    setSelectedRegions((prev) => prev.filter((r) => r !== reg));
+  };
+
+  const handleAddType = (type: string) => {
+    if (type && !selectedTypes.includes(type)) {
+      setSelectedTypes((prev) => [...prev, type]);
+    }
+  };
+
+  const handleRemoveType = (type: string) => {
+    setSelectedTypes((prev) => prev.filter((t) => t !== type));
+  };
+
+  const handleAddRoom = (room: string) => {
+    if (room && !selectedRooms.includes(room)) {
+      setSelectedRooms((prev) => [...prev, room]);
+    }
+  };
+
+  const handleRemoveRoom = (room: string) => {
+    setSelectedRooms((prev) => prev.filter((r) => r !== room));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formPhone) return;
@@ -93,6 +132,14 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
 
     const assignedUser = users.find((u) => u.id === formAssigneeId) || currentUser;
 
+    const finalRegion =
+      selectedRegions.length > 0
+        ? selectedRegions.join(", ")
+        : `${customerDistrict} / ${customerSubRegion}`;
+    const finalType =
+      selectedTypes.length > 0 ? selectedTypes.join(", ") : "Daire";
+    const finalRooms = selectedRooms.join(", ");
+
     const newCust = addCustomer({
       fullName: formName,
       phone: formPhone,
@@ -103,9 +150,12 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       category: formCategory,
       temperature: formTemperature,
       isVip: formVip,
-      region: `${customerDistrict} / ${customerSubRegion}`,
-      propertyType: formType,
-      rooms: formRooms,
+      region: finalRegion,
+      propertyType: finalType,
+      rooms: finalRooms,
+      regions: selectedRegions,
+      propertyTypes: selectedTypes,
+      roomsList: selectedRooms,
       budget: Number(formBudget) || 0,
       budgetCurrency: formCurrency,
       notes: formNotes,
@@ -267,71 +317,160 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 border border-slate-200">
-            <div>
-              <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                KKTC Tercih Edilen İlçe
+          {/* Tercih Edilen Bölgeler (Çoklu Seçim & Tag Sistemi) */}
+          <div className="bg-slate-50 p-3 border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[#00adb5]" />
+                <span>Tercih Edilen Bölgeler</span>
               </label>
-              <select
-                value={customerDistrict}
-                onChange={(e) => handleDistrictChange(e.target.value)}
-                className="sharp-input w-full p-2 bg-white font-mono text-xs"
-              >
-                {KKTC_DISTRICTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
+              <span className="text-[10px] font-mono text-slate-500">
+                {selectedRegions.length} bölge seçili
+              </span>
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                Bölge / Mahalle / Belde
-              </label>
-              <select
-                value={customerSubRegion}
-                onChange={(e) => setCustomerSubRegion(e.target.value)}
-                className="sharp-input w-full p-2 bg-white font-mono text-xs"
-              >
-                {getRegionsByDistrict(customerDistrict).map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+              <div className="sm:col-span-5">
+                <select
+                  value={customerDistrict}
+                  onChange={(e) => handleDistrictChange(e.target.value)}
+                  className="sharp-input w-full p-1.5 bg-white font-mono text-xs"
+                >
+                  {KKTC_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-5">
+                <select
+                  value={customerSubRegion}
+                  onChange={(e) => setCustomerSubRegion(e.target.value)}
+                  className="sharp-input w-full p-1.5 bg-white font-mono text-xs"
+                >
+                  {getRegionsByDistrict(customerDistrict).map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="sm:col-span-2">
+                <button
+                  type="button"
+                  onClick={handleAddRegion}
+                  className="sharp-btn-primary w-full p-1.5 text-xs font-mono font-bold flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+                  title="Seçili bölgeyi ekle"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Ekle</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Seçilen Bölge Tag'leri */}
+            <div className="flex flex-wrap gap-1.5 pt-1 min-h-[26px]">
+              {selectedRegions.map((reg) => (
+                <span
+                  key={reg}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-white border border-[#00adb5]/40 text-[#1d2566] text-[11px] font-mono font-semibold shadow-2xs"
+                >
+                  <span>{reg}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveRegion(reg)}
+                    className="text-slate-400 hover:text-rose-600 cursor-pointer transition p-0.5"
+                    title="Kaldır"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {selectedRegions.length === 0 && (
+                <span className="text-[10px] text-slate-400 font-mono italic">
+                  Henüz bölge eklenmedi (Tüm KKTC geçerli sayılır)
+                </span>
+              )}
             </div>
           </div>
 
-          {/* Gayrimenkul Tipi & Oda Sayısı */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                Gayrimenkul Tipi
+          {/* Gayrimenkul Tipleri & Oda Sayıları (Çoklu Tag Kutuları) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* 1. Gayrimenkul Tipleri */}
+            <div className="bg-slate-50 p-2.5 border border-slate-200 space-y-1.5">
+              <label className="block text-slate-700 font-mono text-[11px] font-bold flex items-center justify-between">
+                <span>Gayrimenkul Tipleri</span>
+                <span className="text-[10px] text-slate-500 font-normal">
+                  ({selectedTypes.length} seçili)
+                </span>
               </label>
               <select
-                value={formType}
-                onChange={(e) => setFormType(e.target.value)}
-                className="sharp-input w-full p-2 bg-white"
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleAddType(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="sharp-input w-full p-1.5 bg-white text-xs"
               >
+                <option value="">+ Tip Ekle...</option>
                 <option value="Daire">Daire</option>
                 <option value="Villa">Villa</option>
-                <option value="Ticari">Ticari / Dükkan</option>
+                <option value="Ticari / Dükkan">Ticari / Dükkan</option>
                 <option value="Arsa">Arsa</option>
                 <option value="Yalı / Köşk">Yalı / Köşk</option>
+                <option value="Müstakil Ev">Müstakil Ev</option>
               </select>
+
+              {/* Seçilen Tip Tag'leri */}
+              <div className="flex flex-wrap gap-1.5 pt-1 min-h-[26px]">
+                {selectedTypes.map((t) => (
+                  <span
+                    key={t}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-white border border-slate-300 text-slate-800 text-[11px] font-medium shadow-2xs"
+                  >
+                    <span>{t}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveType(t)}
+                      className="text-slate-400 hover:text-rose-600 cursor-pointer transition p-0.5"
+                      title="Kaldır"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {selectedTypes.length === 0 && (
+                  <span className="text-[10px] text-slate-400 font-mono italic">
+                    Tip seçilmedi (Tümü)
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                Oda Sayısı (Tercih)
+            {/* 2. Oda Sayıları */}
+            <div className="bg-slate-50 p-2.5 border border-slate-200 space-y-1.5">
+              <label className="block text-slate-700 font-mono text-[11px] font-bold flex items-center justify-between">
+                <span>Oda Sayıları</span>
+                <span className="text-[10px] text-slate-500 font-normal">
+                  ({selectedRooms.length} seçili)
+                </span>
               </label>
               <select
-                value={formRooms}
-                onChange={(e) => setFormRooms(e.target.value)}
-                className="sharp-input w-full p-2 bg-white font-mono font-medium text-slate-800"
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleAddRoom(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                className="sharp-input w-full p-1.5 bg-white font-mono text-xs"
               >
-                <option value="Farketmez / Tümü">Farketmez / Tümü</option>
+                <option value="">+ Oda Sayısı Ekle...</option>
                 <option value="Stüdyo (1+0)">Stüdyo (1+0)</option>
                 <option value="1+1">1+1</option>
                 <option value="2+1">2+1</option>
@@ -342,6 +481,31 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
                 <option value="Dubleks / Çatı Dubleksi">Dubleks / Çatı Dubleksi</option>
                 <option value="Müstakil Villa">Müstakil Villa</option>
               </select>
+
+              {/* Seçilen Oda Tag'leri */}
+              <div className="flex flex-wrap gap-1.5 pt-1 min-h-[26px]">
+                {selectedRooms.map((r) => (
+                  <span
+                    key={r}
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-[11px] font-mono font-bold shadow-2xs"
+                  >
+                    <span>{r}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRoom(r)}
+                      className="text-emerald-600 hover:text-rose-600 cursor-pointer transition p-0.5"
+                      title="Kaldır"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {selectedRooms.length === 0 && (
+                  <span className="text-[10px] text-slate-400 font-mono italic">
+                    Oda seçilmedi (Farketmez)
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

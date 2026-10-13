@@ -147,8 +147,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
     userRentals.forEach((r) => {
       if (!r.active || !r.payments) return;
       r.payments.forEach((p) => {
-        const isFullyPaid =
-          p.status === "paid" || (p.paidAmount && p.paidAmount >= p.amount);
+        const isFullyPaid = p.status === "paid";
         if (isFullyPaid) return;
 
         if (!p.dueDate) return;
@@ -164,7 +163,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
 
         // Kural: Vadesi geçenler (diffDays <= 0) VEYA 3 gün kala başlayan yaklaşanlar (diffDays <= 3)
         if (diffDays <= 3) {
-          const remainingAmount = p.amount - (p.paidAmount || 0);
+          const remainingAmount = p.amount;
           payAlerts.push({
             rentalId: r.id,
             propertyTitle: r.propertyTitle,
@@ -917,11 +916,6 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                         </span>
                         <span className="font-bold text-[#1d2566]">
                           {item.remainingAmount.toLocaleString("tr-TR")} {item.currency}
-                          {item.paidAmount > 0 && (
-                            <span className="text-[10px] text-slate-400 font-normal ml-1">
-                              ({item.paidAmount.toLocaleString("tr-TR")} ödendi)
-                            </span>
-                          )}
                         </span>
                       </div>
 

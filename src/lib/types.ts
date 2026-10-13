@@ -180,7 +180,7 @@ export interface RentalMonthPayment {
   amount: number;
   currency: Currency;
   dueDate: string; // YYYY-MM-DD
-  status: "paid" | "partial" | "unpaid" | "overdue";
+  status: "paid" | "unpaid" | "overdue";
   paidAmount: number;
   paidDate?: string;
   receiptUrl?: string;

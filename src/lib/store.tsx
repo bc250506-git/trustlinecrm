@@ -87,7 +87,7 @@ interface StoreContextType {
   addRentalContract: (contract: Omit<RentalContract, "id" | "createdAt" | "payments"> & { payments?: RentalMonthPayment[] }) => RentalContract;
   updateRentalContract: (id: string, updates: Partial<RentalContract>) => boolean;
   deleteRentalContract: (id: string) => boolean;
-  toggleRentalPayment: (rentalId: string, month: number, isPaid: boolean, partialAmount?: number) => void;
+  toggleRentalPayment: (rentalId: string, month: number, isPaid: boolean) => void;
   uploadRentalReceipt: (rentalId: string, month: number, fileName: string) => void;
   // Permissions & Role
   canManageCustomer: (customer: Customer) => boolean;
@@ -240,7 +240,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       rentals.forEach((r) => {
         if (!r.active) return;
         r.payments.forEach((p) => {
-          if (p.status === "unpaid" || p.status === "partial" || p.status === "overdue") {
+          if (p.status === "unpaid" || p.status === "overdue") {
             const dueDate = new Date(p.dueDate);
             const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
             if (diffDays <= 3) {
@@ -835,8 +835,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const toggleRentalPayment = (
     rentalId: string,
     month: number,
-    isPaid: boolean,
-    partialAmount?: number
+    isPaid: boolean
   ) => {
     setRentals((prev) =>
       prev.map((r) => {
@@ -851,14 +850,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 ...p,
                 status: "paid",
                 paidAmount: p.amount,
-                paidDate: new Date().toISOString().split("T")[0],
-              };
-            }
-            if (partialAmount && partialAmount > 0 && partialAmount < p.amount) {
-              return {
-                ...p,
-                status: "partial",
-                paidAmount: partialAmount,
                 paidDate: new Date().toISOString().split("T")[0],
               };
             }

@@ -498,11 +498,11 @@ export function RentalsView() {
             <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300">
               Ödendi
             </span>
-            <span className="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300">
-              Kısmi Tahsilat
-            </span>
             <span className="px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-300">
               Gecikmiş / Vadesi Gelmiş
+            </span>
+            <span className="px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200">
+              Ödenmedi
             </span>
           </div>
 
@@ -628,7 +628,6 @@ export function RentalsView() {
                     {months.map((m) => {
                       const payment = r.payments.find((p) => p.month === m.num);
                       const isPaid = payment?.status === "paid";
-                      const isPartial = payment?.status === "partial";
                       const isOverdue = payment?.status === "overdue";
 
                       return (
@@ -637,8 +636,6 @@ export function RentalsView() {
                             className={`p-1 border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                               isPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
-                                : isPartial
-                                ? "bg-amber-50 border-amber-300 text-amber-800 font-semibold"
                                 : isOverdue
                                 ? "bg-rose-50 border-rose-300 text-rose-800 font-semibold"
                                 : "bg-slate-50 border-slate-200 text-slate-400"
@@ -692,14 +689,6 @@ export function RentalsView() {
                                 <FileText className="w-3 h-3" />
                               </button>
                             </div>
-
-                            {/* Kısmi Tutar Gösterimi */}
-                            {isPartial && (
-                              <div className="text-[9px] font-mono text-amber-700 leading-none font-bold">
-                                {payment?.paidAmount?.toLocaleString("tr-TR")} /{" "}
-                                {r.monthlyRent.toLocaleString("tr-TR")}
-                              </div>
-                            )}
                           </div>
                         </td>
                       );

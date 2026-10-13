@@ -200,6 +200,7 @@ export function CustomersView({
                   <div className="font-semibold text-slate-800">{c.region || "Belirtilmedi"}</div>
                   <div className="text-[11px] text-slate-500">
                     {c.propertyType || "Herhangi"}
+                    {c.rooms && c.rooms !== "Farketmez / Tümü" && ` • ${c.rooms}`}
                   </div>
                 </td>
 
@@ -523,6 +524,7 @@ export function CustomersView({
                   <span className="text-slate-500 block text-[10px]">BÖLGE & TİP:</span>
                   <span className="text-slate-800 font-semibold">
                     {activeCustomerDetail.region} / {activeCustomerDetail.propertyType}
+                    {activeCustomerDetail.rooms && activeCustomerDetail.rooms !== "Farketmez / Tümü" && ` (${activeCustomerDetail.rooms})`}
                   </span>
                 </div>
               </div>

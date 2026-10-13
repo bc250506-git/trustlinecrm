@@ -63,6 +63,7 @@ export interface Customer {
   isVip: boolean;
   region: string;
   propertyType: string;
+  rooms?: string;
   budget: number;
   budgetCurrency: Currency;
   notes?: string;

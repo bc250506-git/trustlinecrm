@@ -37,6 +37,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
   const [customerDistrict, setCustomerDistrict] = useState(KKTC_DISTRICTS[0]);
   const [customerSubRegion, setCustomerSubRegion] = useState(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
   const [formType, setFormType] = useState("Daire");
+  const [formRooms, setFormRooms] = useState("2+1");
   const [formBudget, setFormBudget] = useState("");
   const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
   const [formNotes, setFormNotes] = useState("");
@@ -57,6 +58,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setCustomerDistrict(KKTC_DISTRICTS[0]);
       setCustomerSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
       setFormType("Daire");
+      setFormRooms("2+1");
       setFormBudget("");
       setFormCurrency("GBP");
       setFormNotes("");
@@ -103,6 +105,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       isVip: formVip,
       region: `${customerDistrict} / ${customerSubRegion}`,
       propertyType: formType,
+      rooms: formRooms,
       budget: Number(formBudget) || 0,
       budgetCurrency: formCurrency,
       notes: formNotes,
@@ -300,6 +303,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
             </div>
           </div>
 
+          {/* Gayrimenkul Tipi & Oda Sayısı */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
@@ -320,28 +324,51 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
 
             <div>
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                Bütçe ve Para Birimi *
+                Oda Sayısı (Tercih)
               </label>
-              <div className="flex gap-1.5">
-                <input
-                  type="number"
-                  required
-                  value={formBudget}
-                  onChange={(e) => setFormBudget(e.target.value)}
-                  placeholder="Tutar"
-                  className="sharp-input flex-1 p-2 font-mono"
-                />
-                <select
-                  value={formCurrency}
-                  onChange={(e) => setFormCurrency(e.target.value as any)}
-                  className="sharp-input w-24 p-2 font-mono bg-white font-bold text-[#1d2566]"
-                >
-                  <option value="GBP">GBP (£)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="TRY">TRY (₺)</option>
-                </select>
-              </div>
+              <select
+                value={formRooms}
+                onChange={(e) => setFormRooms(e.target.value)}
+                className="sharp-input w-full p-2 bg-white font-mono font-medium text-slate-800"
+              >
+                <option value="Farketmez / Tümü">Farketmez / Tümü</option>
+                <option value="Stüdyo (1+0)">Stüdyo (1+0)</option>
+                <option value="1+1">1+1</option>
+                <option value="2+1">2+1</option>
+                <option value="3+1">3+1</option>
+                <option value="4+1">4+1</option>
+                <option value="5+1">5+1</option>
+                <option value="5+2 ve Üzeri">5+2 ve Üzeri</option>
+                <option value="Dubleks / Çatı Dubleksi">Dubleks / Çatı Dubleksi</option>
+                <option value="Müstakil Villa">Müstakil Villa</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Bütçe ve Para Birimi */}
+          <div>
+            <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+              Bütçe ve Para Birimi *
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                type="number"
+                required
+                value={formBudget}
+                onChange={(e) => setFormBudget(e.target.value)}
+                placeholder="Örn: 150000"
+                className="sharp-input flex-1 p-2 font-mono font-bold"
+              />
+              <select
+                value={formCurrency}
+                onChange={(e) => setFormCurrency(e.target.value as any)}
+                className="sharp-input w-28 p-2 font-mono bg-white font-bold text-[#1d2566]"
+              >
+                <option value="GBP">GBP (£)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+                <option value="TRY">TRY (₺)</option>
+              </select>
             </div>
           </div>
 

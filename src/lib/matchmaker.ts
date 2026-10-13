@@ -107,6 +107,20 @@ export function matchCustomerAndProperty(
     );
   }
 
+  // 6. Oda Sayısı Uyumu (Varsa)
+  if (customer.rooms && customer.rooms !== "Farketmez / Tümü" && property.rooms) {
+    const custRooms = customer.rooms.toLowerCase().replace(/\s+/g, "");
+    const propRooms = property.rooms.toLowerCase().replace(/\s+/g, "");
+    if (propRooms.includes(custRooms) || custRooms.includes(propRooms)) {
+      score += 10;
+      matchedCriteria.push(`Oda Sayısı Uyumu (${property.rooms})`);
+    } else {
+      missingCriteria.push(
+        `Farklı Oda Sayısı (Talep: ${customer.rooms}, Mülk: ${property.rooms})`
+      );
+    }
+  }
+
   const isStrictMatch =
     isIntentMatch &&
     isCurrencyMatch &&

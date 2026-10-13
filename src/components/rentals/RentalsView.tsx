@@ -163,18 +163,27 @@ export function RentalsView() {
     if (!editingRental) return;
     const newRent = Number(editRentalForm.monthlyRent) || editingRental.monthlyRent;
     const newCurrency = editRentalForm.currency;
+    const newDueDay = Number(editRentalForm.dueDay) || editingRental.dueDay;
+
+    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
     const updatedPayments = editingRental.payments.map((p) => {
+      const maxDay = daysInMonths[p.month - 1];
+      const adjDay = Math.min(newDueDay, maxDay);
+      const mStr = p.month < 10 ? `0${p.month}` : `${p.month}`;
+      const dStr = adjDay < 10 ? `0${adjDay}` : `${adjDay}`;
+      const updatedDueDate = `2026-${mStr}-${dStr}`;
+
       if (p.status === "unpaid") {
-        return { ...p, amount: newRent, currency: newCurrency };
+        return { ...p, amount: newRent, currency: newCurrency, dueDate: updatedDueDate };
       }
-      return p;
+      return { ...p, dueDate: updatedDueDate };
     });
 
     updateRentalContract(editingRental.id, {
       monthlyRent: newRent,
       currency: newCurrency,
-      dueDay: Number(editRentalForm.dueDay) || editingRental.dueDay,
+      dueDay: newDueDay,
       tenantName: editRentalForm.tenantName,
       tenantPhone: editRentalForm.tenantPhone,
       landlordName: editRentalForm.landlordName,
@@ -599,7 +608,7 @@ export function RentalsView() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                <th className="py-3 px-4 min-w-[240px]">Mülk & Kiracı / Vade</th>
+                <th className="py-3 px-4 min-w-[240px]">Mülk & Kiracı / Vade Günü</th>
                 <th className="py-3 px-3 text-right">Aylık Kira</th>
                 {months.map((m) => (
                   <th key={m.num} className="py-3 px-2 text-center min-w-[70px]">
@@ -629,8 +638,8 @@ export function RentalsView() {
                           {r.tenantName}
                         </span>
                         <span>•</span>
-                        <span className="font-mono text-slate-500">
-                          Vade: Her ayın {r.dueDay}. günü
+                        <span className="font-mono text-slate-600 font-semibold">
+                          📅 Her ayın {r.dueDay}. günü
                         </span>
                         <span>•</span>
                         <span className="text-slate-400 font-mono text-[10px]">
@@ -1045,7 +1054,7 @@ export function RentalsView() {
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Vade Günü (1-31)
+                      Kira Vade Günü (Her ayın X. günü) *
                     </label>
                     <select
                       value={formData.dueDay}
@@ -1059,10 +1068,13 @@ export function RentalsView() {
                     >
                       {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
                         <option key={d} value={d}>
-                          Her ayın {d}. günü
+                          Her ayın {d}. günü {d === 31 ? "(Ay Sonu)" : ""}
                         </option>
                       ))}
                     </select>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1">
+                      Kira ödemesi her ayın bu gününde tekrarlanır.
+                    </p>
                   </div>
 
                   <div>
@@ -1082,35 +1094,40 @@ export function RentalsView() {
                 </div>
               </div>
 
-              {/* 4. TARİHLER VE SORUMLU DANIŞMAN */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pb-3 border-b border-slate-100">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Sözleşme Başlangıç
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.contractStart}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contractStart: e.target.value })
-                    }
-                    className="sharp-input w-full p-2 text-xs font-mono"
-                  />
+              {/* 4. SÖZLEŞME GEÇERLİLİK DÖNEMİ VE DANIŞMAN */}
+              <div className="space-y-2 pb-3 border-b border-slate-100">
+                <div className="text-[11px] font-mono uppercase font-bold text-[#1d2566] flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+                  <span>4. Sözleşme Süresi (Yıllık Dönem) & Danışman</span>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Sözleşme Başlangıç Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.contractStart}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contractStart: e.target.value })
+                      }
+                      className="sharp-input w-full p-2 text-xs font-mono"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Sözleşme Bitiş (Alarm)
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.contractEnd}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contractEnd: e.target.value })
-                    }
-                    className="sharp-input w-full p-2 text-xs font-mono"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Sözleşme Bitiş Tarihi (Yenileme Alarmı)
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.contractEnd}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contractEnd: e.target.value })
+                      }
+                      className="sharp-input w-full p-2 text-xs font-mono"
+                    />
+                  </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1137,6 +1154,7 @@ export function RentalsView() {
                   )}
                 </div>
               </div>
+            </div>
 
               {/* 5. NOTLAR */}
               <div>
@@ -1784,13 +1802,9 @@ export function RentalsView() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Vade Günü (1-31) *
+                    Kira Vade Günü (Her ayın X. günü) *
                   </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    max="31"
+                  <select
                     value={editRentalForm.dueDay}
                     onChange={(e) =>
                       setEditRentalForm((prev) => ({
@@ -1798,16 +1812,25 @@ export function RentalsView() {
                         dueDay: Number(e.target.value) || 5,
                       }))
                     }
-                    className="sharp-input w-full p-2 font-mono font-bold"
-                  />
+                    className="sharp-input w-full p-2 font-mono font-bold bg-white"
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>
+                        Her ayın {d}. günü {d === 31 ? "(Ay Sonu)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-400 font-mono mt-1">
+                    Kira ödemesi her ayın seçilen gününde tekrarlanır.
+                  </p>
                 </div>
               </div>
 
-              {/* Sözleşme Başlangıç / Bitiş ve Depozito */}
+              {/* Sözleşme Geçerlilik Süresi ve Depozito */}
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Başlangıç Tarihi
+                    Sözleşme Başlangıç Tarihi
                   </label>
                   <input
                     type="date"
@@ -1820,7 +1843,7 @@ export function RentalsView() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Bitiş Tarihi
+                    Sözleşme Bitiş Tarihi (Alarm)
                   </label>
                   <input
                     type="date"

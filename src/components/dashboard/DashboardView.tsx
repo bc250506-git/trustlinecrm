@@ -332,21 +332,21 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
             {/* 3. Bu Ayki İşlem Sayısı */}
             <button
               type="button"
-              onClick={() => onNavigate("pipeline")}
+              onClick={() => onNavigate("finance")}
               className="sharp-card p-4 border-t-3 border-t-emerald-600 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
-              title="Satış Süreci (Pipeline) Modülünü Aç"
+              title="İşlemler (Finans & Komisyon) Ekranını Aç"
             >
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
                   <span className="group-hover:text-emerald-700 transition-colors">Bu Ayki İşlemler</span>
-                  <Kanban className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
+                  <Calculator className="w-4 h-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                 </div>
                 <div className="text-2xl font-bold text-emerald-700 font-mono">
                   {monthlyDealsCount}
                 </div>
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
-                <span className="truncate">Satış & Kiralama Süreci</span>
+                <span className="truncate">{isBroker ? "Ofis İşlem Defteri" : "Kişisel İşlemlerim"}</span>
                 <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 shrink-0 transition-colors" />
               </div>
             </button>

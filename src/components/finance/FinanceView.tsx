@@ -1,37 +1,55 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { Deal, Currency } from "@/lib/types";
-import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
+import { AddDealModal } from "@/components/modals/AddDealModal";
 import {
   Calculator,
-  ShieldAlert,
   Plus,
   Coins,
-  ArrowUpRight,
-  PieChart,
-  DollarSign,
   TrendingUp,
   Percent,
   CheckCircle2,
-  Clock,
   X,
-  Trash2,
-  UserPlus,
   Building,
   Edit3,
   Users,
+  Search,
+  Filter,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  PieChart,
 } from "lucide-react";
+
+// Ay listesi şablonu (Geçmiş ve Cari Yıl)
+const MONTH_OPTIONS = [
+  { key: "2025-10", label: "Ekim 2025", short: "Eki 25" },
+  { key: "2025-11", label: "Kasım 2025", short: "Kas 25" },
+  { key: "2025-12", label: "Aralık 2025", short: "Ara 25" },
+  { key: "2026-01", label: "Ocak 2026", short: "Oca 26" },
+  { key: "2026-02", label: "Şubat 2026", short: "Şub 26" },
+  { key: "2026-03", label: "Mart 2026", short: "Mar 26" },
+  { key: "2026-04", label: "Nisan 2026", short: "Nis 26" },
+  { key: "2026-05", label: "Mayıs 2026", short: "May 26" },
+  { key: "2026-06", label: "Haziran 2026", short: "Haz 26" },
+  { key: "2026-07", label: "Temmuz 2026", short: "Tem 26" },
+  { key: "2026-08", label: "Ağustos 2026", short: "Ağu 26" },
+  { key: "2026-09", label: "Eylül 2026", short: "Eyl 26" },
+  { key: "2026-10", label: "Ekim 2026", short: "Eki 26" },
+  { key: "2026-11", label: "Kasım 2026", short: "Kas 26" },
+  { key: "2026-12", label: "Aralık 2026", short: "Ara 26" },
+];
 
 export function FinanceView() {
   const {
     deals,
     isBroker,
-    addDeal,
     updateDeal,
     deleteDeal,
     canManageDeal,
@@ -39,42 +57,10 @@ export function FinanceView() {
     properties,
     users,
     currentUser,
-    addCustomer,
-    addProperty,
   } = useStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [financeTab, setFinanceTab] = useState<"matrix" | "analytics">("matrix");
-
-  // Bildirim mesajı (Alt modaldan ekleme yapılınca ana modalda gösterilir)
-  const [subNotice, setSubNotice] = useState<string | null>(null);
-
-  // Sub-modal 1: Hızlı Müşteri Ekleme (Anlaşma modalı kapanmadan üst katmanda açılır)
-  const [isAddCustomerSubModalOpen, setIsAddCustomerSubModalOpen] = useState(false);
-  const [custSubName, setCustSubName] = useState("");
-  const [custSubPhone, setCustSubPhone] = useState("");
-  const [custSubWhatsapp, setCustSubWhatsapp] = useState("");
-  const [custSubEmail, setCustSubEmail] = useState("");
-  const [custSubDistrict, setCustSubDistrict] = useState(KKTC_DISTRICTS[0]);
-  const [custSubSubRegion, setCustSubSubRegion] = useState(
-    getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || ""
-  );
-  const [custSubIsShared, setCustSubIsShared] = useState(false);
-
-  // Sub-modal 2: Hızlı Portföy Ekleme (Anlaşma modalı kapanmadan üst katmanda açılır)
-  const [isAddPropertySubModalOpen, setIsAddPropertySubModalOpen] = useState(false);
-  const [propSubTitle, setPropSubTitle] = useState("");
-  const [propSubPropertyType, setPropSubPropertyType] = useState("Daire");
-  const [propSubRooms, setPropSubRooms] = useState("2+1");
-  const [propSubPrice, setPropSubPrice] = useState("");
-  const [propSubCurrency, setPropSubCurrency] = useState<Currency>("GBP");
-  const [propSubArea, setPropSubArea] = useState("85");
-  const [propSubDistrict, setPropSubDistrict] = useState(KKTC_DISTRICTS[0]);
-  const [propSubSubRegion, setPropSubSubRegion] = useState(
-    getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || ""
-  );
-  const [propSubAddress, setPropSubAddress] = useState("");
-  const [propSubIsShared, setPropSubIsShared] = useState(false);
 
   // Silme Onay Modalı State
   const [dealToDelete, setDealToDelete] = useState<Deal | null>(null);
@@ -90,204 +76,134 @@ export function FinanceView() {
   const [editOrigin, setEditOrigin] = useState<"advisor" | "office">("advisor");
   const [editStage, setEditStage] = useState<"offer" | "won" | "lost">("offer");
   const [editPaymentDue, setEditPaymentDue] = useState("");
-
-  // Form State
-  const [formTitle, setFormTitle] = useState("");
-  const [formCustomerId, setFormCustomerId] = useState(customers[0]?.id || "");
-  const [formPropertyId, setFormPropertyId] = useState(properties[0]?.id || "");
-  const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
-  const [formAgreedPrice, setFormAgreedPrice] = useState("");
-  const [formCommissionRate, setFormCommissionRate] = useState<number>(5);
-  const [formOrigin, setFormOrigin] = useState<"advisor" | "office">("advisor");
-  const [formPaymentDue, setFormPaymentDue] = useState("");
-  const [formAdvisorId, setFormAdvisorId] = useState<string>(currentUser.id);
   const [editAdvisorId, setEditAdvisorId] = useState<string>(currentUser.id);
 
-  // Oturum açan kullanıcı değiştiğinde form varsayılan danışmanını güncelle
-  useEffect(() => {
-    setFormAdvisorId(currentUser.id);
-  }, [currentUser]);
+  // === FİLTRELEME STATELERİ ===
+  const [searchQuery, setSearchQuery] = useState("");
+  const [originFilter, setOriginFilter] = useState<string>("ALL"); // ALL | advisor | office
+  const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
+  const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
 
-  // Body Scroll Lock for Modals
-  useEffect(() => {
-    if (
-      isAddModalOpen ||
-      editingDeal ||
-      dealToDelete ||
-      isAddCustomerSubModalOpen ||
-      isAddPropertySubModalOpen
-    ) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [
-    isAddModalOpen,
-    editingDeal,
-    dealToDelete,
-    isAddCustomerSubModalOpen,
-    isAddPropertySubModalOpen,
-  ]);
+  const monthScrollRef = useRef<HTMLDivElement>(null);
 
   // Danışman hesabı ise sadece kendi işlemlerini görür; Ofis / Broker hesabı ise tüm ofisin işlemlerini görür.
-  const visibleDeals = isBroker ? deals : deals.filter((d) => d.createdById === currentUser.id);
+  const visibleDeals = useMemo(() => {
+    return isBroker ? deals : deals.filter((d) => d.createdById === currentUser.id);
+  }, [deals, isBroker, currentUser.id]);
 
-  // Finans Özeti: Kuzey Kıbrıs emlak işlemlerinde ana para birimi GBP (£) dir.
-  const gbpDeals = visibleDeals.filter((d) => d.currency === "GBP");
-  const totalDealsCount = visibleDeals.length;
-  const totalAgreedGbp = gbpDeals.reduce((sum, d) => sum + d.agreedPrice, 0);
-  const totalCommissionGbp = gbpDeals.reduce((sum, d) => sum + d.commissionExpected, 0);
-  const totalAdvisorGbp = gbpDeals.reduce((sum, d) => {
+  // Yardımcı: İşlemin tarihini alma
+  const getDealDate = (d: Deal): Date => {
+    const raw = d.closingDate || d.paymentDue || d.createdAt;
+    return new Date(raw);
+  };
+
+  const getDealMonthKey = (d: Deal): string => {
+    const dt = getDealDate(d);
+    if (isNaN(dt.getTime())) return "";
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}`;
+  };
+
+  // Her ay için o ayki işlem adetleri
+  const monthCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    visibleDeals.forEach((d) => {
+      const key = getDealMonthKey(d);
+      if (key) {
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [visibleDeals]);
+
+  // Yatay ay kaydırma (scroll)
+  const scrollMonthBar = (direction: "left" | "right") => {
+    if (monthScrollRef.current) {
+      const offset = direction === "left" ? -260 : 260;
+      monthScrollRef.current.scrollBy({ left: offset, behavior: "smooth" });
+    }
+  };
+
+  // Filtreleri uygulama
+  const filteredDeals = useMemo(() => {
+    const now = new Date();
+
+    return visibleDeals.filter((d) => {
+      // 1. Portföy Menşei Filtresi
+      if (originFilter !== "ALL" && d.portfolioOrigin !== originFilter) {
+        return false;
+      }
+
+      // 2. Arama Filtresi (Başlık, Mülk, Müşteri, Danışman)
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const titleMatch = d.title.toLowerCase().includes(q);
+        const propMatch = d.propertyTitle?.toLowerCase().includes(q) || false;
+        const custMatch = d.customerName?.toLowerCase().includes(q) || false;
+        const advisorMatch = d.createdByName?.toLowerCase().includes(q) || false;
+        if (!titleMatch && !propMatch && !custMatch && !advisorMatch) {
+          return false;
+        }
+      }
+
+      // 3. Tarih Filtreleme
+      const dt = getDealDate(d);
+      if (isNaN(dt.getTime())) return true;
+
+      if (periodFilter === "MONTH" && selectedMonth) {
+        const key = getDealMonthKey(d);
+        if (key !== selectedMonth) return false;
+      } else if (periodFilter === "1M") {
+        if (dt.getFullYear() !== now.getFullYear() || dt.getMonth() !== now.getMonth()) {
+          return false;
+        }
+      } else if (periodFilter === "3M") {
+        const diffMs = now.getTime() - dt.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        if (diffDays > 93 || diffDays < -30) return false;
+      } else if (periodFilter === "6M") {
+        const diffMs = now.getTime() - dt.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        if (diffDays > 185 || diffDays < -30) return false;
+      } else if (periodFilter === "12M") {
+        const diffMs = now.getTime() - dt.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+        if (diffDays > 366 || diffDays < -30) return false;
+      }
+
+      return true;
+    });
+  }, [visibleDeals, originFilter, searchQuery, periodFilter, selectedMonth]);
+
+  // Filtrelenmiş Finans Özeti (GBP Ağırlıklı Göstergeler)
+  const gbpFilteredDeals = filteredDeals.filter((d) => d.currency === "GBP");
+  const totalAgreedGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.agreedPrice, 0);
+  const totalCommissionGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.commissionExpected, 0);
+  const totalAdvisorGbp = gbpFilteredDeals.reduce((sum, d) => {
     const isVolkan = d.createdById === "usr-volkan";
-    const rate = isVolkan ? 1.0 : (d.portfolioOrigin === "advisor" ? 0.6 : 0.5);
+    const rate = isVolkan ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
     return sum + Math.round(d.commissionExpected * rate);
   }, 0);
-  const totalOfficeGbp = gbpDeals.reduce((sum, d) => {
+  const totalOfficeGbp = gbpFilteredDeals.reduce((sum, d) => {
     const isVolkan = d.createdById === "usr-volkan";
-    const rate = isVolkan ? 0.0 : (d.portfolioOrigin === "advisor" ? 0.4 : 0.5);
+    const rate = isVolkan ? 0.0 : d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
     return sum + Math.round(d.commissionExpected * rate);
   }, 0);
 
-  const agreedNum = Number(formAgreedPrice) || 0;
-  const calculatedCommission = Math.round(agreedNum * (formCommissionRate / 100));
-  const activeAdvisor = isBroker
-    ? users.find((u) => u.id === formAdvisorId) || currentUser
-    : currentUser;
-  const isVolkanActive = activeAdvisor.id === "usr-volkan" || activeAdvisor.commissionSplitRatio === 1.0;
-  const advisorRate = isVolkanActive ? 1.0 : (formOrigin === "advisor" ? 0.6 : 0.5);
-  const officeRate = isVolkanActive ? 0.0 : (formOrigin === "advisor" ? 0.4 : 0.5);
-  const calculatedAdvisorShare = Math.round(calculatedCommission * advisorRate);
-  const calculatedOfficeShare = Math.round(calculatedCommission * officeRate);
-
-  const handleCreateDeal = (e: React.FormEvent) => {
-    e.preventDefault();
-    const cust = customers.find((c) => c.id === formCustomerId);
-    const prop = properties.find((p) => p.id === formPropertyId);
-
-    // Ofisten ekleniyorsa seçilen danışman, danışman hesabından ise doğrudan oturum açan kullanıcı
-    const selectedAdvisor = isBroker
-      ? users.find((u) => u.id === formAdvisorId) || currentUser
-      : currentUser;
-
-    addDeal({
-      title: formTitle,
-      customerId: formCustomerId,
-      customerName: cust?.fullName,
-      propertyId: formPropertyId,
-      propertyTitle: prop?.title,
-      currency: formCurrency,
-      stage: "won",
-      askingPrice: prop?.price || 0,
-      offeredPrice: agreedNum,
-      agreedPrice: agreedNum,
-      deposit: 0,
-      commissionExpected: calculatedCommission,
-      commissionReceived: calculatedCommission, // Buraya giriliyorsa tam tahsil edilmiştir
-      portfolioOrigin: formOrigin,
-      paymentDue: formPaymentDue,
-      createdById: selectedAdvisor.id,
-      createdByName: selectedAdvisor.name,
-    });
-
-    setIsAddModalOpen(false);
-    setFormTitle("");
-    setFormAgreedPrice("");
-    setFormCommissionRate(5);
+  // Filtreleri sıfırlama
+  const handleResetFilters = () => {
+    setSearchQuery("");
+    setOriginFilter("ALL");
+    setPeriodFilter("ALL");
+    setSelectedMonth("");
   };
 
-  // Sub-Modal: Yeni Müşteri Ekle (Mevcut anlaşma modalı kapanmadan eklenir & seçilir)
-  const handleCreateCustomerSub = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!custSubName.trim()) {
-      alert("Lütfen müşteri ad ve soyadını girin.");
-      return;
-    }
-    const fullRegion = `${custSubDistrict} / ${custSubSubRegion}`;
-    const newCust = addCustomer({
-      fullName: custSubName,
-      phone: custSubPhone,
-      whatsapp: custSubWhatsapp || custSubPhone,
-      email: custSubEmail,
-      source: "manual",
-      category: "BUYER",
-      temperature: "hot",
-      isVip: false,
-      region: fullRegion,
-      propertyType: "Daire",
-      budget: Number(formAgreedPrice) || 0,
-      budgetCurrency: formCurrency,
-      notes: "Finans / Komisyon anlaşması üzerinden hızlı eklendi",
-      stage: "OFFER",
-      assignedToId: currentUser.id,
-      assignedToName: currentUser.name,
-      isShared: custSubIsShared,
-    });
-
-    setFormCustomerId(newCust.id);
-    setIsAddCustomerSubModalOpen(false);
-    setSubNotice(`✓ Yeni müşteri eklendi ve seçildi: ${newCust.fullName}`);
-    setTimeout(() => setSubNotice(null), 5000);
-
-    setCustSubName("");
-    setCustSubPhone("");
-    setCustSubWhatsapp("");
-    setCustSubEmail("");
-    setCustSubIsShared(false);
-  };
-
-  // Sub-Modal: Yeni Portföy Ekle (Mevcut anlaşma modalı kapanmadan eklenir & seçilir)
-  const handleCreatePropertySub = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!propSubTitle.trim()) {
-      alert("Lütfen portföy başlığını doldurun.");
-      return;
-    }
-    const fullRegion = `${propSubDistrict} / ${propSubSubRegion}`;
-    const priceNum = Number(propSubPrice) || 0;
-
-    const newProp = addProperty({
-      title: propSubTitle,
-      region: fullRegion,
-      propertyType: propSubPropertyType,
-      listingType: "sale",
-      price: priceNum,
-      currency: propSubCurrency,
-      area: Number(propSubArea) || 85,
-      rooms: propSubRooms,
-      status: "AVAILABLE",
-      address: propSubAddress || fullRegion,
-      ownerName: "Belirtilmedi",
-      ownerPhone: "",
-      assignedToId: currentUser.id,
-      assignedToName: currentUser.name,
-      isShared: propSubIsShared,
-      photos: [
-        {
-          id: `p-${Date.now()}`,
-          propertyId: "",
-          url: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=900&auto=format&fit=crop&q=80",
-          shareable: true,
-        },
-      ],
-    });
-
-    setFormPropertyId(newProp.id);
-    if (priceNum > 0) {
-      setFormAgreedPrice(priceNum.toString());
-    }
-    setFormCurrency(newProp.currency);
-    setIsAddPropertySubModalOpen(false);
-    setSubNotice(`✓ Yeni portföy eklendi ve seçildi: ${newProp.title}`);
-    setTimeout(() => setSubNotice(null), 5000);
-
-    setPropSubTitle("");
-    setPropSubPrice("");
-    setPropSubAddress("");
-    setPropSubIsShared(false);
-  };
+  const hasActiveFilter =
+    searchQuery.trim() !== "" ||
+    originFilter !== "ALL" ||
+    periodFilter !== "ALL" ||
+    selectedMonth !== "";
 
   // Düzenleme Handlers
   const handleOpenEditDeal = (deal: Deal) => {
@@ -321,8 +237,14 @@ export function FinanceView() {
     const prop = properties.find((p) => p.id === editPropertyId);
 
     const selectedAdvisor = isBroker
-      ? users.find((u) => u.id === editAdvisorId) || { id: editingDeal.createdById || currentUser.id, name: editingDeal.createdByName || currentUser.name }
-      : { id: editingDeal.createdById || currentUser.id, name: editingDeal.createdByName || currentUser.name };
+      ? users.find((u) => u.id === editAdvisorId) || {
+          id: editingDeal.createdById || currentUser.id,
+          name: editingDeal.createdByName || currentUser.name,
+        }
+      : {
+          id: editingDeal.createdById || currentUser.id,
+          name: editingDeal.createdByName || currentUser.name,
+        };
 
     updateDeal(editingDeal.id, {
       title: editTitle,
@@ -335,7 +257,7 @@ export function FinanceView() {
       offeredPrice: agreedNumVal,
       deposit: 0,
       commissionExpected: calcComm,
-      commissionReceived: calcComm, // Tam tahsil edilmiş kabul edilir
+      commissionReceived: calcComm,
       portfolioOrigin: editOrigin,
       stage: editStage,
       paymentDue: editPaymentDue,
@@ -348,7 +270,7 @@ export function FinanceView() {
 
   return (
     <div className="space-y-6">
-      {/* Üst Başlık */}
+      {/* Üst Başlık & Sekme Geçişi */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -357,15 +279,17 @@ export function FinanceView() {
             </span>
             <span className="text-slate-300">•</span>
             <span className="text-xs text-slate-500 font-mono">
-              Finans & Hakediş Defteri
+              {isBroker ? "Ofis İşlem Defteri" : "Kişisel İşlemlerim"}
             </span>
           </div>
           <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
             <Calculator className="w-5 h-5 text-[#00adb5]" />
-            Finans & Komisyon Paylaşım Matrisi
+            İşlemler (Finans & Komisyon Paylaşım Defteri)
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            Satış ve kiralama işlemlerindeki net ciro, hakediş ve komisyon paylaşım defteri.
+            {isBroker
+              ? "Tüm ofis ekibinin satış ve kiralama işlemleri, net ciroları ve hakediş dağılım defteri."
+              : "Yalnızca size ait satış ve kiralama işlemleri, net cironuz ve komisyon hakediş defteriniz."}
           </p>
         </div>
 
@@ -381,7 +305,7 @@ export function FinanceView() {
               }`}
             >
               <Coins className="w-3.5 h-3.5 text-[#00adb5]" />
-              Paylaşım Matrisi
+              İşlem Defteri & Matris
             </button>
             <button
               type="button"
@@ -393,19 +317,16 @@ export function FinanceView() {
               }`}
             >
               <TrendingUp className="w-3.5 h-3.5 text-amber-500" />
-              Trendler & Grafikler (v5.0)
+              Trendler & Grafikler
             </button>
           </div>
 
           <button
-            onClick={() => {
-              setFormAdvisorId(currentUser.id);
-              setIsAddModalOpen(true);
-            }}
+            onClick={() => setIsAddModalOpen(true)}
             className="sharp-btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer self-start md:self-auto shadow-xs"
           >
             <Plus className="w-4 h-4" />
-            <span>Yeni Finans / Komisyon Kaydı</span>
+            <span>Yeni İşlem Kaydı Ekle</span>
           </button>
         </div>
       </div>
@@ -414,848 +335,484 @@ export function FinanceView() {
         <AnalyticsView />
       ) : (
         <>
-
-      {/* Finansal Özet Kartları (Genel GBP Ağırlıklı Piyasa Göstergeleri) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
-          <div className="flex items-center justify-between text-xs font-mono mb-2">
-            <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              Toplam Anlaşma
-            </span>
-            <TrendingUp className="w-4 h-4 text-[#00adb5]" />
-          </div>
-          <div className="text-xl font-bold font-mono text-[#1d2566] mt-2">
-            {totalDealsCount} <span className="text-xs font-normal text-slate-500">İşlem</span>
-          </div>
-          <div className="text-[11px] font-mono text-slate-500 mt-1">
-            {gbpDeals.length} GBP Portföy Satışı
-          </div>
-        </div>
-
-        <div className="sharp-card p-4 border-t-3 border-t-[#1d2566]">
-          <div className="flex items-center justify-between text-xs font-mono mb-2">
-            <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              Toplam Satış Hacmi (GBP)
-            </span>
-            <Building className="w-4 h-4 text-[#1d2566]" />
-          </div>
-          <div className="text-xl font-bold font-mono text-[#1d2566] mt-2">
-            {totalAgreedGbp.toLocaleString("tr-TR")} <span className="text-xs font-normal text-slate-500">GBP</span>
-          </div>
-          <div className="text-[11px] font-mono text-slate-500 mt-1">
-            Anlaşılan toplam mülk bedeli
-          </div>
-        </div>
-
-        <div className="sharp-card p-4 border-t-3 border-t-emerald-600">
-          <div className="flex items-center justify-between text-xs font-mono mb-2">
-            <span className="font-bold text-emerald-800 px-2 py-0.5 bg-emerald-50 border border-emerald-200 uppercase">
-              Toplam Komisyon (GBP)
-            </span>
-            <Calculator className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-xl font-bold font-mono text-emerald-700 mt-2">
-            {totalCommissionGbp.toLocaleString("tr-TR")} <span className="text-xs font-normal text-emerald-600">GBP</span>
-          </div>
-          <div className="text-[11px] font-mono text-emerald-600 mt-1">
-            Tam tahsil edilmiş toplam gelir
-          </div>
-        </div>
-
-        <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
-          <div className="flex items-center justify-between text-xs font-mono mb-2">
-            <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              Danışman / Ofis Hakedişi
-            </span>
-            <PieChart className="w-4 h-4 text-[#00adb5]" />
-          </div>
-          <div className="space-y-1 mt-1 font-mono text-xs">
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">Danışman Payı:</span>
-              <span className="text-[#00adb5] font-bold">
-                {totalAdvisorGbp.toLocaleString("tr-TR")} GBP
-              </span>
+          {/* Finansal Özet Kartları (Filtrelenmiş İşlemlere Göre Anlık Güncellenir) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
+              <div className="flex items-center justify-between text-xs font-mono mb-2">
+                <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
+                  Toplam Anlaşma
+                </span>
+                <TrendingUp className="w-4 h-4 text-[#00adb5]" />
+              </div>
+              <div className="text-xl font-bold font-mono text-[#1d2566] mt-2">
+                {filteredDeals.length} <span className="text-xs font-normal text-slate-500">İşlem</span>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 mt-1">
+                {gbpFilteredDeals.length} GBP Portföy Satışı
+              </div>
             </div>
-            <div className="flex justify-between items-center">
-              <span className="text-slate-500">Ofis Payı:</span>
-              <span className="text-[#1d2566] font-bold">
-                {totalOfficeGbp.toLocaleString("tr-TR")} GBP
-              </span>
+
+            <div className="sharp-card p-4 border-t-3 border-t-[#1d2566]">
+              <div className="flex items-center justify-between text-xs font-mono mb-2">
+                <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
+                  Toplam Satış Hacmi (GBP)
+                </span>
+                <Building className="w-4 h-4 text-[#1d2566]" />
+              </div>
+              <div className="text-xl font-bold font-mono text-[#1d2566] mt-2">
+                {totalAgreedGbp.toLocaleString("tr-TR")}{" "}
+                <span className="text-xs font-normal text-slate-500">GBP</span>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 mt-1">
+                Anlaşılan toplam mülk bedeli
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Komisyon Paylaşım Kuralı Bilgi Çubuğu */}
-      <div className="sharp-card p-3.5 bg-slate-50 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-3">
-          <Percent className="w-4 h-4 text-[#00adb5] shrink-0" />
-          <span className="text-slate-700">
-            <strong className="text-[#1d2566]">Danışman Kendi Portföyü:</strong> %60 Danışman Payı / %40 Ofis
-            Payı
-          </span>
-        </div>
-        <div className="hidden md:block text-slate-300">|</div>
-        <div className="flex items-center gap-3">
-          <Percent className="w-4 h-4 text-[#1d2566] shrink-0" />
-          <span className="text-slate-700">
-            <strong className="text-[#1d2566]">Ofis Portföyü:</strong> %50 Danışman Payı / %50 Ofis Payı
-          </span>
-        </div>
-      </div>
+            <div className="sharp-card p-4 border-t-3 border-t-emerald-600">
+              <div className="flex items-center justify-between text-xs font-mono mb-2">
+                <span className="font-bold text-emerald-800 px-2 py-0.5 bg-emerald-50 border border-emerald-200 uppercase">
+                  Toplam Komisyon (GBP)
+                </span>
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              </div>
+              <div className="text-xl font-bold font-mono text-emerald-700 mt-2">
+                {totalCommissionGbp.toLocaleString("tr-TR")}{" "}
+                <span className="text-xs font-normal text-slate-500">GBP</span>
+              </div>
+              <div className="text-[11px] font-mono text-emerald-600 mt-1">
+                Tahsil edilen toplam komisyon
+              </div>
+            </div>
 
-      {/* Finansal İşlemler Tablosu */}
-      <div className="sharp-card overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-              <th className="py-3 px-4">Mülk</th>
-              <th className="py-3 px-4">Müşteri</th>
-              <th className="py-3 px-4">Portföy Menşei</th>
-              <th className="py-3 px-4">Anlaşılan Bedel</th>
-              <th className="py-3 px-4">Toplam Komisyon</th>
-              <th className="py-3 px-4">Danışman Payı</th>
-              <th className="py-3 px-4">Ofis Payı</th>
-              <th className="py-3 px-4 text-center">İşlem</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {visibleDeals.map((d) => {
-              const isVolkanDeal = d.createdById === "usr-volkan";
-              const advisorRate = isVolkanDeal ? 1.0 : (d.portfolioOrigin === "advisor" ? 0.6 : 0.5);
-              const officeRate = isVolkanDeal ? 0.0 : (d.portfolioOrigin === "advisor" ? 0.4 : 0.5);
-
-              const advisorShare = Math.round(d.commissionExpected * advisorRate);
-              const officeShare = Math.round(d.commissionExpected * officeRate);
-
-              return (
-                <tr key={d.id} className="hover:bg-slate-50/80 transition">
-                  {/* 1. Mülk */}
-                  <td className="py-3 px-4">
-                    <div className="font-bold text-[#1d2566]">
-                      {d.propertyTitle || d.title}
-                    </div>
-                    <div className="text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1.5 mt-0.5">
-                      {isBroker && d.createdByName && (
-                        <span className="text-[#00adb5] font-semibold font-mono">
-                          Danışman: {d.createdByName}
-                        </span>
-                      )}
-                      {d.propertyTitle && d.propertyTitle !== d.title && (
-                        <span>• {d.title}</span>
-                      )}
-                    </div>
-                  </td>
-
-                  {/* 2. Müşteri */}
-                  <td className="py-3 px-4 text-slate-700 font-semibold">
-                    {d.customerName}
-                  </td>
-
-                  {/* 3. Portföy Menşei */}
-                  <td className="py-3 px-4">
-                    {isVolkanDeal ? (
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-amber-50 text-amber-800 border-amber-300">
-                        Ortak (%100 Kendisinin)
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
-                          d.portfolioOrigin === "advisor"
-                            ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
-                            : "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
-                        }`}
-                      >
-                        {d.portfolioOrigin === "advisor"
-                          ? "Danışman (%60 / %40)"
-                          : "Ofis (%50 / %50)"}
-                      </span>
-                    )}
-                  </td>
-
-                  {/* 4. Anlaşılan Bedel */}
-                  <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
-                    {d.agreedPrice.toLocaleString("tr-TR")} {d.currency}
-                  </td>
-
-                  {/* 5. Toplam Komisyon */}
-                  <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                    {d.commissionExpected.toLocaleString("tr-TR")} {d.currency}
-                  </td>
-
-                  {/* 6. Danışman Payı */}
-                  <td className="py-3 px-4 font-mono font-bold text-[#00adb5]">
-                    {advisorShare.toLocaleString("tr-TR")} {d.currency}
-                  </td>
-
-                  {/* 7. Ofis Payı */}
-                  <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
-                    {officeShare.toLocaleString("tr-TR")} {d.currency}
-                  </td>
-
-                  {/* 8. İşlem Aksiyonları (Düzenle & Sil) */}
-                  <td className="py-3 px-4 text-center">
-                    <ActionMenu
-                      onEdit={() => handleOpenEditDeal(d)}
-                      onDelete={() => setDealToDelete(d)}
-                      canEdit={canManageDeal(d)}
-                      canDelete={canManageDeal(d)}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-            {visibleDeals.length === 0 && (
-              <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-500 font-mono text-xs">
-                  Henüz kayıtlı bir komisyon / anlaşma bulunmuyor.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-        </>
-      )}
-
-      {/* Yeni Finans / Komisyon Kaydı Modalı */}
-      {isAddModalOpen && (
-        <>
-          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="sharp-card w-full max-w-xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
-              <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-[#00adb5]" />
-                  <h2 className="text-sm font-bold text-[#1d2566]">
-                    Yeni Satış / Komisyon Anlaşması Ekle
-                  </h2>
+            <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
+              <div className="flex items-center justify-between text-xs font-mono mb-2">
+                <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
+                  Danışman / Ofis Hakedişi
+                </span>
+                <PieChart className="w-4 h-4 text-[#00adb5]" />
+              </div>
+              <div className="space-y-1 mt-1 font-mono text-xs">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Danışman Payı:</span>
+                  <span className="text-[#00adb5] font-bold">
+                    {totalAdvisorGbp.toLocaleString("tr-TR")} GBP
+                  </span>
                 </div>
-                <button
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Ofis Payı:</span>
+                  <span className="text-[#1d2566] font-bold">
+                    {totalOfficeGbp.toLocaleString("tr-TR")} GBP
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* === GELİŞMİŞ FİLTRELEME MERKEZİ === */}
+          <div className="sharp-card p-4 bg-white border border-slate-300 space-y-3.5 shadow-xs">
+            {/* 1. Üst Filtre Satırı: Arama, Portföy Menşei ve Zaman Aralığı */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 text-xs">
+              {/* Arama Inputu */}
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="İşlem başlığı, mülk, müşteri veya danışman ara..."
+                  className="sharp-input w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50/50"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              <form onSubmit={handleCreateDeal} className="p-5 space-y-4 text-xs">
-                {/* Alt Modallardan Bildirim */}
-                {subNotice && (
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{subNotice}</span>
-                  </div>
-                )}
+              {/* Portföy Menşei Filtresi */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
+                <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
+                  Menşe:
+                </span>
+                {[
+                  { id: "ALL", label: "Tüm Menşeler" },
+                  { id: "advisor", label: "Danışman (%60)" },
+                  { id: "office", label: "Ofis (%50)" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setOriginFilter(item.id)}
+                    className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                      originFilter === item.id
+                        ? "bg-[#1d2566] text-white font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
 
-                {/* İşlem Başlığı & Danışman Seçimi */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                      İşlem Başlığı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formTitle}
-                      onChange={(e) => setFormTitle(e.target.value)}
-                      placeholder="Örn: Bebek Dubleksi Satış Anlaşması"
-                      className="sharp-input w-full p-2"
-                    />
-                  </div>
+              {/* Hızlı Dönem Seçimi */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
+                <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
+                  Dönem:
+                </span>
+                {[
+                  { id: "ALL", label: "Tümü" },
+                  { id: "1M", label: "Bu Ay" },
+                  { id: "3M", label: "3 Aylık" },
+                  { id: "6M", label: "6 Aylık" },
+                  { id: "12M", label: "12 Aylık" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setPeriodFilter(item.id as any);
+                      setSelectedMonth("");
+                    }}
+                    className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                      periodFilter === item.id && !selectedMonth
+                        ? "bg-[#00adb5] text-white font-bold shadow-2xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-[#00adb5]" />
-                      İşlemi Yapan Danışman {isBroker ? "*" : ""}
-                    </label>
-                    {isBroker ? (
-                      <select
-                        value={formAdvisorId}
-                        onChange={(e) => setFormAdvisorId(e.target.value)}
-                        className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
-                      >
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} {u.role === "ADMIN" ? "(Ofis / Broker)" : "(Danışman)"}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="sharp-input w-full p-2 bg-slate-50 font-medium text-slate-700 flex items-center justify-between">
-                        <span className="font-bold text-[#1d2566]">{currentUser.name}</span>
-                        <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                          Kendi Hesabınız
-                        </span>
-                      </div>
-                    )}
-                  </div>
+            {/* 2. Yatay Scroll Edilebilir İnteraktif Ay Şeridi (Monthly Scroll Strip) */}
+            <div className="pt-2 border-t border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#1d2566]">
+                  <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+                  <span>Tek Tek Ayları İncele (Yatay Kaydırılabilir Ay Çizelgesi):</span>
                 </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scrollMonthBar("left")}
+                    className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
+                    title="Önceki Aylara Kaydır"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollMonthBar("right")}
+                    className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
+                    title="Sonraki Aylara Kaydır"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-600 font-mono text-[11px] font-semibold">
-                        İlgili Müşteri *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustSubDistrict(KKTC_DISTRICTS[0]);
-                          setCustSubSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
-                          setIsAddCustomerSubModalOpen(true);
-                        }}
-                        className="px-2 py-0.5 bg-[#00adb5] hover:bg-[#00939a] text-white text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition"
-                        title="Mevcut anlaşma modalı kapanmadan hızlıca yeni bir müşteri ekleyin"
-                      >
-                        <UserPlus className="w-3 h-3" />
-                        <span>+ Yeni Müşteri Ekle</span>
-                      </button>
-                    </div>
-                    <select
-                      value={formCustomerId}
-                      onChange={(e) => setFormCustomerId(e.target.value)}
-                      className="sharp-input w-full p-2 bg-white"
-                    >
-                      <option value="">-- Müşteri havuzundan seçin --</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.fullName} ({c.phone || "Tel yok"})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              {/* Scroll Container */}
+              <div
+                ref={monthScrollRef}
+                className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth"
+              >
+                {MONTH_OPTIONS.map((m) => {
+                  const count = monthCounts[m.key] || 0;
+                  const isSelected = selectedMonth === m.key;
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-slate-600 font-mono text-[11px] font-semibold">
-                        İlgili Portföy *
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPropSubDistrict(KKTC_DISTRICTS[0]);
-                          setPropSubSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
-                          setIsAddPropertySubModalOpen(true);
-                        }}
-                        className="px-2 py-0.5 bg-[#00adb5] hover:bg-[#00939a] text-white text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition"
-                        title="Mevcut anlaşma modalı kapanmadan hızlıca yeni bir portföy ekleyin"
-                      >
-                        <Building className="w-3 h-3" />
-                        <span>+ Yeni Portföy Ekle</span>
-                      </button>
-                    </div>
-                    <select
-                      value={formPropertyId}
-                      onChange={(e) => {
-                        const pid = e.target.value;
-                        setFormPropertyId(pid);
-                        const prop = properties.find((p) => p.id === pid);
-                        if (prop) {
-                          if (!formAgreedPrice || formAgreedPrice === "0") {
-                            setFormAgreedPrice(prop.price.toString());
-                          }
-                          setFormCurrency(prop.currency);
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedMonth("");
+                          setPeriodFilter("ALL");
+                        } else {
+                          setSelectedMonth(m.key);
+                          setPeriodFilter("MONTH");
                         }
                       }}
-                      className="sharp-input w-full p-2 bg-white"
+                      className={`px-3 py-1.5 text-xs font-mono border transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
+                        isSelected
+                          ? "bg-[#1d2566] border-[#1d2566] text-white font-bold shadow-xs scale-102"
+                          : count > 0
+                          ? "bg-white border-slate-300 text-slate-800 hover:border-[#00adb5]"
+                          : "bg-slate-50/70 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white"
+                      }`}
+                      title={`${m.label}: ${count} kayıtlı işlem`}
                     >
-                      <option value="">-- Portföy havuzundan seçin --</option>
-                      {properties.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                      <span>{m.short}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-none font-bold ${
+                          isSelected
+                            ? "bg-white/20 text-white"
+                            : count > 0
+                            ? "bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30"
+                            : "bg-slate-200/50 text-slate-400"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                {/* 2'li Sıra: Para Birimi, Anlaşılan Bedel */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                      Para Birimi
-                    </label>
-                    <select
-                      value={formCurrency}
-                      onChange={(e) => setFormCurrency(e.target.value as any)}
-                      className="sharp-input w-full p-2 bg-white font-mono font-bold text-[#1d2566]"
-                    >
-                      <option value="GBP">GBP (£ - Sterlin)</option>
-                      <option value="EUR">EUR (€ - Euro)</option>
-                      <option value="USD">USD ($ - Dolar)</option>
-                      <option value="TRY">TRY (₺ - TL)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                      Anlaşılan Bedel *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={formAgreedPrice}
-                      onChange={(e) => setFormAgreedPrice(e.target.value)}
-                      placeholder="Örn: 150000"
-                      className="sharp-input w-full p-2 font-mono font-bold"
-                    />
-                  </div>
-                </div>
-
-                {/* Komisyon Menşei ve Otomatik Komisyon Oranı */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                      Portföy Menşei (Komisyon Kuralı) *
-                    </label>
-                    <select
-                      value={formOrigin}
-                      onChange={(e) => setFormOrigin(e.target.value as any)}
-                      className="sharp-input w-full p-2 bg-white font-medium"
-                    >
-                      <option value="advisor">
-                        Danışman Kendi Portföyü (%60 Danışman / %40 Ofis)
-                      </option>
-                      <option value="office">
-                        Ofis Portföyü (%50 Danışman / %50 Ofis)
-                      </option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                      Komisyon Oranı (%)
-                    </label>
-                    <select
-                      value={formCommissionRate}
-                      onChange={(e) => setFormCommissionRate(Number(e.target.value))}
-                      className="sharp-input w-full p-2 bg-white font-mono font-bold"
-                    >
-                      <option value={1}>%1</option>
-                      <option value={2}>%2</option>
-                      <option value={3}>%3</option>
-                      <option value={4}>%4</option>
-                      <option value={5}>%5</option>
-                      <option value={10}>%10</option>
-                      <option value={15}>%15</option>
-                      <option value={100}>%100 (Kiralık)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Sistem Tarafından Otomatik Hesaplanan Komisyon Bilgi Kartı */}
-                <div className="bg-[#1d2566]/5 border border-[#1d2566]/15 p-3 rounded-none space-y-2">
-                  <div className="flex items-center justify-between text-xs font-mono">
-                    <span className="font-bold text-[#1d2566] flex items-center gap-1.5">
-                      <Calculator className="w-3.5 h-3.5 text-[#00adb5]" />
-                      Sistem Otomatik Hesaplanan Komisyon:
+            {/* 3. Aktif Filtre Bilgilendirme ve Sıfırlama */}
+            {hasActiveFilter && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs font-mono">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-slate-500 font-bold flex items-center gap-1">
+                    <Filter className="w-3 h-3 text-[#00adb5]" />
+                    Aktif Filtreler:
+                  </span>
+                  {originFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-[#1d2566]/10 text-[#1d2566] border border-[#1d2566]/20 flex items-center gap-1">
+                      Menşe: {originFilter === "advisor" ? "Danışman (%60)" : "Ofis (%50)"}
+                      <button
+                        type="button"
+                        onClick={() => setOriginFilter("ALL")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
                     </span>
-                    <span className="font-bold text-sm text-[#1d2566]">
-                      {calculatedCommission.toLocaleString("tr-TR")} {formCurrency}
+                  )}
+                  {periodFilter !== "ALL" && !selectedMonth && (
+                    <span className="px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 flex items-center gap-1">
+                      Dönem:{" "}
+                      {periodFilter === "1M"
+                        ? "Bu Ay"
+                        : periodFilter === "3M"
+                        ? "Son 3 Ay"
+                        : periodFilter === "6M"
+                        ? "Son 6 Ay"
+                        : "Son 12 Ay"}
+                      <button
+                        type="button"
+                        onClick={() => setPeriodFilter("ALL")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
                     </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#1d2566]/10 text-[11px] font-mono">
-                    <div className="text-[#00adb5] font-bold">
-                      Danışman Payı ({formOrigin === "advisor" ? "%60" : "%50"}):{" "}
-                      {calculatedAdvisorShare.toLocaleString("tr-TR")} {formCurrency}
-                    </div>
-                    <div className="text-[#1d2566] font-bold text-right">
-                      Ofis Payı ({formOrigin === "advisor" ? "%40" : "%50"}):{" "}
-                      {calculatedOfficeShare.toLocaleString("tr-TR")} {formCurrency}
-                    </div>
-                  </div>
+                  )}
+                  {selectedMonth && (
+                    <span className="px-2 py-0.5 bg-[#1d2566] text-white border border-[#1d2566] flex items-center gap-1 font-bold">
+                      Ay: {MONTH_OPTIONS.find((m) => m.key === selectedMonth)?.label || selectedMonth}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedMonth("");
+                          setPeriodFilter("ALL");
+                        }}
+                        className="hover:text-amber-300 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {searchQuery && (
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-800 border border-slate-300 flex items-center gap-1">
+                      Arama: "{searchQuery}"
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  <span className="text-slate-400">
+                    ({visibleDeals.length} işlemden {filteredDeals.length} tanesi listeleniyor)
+                  </span>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddModalOpen(false)}
-                    className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
-                  >
-                    İptal
-                  </button>
-                  <button
-                    type="submit"
-                    className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
-                  >
-                    İşlemi Kaydet
-                  </button>
-                </div>
-              </form>
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-2 py-0.5 text-xs text-rose-700 hover:text-rose-900 border border-rose-200 bg-rose-50 hover:bg-rose-100 flex items-center gap-1 cursor-pointer transition font-bold"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Filtreleri Sıfırla
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Komisyon Paylaşım Kuralı Bilgi Çubuğu */}
+          <div className="sharp-card p-3 bg-slate-50 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-3">
+              <Percent className="w-4 h-4 text-[#00adb5] shrink-0" />
+              <span className="text-slate-700">
+                <strong className="text-[#1d2566]">Danışman Kendi Portföyü:</strong> %60 Danışman Payı / %40 Ofis
+                Payı
+              </span>
+            </div>
+            <div className="hidden md:block text-slate-300">|</div>
+            <div className="flex items-center gap-3">
+              <Percent className="w-4 h-4 text-[#1d2566] shrink-0" />
+              <span className="text-slate-700">
+                <strong className="text-[#1d2566]">Ofis Portföyü:</strong> %50 Danışman Payı / %50 Ofis Payı
+              </span>
             </div>
           </div>
 
-          {/* SUB-MODAL 1: YENİ MÜŞTERİ EKLE (Z-[60] - ÜST KATMAN) */}
-          {isAddCustomerSubModalOpen && (
-            <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-              <div className="sharp-card w-full max-w-md bg-white border-2 border-[#00adb5] shadow-2xl my-8">
-                <div className="p-4 border-b border-slate-200 bg-cyan-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <UserPlus className="w-4 h-4 text-[#00adb5]" />
-                    <div>
-                      <h3 className="text-xs font-bold text-[#1d2566]">
-                        Yeni Müşteri Ekle
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-mono">
-                        Müşteri havuzuna eklenip anında bu komisyon anlaşmasına seçilecektir
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddCustomerSubModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+          {/* Finansal İşlemler Tablosu */}
+          <div className="sharp-card overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
+                  <th className="py-3 px-4">Mülk & İşlem</th>
+                  <th className="py-3 px-4">Müşteri</th>
+                  <th className="py-3 px-4">Portföy Menşei</th>
+                  <th className="py-3 px-4">Tarih</th>
+                  <th className="py-3 px-4">Anlaşılan Bedel</th>
+                  <th className="py-3 px-4">Toplam Komisyon</th>
+                  <th className="py-3 px-4">Danışman Payı</th>
+                  <th className="py-3 px-4">Ofis Payı</th>
+                  <th className="py-3 px-4 text-center">İşlem</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredDeals.map((d) => {
+                  const isVolkanDeal = d.createdById === "usr-volkan";
+                  const advisorRate = isVolkanDeal ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
+                  const officeRate = isVolkanDeal ? 0.0 : d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
 
-                <form onSubmit={handleCreateCustomerSub} className="p-4 space-y-3 text-xs">
-                  <div>
-                    <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                      Müşteri Adı Soyadı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={custSubName}
-                      onChange={(e) => setCustSubName(e.target.value)}
-                      placeholder="Örn: Kerem Aksoy"
-                      className="sharp-input w-full p-2"
-                    />
-                  </div>
+                  const advisorShare = Math.round(d.commissionExpected * advisorRate);
+                  const officeShare = Math.round(d.commissionExpected * officeRate);
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Telefon Numarası *
-                      </label>
-                      <input
-                        type="tel"
-                        required
-                        value={custSubPhone}
-                        onChange={(e) => setCustSubPhone(e.target.value)}
-                        placeholder="+90 533 888 12 34"
-                        className="sharp-input w-full p-2 font-mono"
-                      />
-                    </div>
+                  const rawDate = d.closingDate || d.paymentDue || d.createdAt;
+                  const formattedDate = rawDate ? rawDate.split("T")[0] : "—";
 
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        WhatsApp
-                      </label>
-                      <input
-                        type="tel"
-                        value={custSubWhatsapp}
-                        onChange={(e) => setCustSubWhatsapp(e.target.value)}
-                        placeholder="+90 533 888 12 34"
-                        className="sharp-input w-full p-2 font-mono"
-                      />
-                    </div>
-                  </div>
+                  return (
+                    <tr key={d.id} className="hover:bg-slate-50/80 transition">
+                      {/* 1. Mülk & İşlem Başlığı */}
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-[#1d2566]">
+                          {d.propertyTitle || d.title}
+                        </div>
+                        <div className="text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1.5 mt-0.5">
+                          {isBroker && d.createdByName && (
+                            <span className="text-[#00adb5] font-semibold font-mono">
+                              Danışman: {d.createdByName}
+                            </span>
+                          )}
+                          {d.propertyTitle && d.propertyTitle !== d.title && (
+                            <span>• {d.title}</span>
+                          )}
+                        </div>
+                      </td>
 
-                  <div>
-                    <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                      E-posta (Opsiyonel)
-                    </label>
-                    <input
-                      type="email"
-                      value={custSubEmail}
-                      onChange={(e) => setCustSubEmail(e.target.value)}
-                      placeholder="ornek@email.com"
-                      className="sharp-input w-full p-2 font-mono"
-                    />
-                  </div>
+                      {/* 2. Müşteri */}
+                      <td className="py-3 px-4 text-slate-700 font-semibold">
+                        {d.customerName || "—"}
+                      </td>
 
-                  {/* KKTC İlçe & Bölge */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 border border-slate-200">
-                    <div>
-                      <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                        KKTC İlçesi
-                      </label>
-                      <select
-                        value={custSubDistrict}
-                        onChange={(e) => {
-                          const newDist = e.target.value;
-                          setCustSubDistrict(newDist);
-                          const regions = getRegionsByDistrict(newDist);
-                          setCustSubSubRegion(regions[0] || "");
-                        }}
-                        className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                      >
-                        {KKTC_DISTRICTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      {/* 3. Portföy Menşei */}
+                      <td className="py-3 px-4">
+                        {isVolkanDeal ? (
+                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-amber-50 text-amber-800 border-amber-300">
+                            Ortak (%100 Kendisinin)
+                          </span>
+                        ) : (
+                          <span
+                            className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
+                              d.portfolioOrigin === "advisor"
+                                ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
+                                : "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
+                            }`}
+                          >
+                            {d.portfolioOrigin === "advisor"
+                              ? "Danışman (%60 / %40)"
+                              : "Ofis (%50 / %50)"}
+                          </span>
+                        )}
+                      </td>
 
-                    <div>
-                      <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                        Bölge / Mahalle
-                      </label>
-                      <select
-                        value={custSubSubRegion}
-                        onChange={(e) => setCustSubSubRegion(e.target.value)}
-                        className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                      >
-                        {getRegionsByDistrict(custSubDistrict).map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                      {/* 4. Tarih */}
+                      <td className="py-3 px-4 font-mono text-slate-600 text-[11px]">
+                        {formattedDate}
+                      </td>
 
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-700 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={custSubIsShared}
-                        onChange={(e) => setCustSubIsShared(e.target.checked)}
-                        className="w-4 h-4 text-[#00adb5] accent-[#00adb5] rounded border-slate-300 cursor-pointer"
-                      />
-                      <span>Diğer danışmanlara paylaş</span>
-                    </label>
+                      {/* 5. Anlaşılan Bedel */}
+                      <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
+                        {d.agreedPrice.toLocaleString("tr-TR")} {d.currency}
+                      </td>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddCustomerSubModalOpen(false)}
-                        className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-mono"
-                      >
-                        İptal
-                      </button>
-                      <button
-                        type="submit"
-                        className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer font-mono"
-                      >
-                        Kaydet ve Seç
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+                      {/* 6. Toplam Komisyon */}
+                      <td className="py-3 px-4 font-mono font-bold text-slate-900">
+                        {d.commissionExpected.toLocaleString("tr-TR")} {d.currency}
+                      </td>
 
-          {/* SUB-MODAL 2: YENİ PORTFÖY EKLE (Z-[60] - ÜST KATMAN) */}
-          {isAddPropertySubModalOpen && (
-            <div className="fixed inset-0 z-[60] bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-              <div className="sharp-card w-full max-w-lg bg-white border-2 border-[#00adb5] shadow-2xl my-8">
-                <div className="p-4 border-b border-slate-200 bg-cyan-50/50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Building className="w-4 h-4 text-[#00adb5]" />
-                    <div>
-                      <h3 className="text-xs font-bold text-[#1d2566]">
-                        Yeni Portföy Ekle
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-mono">
-                        Portföy havuzuna eklenip anında bu komisyon anlaşmasına seçilecektir
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddPropertySubModalOpen(false)}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                      {/* 7. Danışman Payı */}
+                      <td className="py-3 px-4 font-mono font-bold text-[#00adb5]">
+                        {advisorShare.toLocaleString("tr-TR")} {d.currency}
+                      </td>
 
-                <form onSubmit={handleCreatePropertySub} className="p-5 space-y-3.5 text-xs">
-                  <div>
-                    <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                      Portföy Başlığı *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={propSubTitle}
-                      onChange={(e) => setPropSubTitle(e.target.value)}
-                      placeholder="Örn: Girne Merkez 2+1 Lüks Daire"
-                      className="sharp-input w-full p-2"
-                    />
-                  </div>
+                      {/* 8. Ofis Payı */}
+                      <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
+                        {officeShare.toLocaleString("tr-TR")} {d.currency}
+                      </td>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Portföy Türü
-                      </label>
-                      <select
-                        value={propSubPropertyType}
-                        onChange={(e) => setPropSubPropertyType(e.target.value)}
-                        className="sharp-input w-full p-2 bg-white"
-                      >
-                        <option value="Daire">Daire</option>
-                        <option value="Villa">Villa</option>
-                        <option value="Penthouse">Penthouse</option>
-                        <option value="Müstakil Ev">Müstakil Ev</option>
-                        <option value="Dükkan / Ticari">Dükkan / Ticari</option>
-                        <option value="Ofis">Ofis</option>
-                        <option value="Arsa">Arsa</option>
-                      </select>
-                    </div>
+                      {/* 9. İşlem Aksiyonları (Düzenle & Sil) */}
+                      <td className="py-3 px-4 text-center">
+                        <ActionMenu
+                          onEdit={() => handleOpenEditDeal(d)}
+                          onDelete={() => setDealToDelete(d)}
+                          canEdit={canManageDeal(d)}
+                          canDelete={canManageDeal(d)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
 
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Oda Sayısı
-                      </label>
-                      <select
-                        value={propSubRooms}
-                        onChange={(e) => setPropSubRooms(e.target.value)}
-                        className="sharp-input w-full p-2 bg-white"
-                      >
-                        <option value="Stüdyo (1+0)">Stüdyo (1+0)</option>
-                        <option value="1+1">1+1</option>
-                        <option value="2+1">2+1</option>
-                        <option value="3+1">3+1</option>
-                        <option value="4+1">4+1</option>
-                        <option value="5+2">5+2</option>
-                        <option value="Villa">Villa</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Fiyat & Para Birimi & Metrekare */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Fiyat *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={propSubPrice}
-                        onChange={(e) => setPropSubPrice(e.target.value)}
-                        placeholder="Örn: 250000"
-                        className="sharp-input w-full p-2 font-mono font-bold"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Para Birimi
-                      </label>
-                      <select
-                        value={propSubCurrency}
-                        onChange={(e) => setPropSubCurrency(e.target.value as Currency)}
-                        className="sharp-input w-full p-2 bg-white font-mono font-bold"
-                      >
-                        <option value="GBP">GBP (£)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="USD">USD ($)</option>
-                        <option value="TRY">TRY (₺)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Net m²
-                      </label>
-                      <input
-                        type="number"
-                        value={propSubArea}
-                        onChange={(e) => setPropSubArea(e.target.value)}
-                        placeholder="85"
-                        className="sharp-input w-full p-2 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* KKTC İlçe & Bölge */}
-                  <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 border border-slate-200">
-                    <div>
-                      <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                        KKTC İlçesi
-                      </label>
-                      <select
-                        value={propSubDistrict}
-                        onChange={(e) => {
-                          const newDist = e.target.value;
-                          setPropSubDistrict(newDist);
-                          const regions = getRegionsByDistrict(newDist);
-                          setPropSubSubRegion(regions[0] || "");
-                        }}
-                        className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                      >
-                        {KKTC_DISTRICTS.map((d) => (
-                          <option key={d} value={d}>
-                            {d}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                        Bölge / Mahalle
-                      </label>
-                      <select
-                        value={propSubSubRegion}
-                        onChange={(e) => setPropSubSubRegion(e.target.value)}
-                        className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                      >
-                        {getRegionsByDistrict(propSubDistrict).map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Adres */}
-                  <div>
-                    <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                      Açık Adres / Konum
-                    </label>
-                    <input
-                      type="text"
-                      value={propSubAddress}
-                      onChange={(e) => setPropSubAddress(e.target.value)}
-                      placeholder="Örn: Alsancak Cad. No: 12"
-                      className="sharp-input w-full p-2"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-                    <label className="flex items-center gap-2 cursor-pointer text-slate-700 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={propSubIsShared}
-                        onChange={(e) => setPropSubIsShared(e.target.checked)}
-                        className="w-4 h-4 text-[#00adb5] accent-[#00adb5] rounded border-slate-300 cursor-pointer"
-                      />
-                      <span>Diğer danışmanlara paylaş</span>
-                    </label>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddPropertySubModalOpen(false)}
-                        className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-mono"
-                      >
-                        İptal
-                      </button>
-                      <button
-                        type="submit"
-                        className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer font-mono"
-                      >
-                        Portföyü Kaydet ve Seç
-                      </button>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+                {filteredDeals.length === 0 && (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-500 font-mono text-xs">
+                      <div className="space-y-2 max-w-sm mx-auto">
+                        <Coins className="w-8 h-8 text-slate-300 mx-auto" />
+                        <div className="font-bold text-slate-700">
+                          Seçili kriterlere uygun işlem kaydı bulunamadı.
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Filtreleri genişletebilir veya arama sorgusunu temizleyebilirsiniz.
+                        </p>
+                        {hasActiveFilter && (
+                          <button
+                            type="button"
+                            onClick={handleResetFilters}
+                            className="mt-2 sharp-btn-primary px-3 py-1.5 text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Filtreleri Temizle
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
+
+      {/* Standart Yeni Satış / Komisyon Anlaşması Modalı */}
+      <AddDealModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+      />
 
       {/* DÜZENLEME MODALI */}
       {editingDeal && (
@@ -1322,10 +879,11 @@ export function FinanceView() {
                 </div>
               </div>
 
+              {/* Müşteri & Portföy Seçimi */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    İlgili Müşteri
+                    İlgili Müşteri *
                   </label>
                   <select
                     value={editCustomerId}
@@ -1334,7 +892,7 @@ export function FinanceView() {
                   >
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.fullName} ({c.phone || "Tel yok"})
+                        {c.fullName}
                       </option>
                     ))}
                   </select>
@@ -1342,7 +900,7 @@ export function FinanceView() {
 
                 <div>
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    İlgili Portföy
+                    İlgili Portföy *
                   </label>
                   <select
                     value={editPropertyId}
@@ -1351,13 +909,14 @@ export function FinanceView() {
                   >
                     {properties.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency})
+                        {p.title}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
+              {/* Para Birimi & Anlaşılan Bedel */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
@@ -1365,7 +924,7 @@ export function FinanceView() {
                   </label>
                   <select
                     value={editCurrency}
-                    onChange={(e) => setEditCurrency(e.target.value as any)}
+                    onChange={(e) => setEditCurrency(e.target.value as Currency)}
                     className="sharp-input w-full p-2 bg-white font-mono font-bold text-[#1d2566]"
                   >
                     <option value="GBP">GBP (£ - Sterlin)</option>
@@ -1389,6 +948,7 @@ export function FinanceView() {
                 </div>
               </div>
 
+              {/* Portföy Menşei & Komisyon Oranı */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
@@ -1396,15 +956,11 @@ export function FinanceView() {
                   </label>
                   <select
                     value={editOrigin}
-                    onChange={(e) => setEditOrigin(e.target.value as any)}
+                    onChange={(e) => setEditOrigin(e.target.value as "advisor" | "office")}
                     className="sharp-input w-full p-2 bg-white font-medium"
                   >
-                    <option value="advisor">
-                      Danışman Kendi Portföyü (%60 Danışman / %40 Ofis)
-                    </option>
-                    <option value="office">
-                      Ofis Portföyü (%50 Danışman / %50 Ofis)
-                    </option>
+                    <option value="advisor">Danışman Kendi Portföyü (%60 / %40)</option>
+                    <option value="office">Ofis Portföyü (%50 / %50)</option>
                   </select>
                 </div>
 
@@ -1429,28 +985,42 @@ export function FinanceView() {
                 </div>
               </div>
 
-              {/* Süreç Aşaması */}
-              <div>
-                <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                  Aşama Durumu
-                </label>
-                <select
-                  value={editStage}
-                  onChange={(e) => setEditStage(e.target.value as any)}
-                  className="sharp-input w-full p-2 bg-white font-medium"
-                >
-                  <option value="offer">Teklif / Sözleşme Aşamasında</option>
-                  <option value="won">Başarıyla Kapatıldı (Kazanıldı)</option>
-                  <option value="lost">İptal / Kaybedildi</option>
-                </select>
+              {/* Aşama & Tahsilat Vadesi */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                    Anlaşma Aşaması
+                  </label>
+                  <select
+                    value={editStage}
+                    onChange={(e) => setEditStage(e.target.value as any)}
+                    className="sharp-input w-full p-2 bg-white font-medium"
+                  >
+                    <option value="offer">Teklif / Sözleşme Aşamasında</option>
+                    <option value="won">Kazanıldı (Tahsil Edildi)</option>
+                    <option value="lost">İptal / Kaybedildi</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                    Tahsilat / Kapanış Tarihi
+                  </label>
+                  <input
+                    type="date"
+                    value={editPaymentDue}
+                    onChange={(e) => setEditPaymentDue(e.target.value)}
+                    className="sharp-input w-full p-2 font-mono"
+                  />
+                </div>
               </div>
 
-              {/* Sistem Tarafından Otomatik Hesaplanan Komisyon Bilgi Kartı */}
+              {/* Canlı Hesaplanan Komisyon Özeti */}
               <div className="bg-[#1d2566]/5 border border-[#1d2566]/15 p-3 rounded-none space-y-2">
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="font-bold text-[#1d2566] flex items-center gap-1.5">
                     <Calculator className="w-3.5 h-3.5 text-[#00adb5]" />
-                    Sistem Otomatik Hesaplanan Komisyon:
+                    Hesaplanan Komisyon:
                   </span>
                   <span className="font-bold text-sm text-[#1d2566]">
                     {editCalculatedCommission.toLocaleString("tr-TR")} {editCurrency}
@@ -1491,9 +1061,9 @@ export function FinanceView() {
       {/* SİLME ONAY MODALI */}
       <DeleteConfirmModal
         isOpen={!!dealToDelete}
-        title="Finans / Komisyon Kaydını Sil"
+        title="İşlem Kaydını Sil"
         itemName={dealToDelete ? `${dealToDelete.title} (${dealToDelete.customerName || "Müşteri"})` : undefined}
-        message="Bu finans ve komisyon anlaşması kaydı kalıcı olarak silinecektir. Yapılan komisyon hesaplamaları ve ciro kayıtları güncellenecektir."
+        message="Bu işlem ve komisyon anlaşması kaydı kalıcı olarak silinecektir. Yapılan komisyon hesaplamaları ve ciro kayıtları güncellenecektir."
         onConfirm={() => {
           if (dealToDelete) {
             deleteDeal(dealToDelete.id);
@@ -1505,4 +1075,3 @@ export function FinanceView() {
     </div>
   );
 }
-

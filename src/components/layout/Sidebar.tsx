@@ -103,9 +103,9 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     },
     {
       id: "finance" as NavTab,
-      label: "Finans & Komisyon",
+      label: "İşlemler",
       icon: Calculator,
-      badge: "%60/%40",
+      badge: deals.length,
       brokerOnly: false,
     },
     {

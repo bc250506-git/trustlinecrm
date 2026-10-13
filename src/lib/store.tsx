@@ -49,6 +49,7 @@ interface StoreContextType {
   sharedProperties: Property[];
   followUps: FollowUp[];
   deals: Deal[];
+  myDeals: Deal[];
   rentals: RentalContract[];
   mandates: MandateContract[];
   // Otomasyon & Bildirimler (Faz 2)
@@ -983,6 +984,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         sharedProperties,
         followUps: visibleFollowUps,
         deals: visibleDeals,
+        myDeals: visibleDeals,
         rentals: visibleRentals,
         mandates: visibleMandates,
         addCustomer,

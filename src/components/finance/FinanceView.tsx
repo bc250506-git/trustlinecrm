@@ -7,6 +7,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { AddDealModal } from "@/components/modals/AddDealModal";
+import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import {
   Calculator,
   Plus,
@@ -84,8 +85,6 @@ export function FinanceView() {
   const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
 
-  const monthScrollRef = useRef<HTMLDivElement>(null);
-
   // Danışman hesabı ise sadece kendi işlemlerini görür; Ofis / Broker hesabı ise tüm ofisin işlemlerini görür.
   const visibleDeals = useMemo(() => {
     return isBroker ? deals : deals.filter((d) => d.createdById === currentUser.id);
@@ -117,13 +116,55 @@ export function FinanceView() {
     return counts;
   }, [visibleDeals]);
 
-  // Yatay ay kaydırma (scroll)
-  const scrollMonthBar = (direction: "left" | "right") => {
-    if (monthScrollRef.current) {
-      const offset = direction === "left" ? -260 : 260;
-      monthScrollRef.current.scrollBy({ left: offset, behavior: "smooth" });
-    }
+  // Cari Ay Anahtarı (YYYY-MM)
+  const currentMonthKey = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  // Ay Değiştirme Fonksiyonları (Sağlı Sollu Ok)
+  const handlePrevMonth = () => {
+    const baseKey = selectedMonth || currentMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(prevKey);
+    setPeriodFilter("MONTH");
   };
+
+  const handleNextMonth = () => {
+    const baseKey = selectedMonth || currentMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const nextDate = new Date(y, m, 1);
+    const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(nextKey);
+    setPeriodFilter("MONTH");
+  };
+
+  const handleGoThisMonth = () => {
+    setSelectedMonth(currentMonthKey);
+    setPeriodFilter("MONTH");
+  };
+
+  const handleClearMonth = () => {
+    setSelectedMonth("");
+    setPeriodFilter("ALL");
+  };
+
+  // Ay Gösterim Metni
+  const monthDisplayText = useMemo(() => {
+    if (!selectedMonth) return "TÜM AYLAR";
+    try {
+      const [y, m] = selectedMonth.split("-").map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString("tr-TR", {
+        month: "long",
+        year: "numeric",
+      }).toLocaleUpperCase("tr-TR");
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth]);
 
   // Filtreleri uygulama
   const filteredDeals = useMemo(() => {
@@ -490,79 +531,56 @@ export function FinanceView() {
               </div>
             </div>
 
-            {/* 2. Yatay Scroll Edilebilir İnteraktif Ay Şeridi (Monthly Scroll Strip) */}
-            <div className="pt-2 border-t border-slate-200">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#1d2566]">
+            {/* 2. Ay Filtresi: Sağlı Sollu Ok ve Ortada İşaretli Ay Kutusu */}
+            <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-mono text-slate-500 font-bold uppercase hidden sm:inline flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
-                  <span>Tek Tek Ayları İncele (Yatay Kaydırılabilir Ay Çizelgesi):</span>
-                </div>
+                  Ay Filtresi:
+                </span>
+
+                {/* Sağlı Sollu Ok Kutusu */}
+                <BoxedDateNavigator
+                  label={monthDisplayText}
+                  onPrev={handlePrevMonth}
+                  onNext={handleNextMonth}
+                  prevTitle="Önceki Ay"
+                  nextTitle="Sonraki Ay"
+                  badge={
+                    selectedMonth && monthCounts[selectedMonth] !== undefined ? (
+                      <span className="text-[10px] px-1.5 py-0.2 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold font-mono">
+                        {monthCounts[selectedMonth]} İşlem
+                      </span>
+                    ) : undefined
+                  }
+                />
+
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
-                    onClick={() => scrollMonthBar("left")}
-                    className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
-                    title="Önceki Aylara Kaydır"
+                    onClick={handleGoThisMonth}
+                    className={`px-2.5 py-1.5 text-xs font-mono border transition cursor-pointer font-bold ${
+                      selectedMonth === currentMonthKey
+                        ? "bg-[#1d2566] text-white border-[#1d2566]"
+                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                    }`}
+                    title="Cari ayı filtrele"
                   >
-                    <ChevronLeft className="w-3.5 h-3.5" />
+                    Bu Ay
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollMonthBar("right")}
-                    className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
-                    title="Sonraki Aylara Kaydır"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
 
-              {/* Scroll Container */}
-              <div
-                ref={monthScrollRef}
-                className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth"
-              >
-                {MONTH_OPTIONS.map((m) => {
-                  const count = monthCounts[m.key] || 0;
-                  const isSelected = selectedMonth === m.key;
-
-                  return (
+                  {selectedMonth && (
                     <button
-                      key={m.key}
                       type="button"
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedMonth("");
-                          setPeriodFilter("ALL");
-                        } else {
-                          setSelectedMonth(m.key);
-                          setPeriodFilter("MONTH");
-                        }
-                      }}
-                      className={`px-3 py-1.5 text-xs font-mono border transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-                        isSelected
-                          ? "bg-[#1d2566] border-[#1d2566] text-white font-bold shadow-xs scale-102"
-                          : count > 0
-                          ? "bg-white border-slate-300 text-slate-800 hover:border-[#00adb5]"
-                          : "bg-slate-50/70 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white"
-                      }`}
-                      title={`${m.label}: ${count} kayıtlı işlem`}
+                      onClick={handleClearMonth}
+                      className="p-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-500 hover:text-rose-600 cursor-pointer transition flex items-center gap-1 text-xs font-mono"
+                      title="Ay filtresini temizle (Tüm ayları göster)"
                     >
-                      <span>{m.short}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-none font-bold ${
-                          isSelected
-                            ? "bg-white/20 text-white"
-                            : count > 0
-                            ? "bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30"
-                            : "bg-slate-200/50 text-slate-400"
-                        }`}
-                      >
-                        {count}
-                      </span>
+                      <X className="w-3.5 h-3.5" />
+                      <span>Tüm Aylar</span>
                     </button>
-                  );
-                })}
+                  )}
+                </div>
               </div>
             </div>
 

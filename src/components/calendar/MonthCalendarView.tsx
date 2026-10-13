@@ -27,6 +27,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
+import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 
 // Ay şeridi seçenekleri (Geçmiş, Cari ve Gelecek Aylar)
 const MONTH_STRIP_ITEMS = [
@@ -402,43 +403,31 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
       {/* AY DEĞİŞTİRME KONTROLLERİ & YATAY AY SCROLL ŞERİDİ */}
       <div className="sharp-card p-4 bg-white border border-slate-200 shadow-2xs space-y-3.5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          {/* Sol: Ay Seçici Başlığı & Önceki/Sonraki Butonları */}
+          {/* Sol: Ay Seçici (Sağlı Sollu Ok Kutusu) */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-slate-100 p-0.5 border border-slate-300">
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="p-1.5 hover:bg-white text-slate-700 hover:text-[#1d2566] cursor-pointer transition-colors"
-                title="Önceki Ay"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={handleGoToday}
-                className="px-2.5 py-1 text-xs font-semibold hover:bg-white text-slate-800 hover:text-[#00adb5] border-x border-slate-200 cursor-pointer transition-colors"
-                title="Bugüne Git"
-              >
-                Bugün
-              </button>
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="p-1.5 hover:bg-white text-slate-700 hover:text-[#1d2566] cursor-pointer transition-colors"
-                title="Sonraki Ay"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+            <BoxedDateNavigator
+              label={`${TURKISH_MONTH_NAMES[currentMonth]} ${currentYear}`.toLocaleUpperCase("tr-TR")}
+              onPrev={handlePrevMonth}
+              onNext={handleNextMonth}
+              prevTitle="Önceki Ay"
+              nextTitle="Sonraki Ay"
+              badge={
+                currentMonthStats.total > 0 ? (
+                  <span className="text-[10px] px-1.5 py-0.2 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold font-mono">
+                    {currentMonthStats.total} İşlem
+                  </span>
+                ) : undefined
+              }
+            />
 
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-bold text-[#1d2566] tracking-tight">
-                {TURKISH_MONTH_NAMES[currentMonth]} {currentYear}
-              </span>
-              <span className="text-xs font-mono text-slate-500">
-                ({currentMonthStats.total} Toplam İşlem)
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={handleGoToday}
+              className="px-2.5 py-1.5 text-xs font-mono font-bold bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 transition cursor-pointer"
+              title="Cari aya / bugüne git"
+            >
+              Bugün
+            </button>
           </div>
 
           {/* Sağ: İstatistik Rozetleri */}

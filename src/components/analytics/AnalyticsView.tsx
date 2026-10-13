@@ -22,6 +22,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
+import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -60,7 +61,50 @@ export function AnalyticsView() {
   const [timeRange, setTimeRange] = useState<"30d" | "6m" | "1y" | "month">("6m");
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [chartType, setChartType] = useState<"bar" | "area">("bar");
-  const monthScrollRef = useRef<HTMLDivElement>(null);
+
+  const defaultAnalyticsMonthKey = "2026-10";
+
+  const handlePrevMonth = () => {
+    const baseKey = selectedMonth || defaultAnalyticsMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(prevKey);
+    setTimeRange("month");
+  };
+
+  const handleNextMonth = () => {
+    const baseKey = selectedMonth || defaultAnalyticsMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const nextDate = new Date(y, m, 1);
+    const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(nextKey);
+    setTimeRange("month");
+  };
+
+  const handleGoThisMonth = () => {
+    setSelectedMonth(defaultAnalyticsMonthKey);
+    setTimeRange("month");
+  };
+
+  const handleClearMonth = () => {
+    setSelectedMonth(null);
+    setTimeRange("6m");
+  };
+
+  const monthDisplayText = useMemo(() => {
+    if (!selectedMonth) return "TÜM DÖNEM";
+    try {
+      const [y, m] = selectedMonth.split("-").map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString("tr-TR", {
+        month: "long",
+        year: "numeric",
+      }).toLocaleUpperCase("tr-TR");
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -349,63 +393,40 @@ export function AnalyticsView() {
             </button>
           </div>
 
-          {/* Ay Scroll Şeridi (İstenen ayı seçme ve inceleme) */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-300">
-            <span className="text-[10px] font-mono text-slate-500 font-bold px-1.5 flex items-center gap-1 shrink-0">
-              <Calendar className="w-3 h-3 text-[#00adb5]" /> Ay:
-            </span>
+          {/* Ay Seçici (Sağlı Sollu Ok Kutusu) */}
+          <div className="flex items-center gap-1.5">
+            <BoxedDateNavigator
+              label={monthDisplayText}
+              onPrev={handlePrevMonth}
+              onNext={handleNextMonth}
+              prevTitle="Önceki Ay"
+              nextTitle="Sonraki Ay"
+              className="h-8"
+            />
 
             <button
               type="button"
-              onClick={() => {
-                if (monthScrollRef.current) {
-                  monthScrollRef.current.scrollBy({ left: -140, behavior: "smooth" });
-                }
-              }}
-              className="p-1 hover:bg-white text-slate-600 hover:text-[#1d2566] border border-slate-200 transition cursor-pointer"
-              title="Önceki Aylar"
+              onClick={handleGoThisMonth}
+              className={`px-2 py-1 text-xs font-mono border transition cursor-pointer font-bold ${
+                selectedMonth === defaultAnalyticsMonthKey
+                  ? "bg-[#1d2566] text-white border-[#1d2566]"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+              }`}
+              title="Cari ayı (Ekim 2026) seç"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
+              Bu Ay
             </button>
 
-            <div
-              ref={monthScrollRef}
-              className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth max-w-[240px] sm:max-w-[320px] md:max-w-[420px] py-0.5"
-            >
-              {ANALYTICS_MONTH_LIST.map((m) => {
-                const isActive = selectedMonth === m.key;
-                return (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => {
-                      setSelectedMonth(m.key);
-                      setTimeRange("month");
-                    }}
-                    className={`px-2.5 py-0.5 text-xs font-mono shrink-0 transition-all cursor-pointer border ${
-                      isActive
-                        ? "bg-[#1d2566] text-white border-[#1d2566] shadow-xs font-bold"
-                        : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
-                    }`}
-                  >
-                    {m.short}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (monthScrollRef.current) {
-                  monthScrollRef.current.scrollBy({ left: 140, behavior: "smooth" });
-                }
-              }}
-              className="p-1 hover:bg-white text-slate-600 hover:text-[#1d2566] border border-slate-200 transition cursor-pointer"
-              title="Sonraki Aylar"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            {selectedMonth && (
+              <button
+                type="button"
+                onClick={handleClearMonth}
+                className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-500 hover:text-rose-600 cursor-pointer transition flex items-center gap-1 text-xs font-mono"
+                title="Ay filtresini temizle"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

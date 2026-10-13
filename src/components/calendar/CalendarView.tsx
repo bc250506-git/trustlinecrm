@@ -29,6 +29,7 @@ import {
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
+import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl + Gelecek Aylar)
 const CALENDAR_MONTH_OPTIONS = [
@@ -80,8 +81,7 @@ export function CalendarView() {
     "ALL" | "TODAY" | "1W" | "1M" | "3M" | "6M" | "12M" | "CUSTOM_DATE" | "MONTH"
   >("ALL");
   const [selectedDate, setSelectedDate] = useState<string>(""); // YYYY-MM-DD (Spesifik gün seçimi)
-  const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM (Ay şeridi seçimi)
-  const monthScrollRef = useRef<HTMLDivElement>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM (Ay seçimi)
 
   // Yanlışlıkla Tamamlama için Hızlı Geri Al Bildirimi
   const [lastCompletedTask, setLastCompletedTask] = useState<FollowUp | null>(null);
@@ -170,25 +170,12 @@ export function CalendarView() {
     return counts;
   }, [followUps]);
 
-  // Ay şeridini kaydırma fonksiyonu
-  const scrollMonthBar = (direction: "left" | "right") => {
-    if (monthScrollRef.current) {
-      const scrollAmount = direction === "left" ? -250 : 250;
-      monthScrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
-    }
-  };
-
-  // Açılışta cari aya otomatik kaydır
-  useEffect(() => {
-    if (monthScrollRef.current) {
-      const now = new Date();
-      const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-      const idx = CALENDAR_MONTH_OPTIONS.findIndex((m) => m.key === curKey);
-      if (idx > 2) {
-        monthScrollRef.current.scrollTo({ left: (idx - 1) * 85, behavior: "smooth" });
-      }
-    }
-  }, []);
+  // Bugün ve Yarın Stringleri
+  const now = currentDate || new Date();
+  const todayStr = now.toISOString().split("T")[0];
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
 
   // Geri Alma (Tamamlandı -> Açık / Tamamlanmadı)
   const handleReopenTask = (id: string) => {
@@ -207,12 +194,119 @@ export function CalendarView() {
     setLastCompletedTask(t);
   };
 
-  // Bugün ve Yarın Stringleri
-  const now = currentDate || new Date();
-  const todayStr = now.toISOString().split("T")[0];
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+  // Cari Ay Anahtarı (YYYY-MM)
+  const currentMonthKey = useMemo(() => {
+    const d = currentDate || new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, [currentDate]);
+
+  // Gün Değiştirme Fonksiyonları (Sağlı Sollu Ok)
+  const handlePrevDay = () => {
+    const base = selectedDate
+      ? new Date(selectedDate + "T12:00:00")
+      : new Date((currentDate || new Date()).getTime());
+    base.setDate(base.getDate() - 1);
+    const newStr = base.toISOString().split("T")[0];
+    setSelectedDate(newStr);
+    setPeriodFilter("CUSTOM_DATE");
+    setSelectedMonth("");
+  };
+
+  const handleNextDay = () => {
+    const base = selectedDate
+      ? new Date(selectedDate + "T12:00:00")
+      : new Date((currentDate || new Date()).getTime());
+    base.setDate(base.getDate() + 1);
+    const newStr = base.toISOString().split("T")[0];
+    setSelectedDate(newStr);
+    setPeriodFilter("CUSTOM_DATE");
+    setSelectedMonth("");
+  };
+
+  const handleGoToday = () => {
+    setSelectedDate(todayStr);
+    setPeriodFilter("CUSTOM_DATE");
+    setSelectedMonth("");
+  };
+
+  const handleGoTomorrow = () => {
+    setSelectedDate(tomorrowStr);
+    setPeriodFilter("CUSTOM_DATE");
+    setSelectedMonth("");
+  };
+
+  const handleClearDay = () => {
+    setSelectedDate("");
+    setPeriodFilter("ALL");
+  };
+
+  // Ay Filtresi Fonksiyonları (Sağlı Sollu Ok)
+  const handlePrevMonth = () => {
+    const baseKey = selectedMonth || currentMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(prevKey);
+    setPeriodFilter("MONTH");
+    setSelectedDate("");
+  };
+
+  const handleNextMonth = () => {
+    const baseKey = selectedMonth || currentMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const nextDate = new Date(y, m, 1);
+    const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+    setSelectedMonth(nextKey);
+    setPeriodFilter("MONTH");
+    setSelectedDate("");
+  };
+
+  const handleGoThisMonth = () => {
+    setSelectedMonth(currentMonthKey);
+    setPeriodFilter("MONTH");
+    setSelectedDate("");
+  };
+
+  const handleClearMonth = () => {
+    setSelectedMonth("");
+    setPeriodFilter("ALL");
+  };
+
+  // Gün Gösterim Metni
+  const dayDisplayText = useMemo(() => {
+    if (!selectedDate) return "TÜM GÜNLER";
+    try {
+      const d = new Date(selectedDate + "T12:00:00");
+      return d.toLocaleDateString("tr-TR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }).toLocaleUpperCase("tr-TR");
+    } catch {
+      return selectedDate;
+    }
+  }, [selectedDate]);
+
+  // Ay Gösterim Metni
+  const monthDisplayText = useMemo(() => {
+    if (!selectedMonth) return "TÜM AYLAR";
+    try {
+      const [y, m] = selectedMonth.split("-").map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString("tr-TR", {
+        month: "long",
+        year: "numeric",
+      }).toLocaleUpperCase("tr-TR");
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth]);
+
+  // Seçili güne ait görev sayısı
+  const selectedDayCount = useMemo(() => {
+    if (!selectedDate) return null;
+    return followUps.filter((f) => getTaskDateStr(f) === selectedDate).length;
+  }, [followUps, selectedDate]);
 
   // Gelişmiş Filtreleme Mantığı
   const filteredTasks = useMemo(() => {
@@ -424,179 +518,158 @@ export function CalendarView() {
           </div>
         </div>
 
-        {/* 2. Orta Satır: Dönem Butonları (1 Hafta, 1 Ay, 3 Ay, 6 Ay, 12 Ay) ve Gün Seçme Şeyi */}
-        <div className="pt-2 border-t border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Hızlı Dönem Seçimi */}
-          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
-            <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
-              Dönem:
-            </span>
-            {[
-              { id: "ALL", label: "Tümü" },
-              { id: "TODAY", label: "Bugün" },
-              { id: "1W", label: "1 Hafta" },
-              { id: "1M", label: "1 Ay" },
-              { id: "3M", label: "3 Ay" },
-              { id: "6M", label: "6 Ay" },
-              { id: "12M", label: "12 Ay" },
-            ].map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => {
-                  setPeriodFilter(item.id as any);
-                  setSelectedDate("");
-                  setSelectedMonth("");
-                }}
-                className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
-                  periodFilter === item.id && !selectedDate && !selectedMonth
-                    ? "bg-[#00adb5] text-white font-bold shadow-2xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Gün Seçme Şeyi (Spesifik Tarih Seçici / Date Picker) */}
-          <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-1.5 border border-slate-200 text-xs font-mono">
-            <div className="flex items-center gap-1.5 text-[#1d2566] font-bold">
-              <CalendarIcon className="w-3.5 h-3.5 text-[#00adb5]" />
-              <span>Gün Seç:</span>
-            </div>
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setPeriodFilter("CUSTOM_DATE");
-                setSelectedMonth("");
-              }}
-              className="sharp-input px-2 py-0.5 text-xs font-mono bg-white font-bold border border-slate-300"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDate(todayStr);
-                setPeriodFilter("CUSTOM_DATE");
-                setSelectedMonth("");
-              }}
-              className={`px-2 py-0.5 text-[11px] font-mono border transition cursor-pointer ${
-                selectedDate === todayStr
-                  ? "bg-[#1d2566] text-white font-bold border-[#1d2566]"
-                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-              }`}
-              title="Bugünün randevularına git"
-            >
-              Bugün
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDate(tomorrowStr);
-                setPeriodFilter("CUSTOM_DATE");
-                setSelectedMonth("");
-              }}
-              className={`px-2 py-0.5 text-[11px] font-mono border transition cursor-pointer ${
-                selectedDate === tomorrowStr
-                  ? "bg-[#1d2566] text-white font-bold border-[#1d2566]"
-                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-              }`}
-              title="Yarının randevularına git"
-            >
-              Yarın
-            </button>
-            {selectedDate && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedDate("");
-                  setPeriodFilter("ALL");
-                }}
-                className="p-1 text-slate-400 hover:text-rose-600 cursor-pointer"
-                title="Seçili günü temizle"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 3. Yatay Scroll Edilebilir İnteraktif Ay Şeridi (Monthly Scroll Strip) */}
-        <div className="pt-2 border-t border-slate-200">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#1d2566]">
-              <CalendarDays className="w-3.5 h-3.5 text-[#00adb5]" />
-              <span>Aylık Takvim Çizelgesi (Yatay Kaydırılabilir Ay Butonları):</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => scrollMonthBar("left")}
-                className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
-                title="Önceki Aylara Kaydır"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollMonthBar("right")}
-                className="p-1 border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 cursor-pointer shadow-2xs"
-                title="Sonraki Aylara Kaydır"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Scroll Container */}
-          <div
-            ref={monthScrollRef}
-            className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth"
-          >
-            {CALENDAR_MONTH_OPTIONS.map((m) => {
-              const count = monthCounts[m.key] || 0;
-              const isSelected = selectedMonth === m.key;
-
-              return (
+        {/* 2. Tarih & Zaman Gezginleri (Gün Değişimi ve Ay Filtresi - Sağlı Sollu Ok Kutuları) */}
+        <div className="pt-2 border-t border-slate-200 flex flex-col gap-3">
+          {/* Üst Satır: Hızlı Dönemler */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
+              <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
+                Dönem:
+              </span>
+              {[
+                { id: "ALL", label: "Tümü" },
+                { id: "TODAY", label: "Bugün" },
+                { id: "1W", label: "1 Hafta" },
+                { id: "1M", label: "1 Ay" },
+                { id: "3M", label: "3 Ay" },
+                { id: "6M", label: "6 Ay" },
+                { id: "12M", label: "12 Ay" },
+              ].map((item) => (
                 <button
-                  key={m.key}
+                  key={item.id}
                   type="button"
                   onClick={() => {
-                    if (isSelected) {
-                      setSelectedMonth("");
-                      setPeriodFilter("ALL");
-                    } else {
-                      setSelectedMonth(m.key);
-                      setPeriodFilter("MONTH");
-                      setSelectedDate("");
-                    }
+                    setPeriodFilter(item.id as any);
+                    setSelectedDate("");
+                    setSelectedMonth("");
                   }}
-                  className={`px-3 py-1.5 text-xs font-mono border transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
-                    isSelected
-                      ? "bg-[#1d2566] border-[#1d2566] text-white font-bold shadow-xs scale-102"
-                      : count > 0
-                      ? "bg-white border-slate-300 text-slate-800 hover:border-[#00adb5]"
-                      : "bg-slate-50/70 border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-white"
+                  className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                    periodFilter === item.id && !selectedDate && !selectedMonth
+                      ? "bg-[#00adb5] text-white font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
-                  title={`${m.label}: ${count} randevu / görev`}
                 >
-                  <span>{m.short}</span>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.2 rounded-none font-bold ${
-                      isSelected
-                        ? "bg-white/20 text-white"
-                        : count > 0
-                        ? "bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30"
-                        : "bg-slate-200/50 text-slate-400"
-                    }`}
-                  >
-                    {count}
-                  </span>
+                  {item.label}
                 </button>
-              );
-            })}
+              ))}
+            </div>
+          </div>
+
+          {/* Alt Satır: Gün Değiştirme ve Ay Filtresi (Sağlı Sollu Ok Kutuları) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pt-0.5">
+            {/* GÜN DEĞİŞTİRME KUTUSU (Sağlı Sollu Ok ve Ortada İşaretli Gün) */}
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50/80 border border-slate-200">
+              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#1d2566] shrink-0">
+                <CalendarIcon className="w-3.5 h-3.5 text-[#00adb5]" />
+                <span>Gün Değişimi:</span>
+              </div>
+
+              {/* Sağlı Sollu Ok ve Ortada İşaretli Gün Kutusu */}
+              <BoxedDateNavigator
+                label={dayDisplayText}
+                onPrev={handlePrevDay}
+                onNext={handleNextDay}
+                prevTitle="Önceki Gün"
+                nextTitle="Sonraki Gün"
+                badge={
+                  selectedDayCount !== null ? (
+                    <span className="text-[10px] px-1.5 py-0.2 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold font-mono">
+                      {selectedDayCount}
+                    </span>
+                  ) : undefined
+                }
+              />
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleGoToday}
+                  className={`px-2.5 py-1.5 text-xs font-mono border transition cursor-pointer font-bold ${
+                    selectedDate === todayStr
+                      ? "bg-[#1d2566] text-white border-[#1d2566]"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                  title="Bugünün randevularına git"
+                >
+                  Bugün
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGoTomorrow}
+                  className={`px-2 py-1.5 text-xs font-mono border transition cursor-pointer ${
+                    selectedDate === tomorrowStr
+                      ? "bg-[#1d2566] text-white border-[#1d2566] font-bold"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                  title="Yarına git"
+                >
+                  Yarın
+                </button>
+
+                {selectedDate && (
+                  <button
+                    type="button"
+                    onClick={handleClearDay}
+                    className="p-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-500 hover:text-rose-600 cursor-pointer transition flex items-center gap-1 text-xs font-mono"
+                    title="Seçili günü temizle (Tüm günleri göster)"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Tüm Günler</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* AY FİLTRESİ KUTUSU (Sağlı Sollu Ok ve Ortada İşaretli Ay) */}
+            <div className="flex flex-wrap items-center gap-2 p-2 bg-slate-50/80 border border-slate-200">
+              <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#1d2566] shrink-0">
+                <CalendarDays className="w-3.5 h-3.5 text-[#00adb5]" />
+                <span>Ay Filtresi:</span>
+              </div>
+
+              {/* Sağlı Sollu Ok ve Ortada İşaretli Ay Kutusu */}
+              <BoxedDateNavigator
+                label={monthDisplayText}
+                onPrev={handlePrevMonth}
+                onNext={handleNextMonth}
+                prevTitle="Önceki Ay"
+                nextTitle="Sonraki Ay"
+                badge={
+                  selectedMonth && monthCounts[selectedMonth] !== undefined ? (
+                    <span className="text-[10px] px-1.5 py-0.2 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold font-mono">
+                      {monthCounts[selectedMonth]}
+                    </span>
+                  ) : undefined
+                }
+              />
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleGoThisMonth}
+                  className={`px-2.5 py-1.5 text-xs font-mono border transition cursor-pointer font-bold ${
+                    selectedMonth === currentMonthKey
+                      ? "bg-[#1d2566] text-white border-[#1d2566]"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
+                  title="Cari ayı filtrele"
+                >
+                  Bu Ay
+                </button>
+
+                {selectedMonth && (
+                  <button
+                    type="button"
+                    onClick={handleClearMonth}
+                    className="p-1.5 border border-slate-300 bg-white hover:bg-slate-100 text-slate-500 hover:text-rose-600 cursor-pointer transition flex items-center gap-1 text-xs font-mono"
+                    title="Ay filtresini temizle (Tüm ayları göster)"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Tüm Aylar</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -66,11 +66,6 @@ export function Header({ onNavigateTab }: HeaderProps) {
             alt="Trustline Real Estate"
             className="h-9 md:h-10 w-auto object-contain shrink-0"
           />
-          <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200">
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 bg-[#1d2566]/5 border border-[#1d2566]/20 text-[#1d2566] font-bold">
-              CRM v4.0
-            </span>
-          </div>
         </div>
 
         {/* Canlı Saat / Zaman Dilimi (Asia/Famagusta - KKTC) */}

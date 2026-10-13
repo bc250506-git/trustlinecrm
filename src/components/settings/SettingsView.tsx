@@ -139,7 +139,7 @@ export function SettingsView() {
 
     const backupData = {
       exportedAt: new Date().toISOString(),
-      system: "Trustline CRM v5.0",
+      system: "Trustline CRM",
       exportScope: isBroker ? "OFFICE_FULL_DATABASE" : "ADVISOR_PERSONAL_DATA_ONLY",
       authorizedUser: {
         id: currentUser.id,

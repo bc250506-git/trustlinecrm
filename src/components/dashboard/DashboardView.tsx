@@ -224,10 +224,6 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <span className="font-mono text-xs text-[#00adb5] font-bold tracking-wider uppercase">
                 {isBroker ? "BROKER KONTROL MERKEZİ" : "DANIŞMAN GÜNLÜK PLANI"}
               </span>
-              <span className="text-slate-300">•</span>
-              <span className="text-xs text-slate-500 font-mono">
-                Trustline CRM v5.0
-              </span>
             </div>
             <h1 className="text-xl font-bold text-[#1d2566] tracking-tight">
               Hoş Geldiniz, {currentUser.name}
@@ -263,7 +259,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5 text-amber-500" />
-              Finans & Performans Analitiği (v5.0)
+              Finans & Performans Analitiği
             </button>
           </div>
         </div>

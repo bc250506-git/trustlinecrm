@@ -407,8 +407,8 @@ export function NotificationCenterDrawer({
 
         {/* Çekmece Alt Bilgi */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-500 flex items-center justify-between shrink-0">
-          <span>Trustline AI Workflow Engine v5.0</span>
-          <span className="text-[#00adb5] font-bold">KKTC Emlak & Otomasyon Masası</span>
+          <span>İş Akışı & Otomasyon Masası</span>
+          <span className="text-[#00adb5] font-bold">Trustline Real Estate</span>
         </div>
       </div>
     </>

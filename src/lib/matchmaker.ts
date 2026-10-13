@@ -1,12 +1,23 @@
 import { Customer, Property } from "./types";
+import { convertCurrency, formatCurrencyAmount, getCurrentExchangeRates } from "./currency";
 
 export interface MatchResult {
   score: number; // 0 - 100
+  isEligible: boolean; // Niyet uyumu yoksa kesinlikle false
   matchedCriteria: string[];
   missingCriteria: string[];
   isStrictMatch: boolean;
+  convertedBudgetDisplay?: string;
+  fxNote?: string;
 }
 
+/**
+ * Müşteri ve Portföy Eşleştirme Algoritması (V2 - Gelişmiş Deterministik Motor)
+ * - Niyet Uyumu: Sert eleme (Alıcıya kiralık, kiracıya satılık ASLA önerilmez)
+ * - Canlı Döviz Çevirici: Para birimi cezası yok, bütçe anlık kurla dönüştürülerek karşılaştırılır
+ * - Çoklu Seçim: Çoklu bölge, çoklu mülk tipi ve çoklu oda sayısı etiketlerini tam destekler
+ * - Sıcaklık & VIP: Sıcak (Hot) ve VIP müşteriler önceliklendirilir
+ */
 export function matchCustomerAndProperty(
   customer: Customer,
   property: Property
@@ -15,127 +26,240 @@ export function matchCustomerAndProperty(
   const missingCriteria: string[] = [];
   let score = 0;
 
-  // 1. Niyet Uyumu (Alıcı -> Satılık, Kiracı -> Kiralık, Satıcı -> Mülk portföyü)
+  // 1. İŞLEM VE NİYET UYUMU (SERT ELEME - HARD FILTER)
+  // Satılık arayan birine kiralık, kiralık arayana satılık ASLA önerilmez!
   const isIntentMatch =
     (customer.category === "BUYER" && property.listingType === "sale") ||
     (customer.category === "TENANT" && property.listingType === "rent") ||
     (customer.category === "SELLER" && property.listingType === "sale");
 
-  if (isIntentMatch) {
-    score += 30;
+  if (!isIntentMatch) {
+    return {
+      score: 0,
+      isEligible: false,
+      matchedCriteria: [],
+      missingCriteria: [
+        customer.category === "BUYER"
+          ? "Niyet Uyumsuz: Müşteri Satılık arıyor, portföy Kiralık."
+          : customer.category === "TENANT"
+          ? "Niyet Uyumsuz: Müşteri Kiralık arıyor, portföy Satılık."
+          : "Niyet Uyumsuzluğu",
+      ],
+      isStrictMatch: false,
+    };
+  }
+
+  // Niyet açıklaması
+  matchedCriteria.push(
+    customer.category === "BUYER"
+      ? "Satılık Alıcı Uyumu"
+      : customer.category === "TENANT"
+      ? "Kiralık Kiracı Uyumu"
+      : "Portföy Satıcı Uyumu"
+  );
+
+  // 2. BÜTÇE & FİYAT UYUMU (40 PUAN) - DÖVİZ KURU OTOMATİK ÇEVRİLİR
+  const rates = getCurrentExchangeRates().rates;
+  const convertedBudget = convertCurrency(
+    customer.budget || 0,
+    customer.budgetCurrency,
+    property.currency,
+    rates
+  );
+
+  let fxNote: string | undefined = undefined;
+  if (customer.budgetCurrency !== property.currency) {
+    fxNote = `${formatCurrencyAmount(customer.budget, customer.budgetCurrency)} ≈ ${formatCurrencyAmount(
+      convertedBudget,
+      property.currency
+    )}`;
+  }
+
+  if (convertedBudget >= property.price) {
+    // Tam bütçe karşılığı
+    score += 40;
+    const margin = convertedBudget - property.price;
     matchedCriteria.push(
-      customer.category === "BUYER"
-        ? "Satılık Alıcı Uyumu"
-        : customer.category === "TENANT"
-        ? "Kiralık Kiracı Uyumu"
-        : "Portföy Satıcı Uyumu"
+      margin === 0
+        ? `Tam Bütçe Uyumu (${formatCurrencyAmount(property.price, property.currency)})`
+        : `Bütçe Fazlası (+${formatCurrencyAmount(margin, property.currency)})${
+            fxNote ? ` [Kur Çevrimi: ${fxNote}]` : ""
+          }`
     );
   } else {
-    missingCriteria.push("Niyet Uyumsuzluğu (Alıcı/Kiracı vs Portföy Türü)");
-  }
+    // Bütçe eksikliği - Pazarlık Toleransı
+    const diff = property.price - convertedBudget;
+    const tolerance10 = property.price * 0.1;
+    const tolerance20 = property.price * 0.2;
 
-  // 2. Para Birimi Uyumu (Katı kural: TRY-TRY, GBP-GBP, USD-USD, EUR-EUR)
-  const isCurrencyMatch = customer.budgetCurrency === property.currency;
-  if (isCurrencyMatch) {
-    score += 25;
-    matchedCriteria.push(`Aynı Para Birimi (${property.currency})`);
-  } else {
-    missingCriteria.push(
-      `Farklı Para Birimi (Müşteri: ${customer.budgetCurrency}, Mülk: ${property.currency})`
-    );
-  }
-
-  // 3. Bütçe Uyumu (Müşteri Bütçesi >= Portföy Fiyatı)
-  if (isCurrencyMatch) {
-    if (customer.budget >= property.price) {
+    if (diff <= tolerance10) {
+      // %10 Pazarlık Payı İçinde
       score += 25;
-      const margin = customer.budget - property.price;
       matchedCriteria.push(
-        margin === 0
-          ? "Tam Bütçe Uyumu"
-          : `Bütçe Fazlası (+${margin.toLocaleString("tr-TR")} ${property.currency})`
+        `%10 Pazarlık Payı İçinde (-${formatCurrencyAmount(diff, property.currency)})${
+          fxNote ? ` [${fxNote}]` : ""
+        }`
+      );
+    } else if (diff <= tolerance20) {
+      // %10-%20 Arası Yakın
+      score += 12;
+      missingCriteria.push(
+        `Bütçe %10-%20 Yakın (-${formatCurrencyAmount(diff, property.currency)})${
+          fxNote ? ` [${fxNote}]` : ""
+        }`
       );
     } else {
-      const diff = property.price - customer.budget;
-      const tolerance = property.price * 0.1; // %10 tolerans için kısmi puan
-      if (diff <= tolerance) {
-        score += 10;
-        missingCriteria.push(
-          `Bütçe %10 Yakın (-${diff.toLocaleString("tr-TR")} ${property.currency})`
-        );
-      } else {
-        missingCriteria.push(
-          `Bütçe Yetersiz (-${diff.toLocaleString("tr-TR")} ${property.currency})`
-        );
+      // Bütçe Yetersiz
+      missingCriteria.push(
+        `Bütçe Yetersiz (-${formatCurrencyAmount(diff, property.currency)})${
+          fxNote ? ` [${fxNote}]` : ""
+        }`
+      );
+    }
+  }
+
+  // 3. BÖLGE / LOKASYON UYUMU (25 PUAN) - ÇOKLU BÖLGE DESTEĞİ
+  const propRegionClean = (property.region || "").toLowerCase().trim();
+  const customerRegionList: string[] = [];
+
+  if (customer.regions && customer.regions.length > 0) {
+    customerRegionList.push(...customer.regions);
+  } else if (customer.region) {
+    customerRegionList.push(customer.region);
+  }
+
+  let isRegionMatch = false;
+  let matchedRegionName = "";
+
+  if (customerRegionList.length === 0 || customerRegionList.some((r) => r.toLowerCase().includes("tümü") || r.toLowerCase().includes("kktc"))) {
+    isRegionMatch = true;
+    matchedRegionName = "Tüm Bölgeler (Serbest)";
+  } else {
+    for (const r of customerRegionList) {
+      const cleanR = r.toLowerCase().trim();
+      const parts = cleanR.split("/").map((p) => p.trim());
+      const matchesMainOrSub = parts.some((p) => p && propRegionClean.includes(p));
+      const reverseMatch = propRegionClean.split("/").map((p) => p.trim()).some((p) => p && cleanR.includes(p));
+
+      if (matchesMainOrSub || reverseMatch) {
+        isRegionMatch = true;
+        matchedRegionName = r;
+        break;
       }
     }
   }
 
-  // 4. Bölge Uyumu
-  const custRegion = (customer.region || "").toLowerCase().trim();
-  const propRegion = (property.region || "").toLowerCase().trim();
-  const isRegionMatch =
-    !custRegion ||
-    !propRegion ||
-    custRegion.includes(propRegion) ||
-    propRegion.includes(custRegion);
-
   if (isRegionMatch) {
-    score += 10;
-    matchedCriteria.push(`Bölge Uyumu (${property.region})`);
+    score += 25;
+    matchedCriteria.push(`Bölge Uyumu: ${matchedRegionName || property.region}`);
   } else {
-    missingCriteria.push(
-      `Farklı Bölge (Müşteri: ${customer.region}, Mülk: ${property.region})`
-    );
+    const requestedStr = customerRegionList.slice(0, 2).join(", ") + (customerRegionList.length > 2 ? ` (+${customerRegionList.length - 2})` : "");
+    missingCriteria.push(`Farklı Bölge (Talep: ${requestedStr || "Belirtilmedi"}, Mülk: ${property.region})`);
   }
 
-  // 5. Gayrimenkul Tipi Uyumu
-  const custType = (customer.propertyType || "").toLowerCase().trim();
-  const propType = (property.propertyType || "").toLowerCase().trim();
-  const isTypeMatch =
-    !custType ||
-    !propType ||
-    custType.includes(propType) ||
-    propType.includes(custType);
+  // 4. GAYRİMENKUL TİPİ UYUMU (20 PUAN) - ÇOKLU TİP DESTEĞİ
+  const propTypeClean = (property.propertyType || "").toLowerCase().trim();
+  const customerTypeList: string[] = [];
 
-  if (isTypeMatch) {
-    score += 10;
-    matchedCriteria.push(`Gayrimenkul Tipi Uyumu (${property.propertyType})`);
-  } else {
-    missingCriteria.push(
-      `Farklı Tip (Müşteri: ${customer.propertyType}, Mülk: ${property.propertyType})`
-    );
+  if (customer.propertyTypes && customer.propertyTypes.length > 0) {
+    customerTypeList.push(...customer.propertyTypes);
+  } else if (customer.propertyType) {
+    customerTypeList.push(customer.propertyType);
   }
 
-  // 6. Oda Sayısı Uyumu (Varsa)
-  if (customer.rooms && customer.rooms !== "Farketmez / Tümü" && property.rooms) {
-    const custRooms = customer.rooms.toLowerCase().replace(/\s+/g, "");
-    const propRooms = property.rooms.toLowerCase().replace(/\s+/g, "");
-    if (propRooms.includes(custRooms) || custRooms.includes(propRooms)) {
-      score += 10;
-      matchedCriteria.push(`Oda Sayısı Uyumu (${property.rooms})`);
-    } else {
-      missingCriteria.push(
-        `Farklı Oda Sayısı (Talep: ${customer.rooms}, Mülk: ${property.rooms})`
-      );
+  let isTypeMatch = false;
+  let matchedTypeName = "";
+
+  if (customerTypeList.length === 0 || customerTypeList.some((t) => t.toLowerCase().includes("tümü") || t.toLowerCase().includes("farketmez"))) {
+    isTypeMatch = true;
+    matchedTypeName = "Tümü";
+  } else {
+    for (const t of customerTypeList) {
+      const cleanT = t.toLowerCase().trim();
+      if (propTypeClean.includes(cleanT) || cleanT.includes(propTypeClean)) {
+        isTypeMatch = true;
+        matchedTypeName = t;
+        break;
+      }
     }
   }
 
+  if (isTypeMatch) {
+    score += 20;
+    matchedCriteria.push(`Tip Uyumu: ${matchedTypeName || property.propertyType}`);
+  } else {
+    const requestedTypesStr = customerTypeList.slice(0, 2).join(", ") + (customerTypeList.length > 2 ? ` (+${customerTypeList.length - 2})` : "");
+    missingCriteria.push(`Farklı Tip (Talep: ${requestedTypesStr || "Belirtilmedi"}, Mülk: ${property.propertyType})`);
+  }
+
+  // 5. ODA SAYISI UYUMU (15 PUAN) - ÇOKLU ODA DESTEĞİ
+  const propRoomsClean = (property.rooms || "").toLowerCase().replace(/\s+/g, "");
+  const customerRoomsList: string[] = [];
+
+  if (customer.roomsList && customer.roomsList.length > 0) {
+    customerRoomsList.push(...customer.roomsList);
+  } else if (customer.rooms) {
+    customerRoomsList.push(customer.rooms);
+  }
+
+  let isRoomsMatch = false;
+  let matchedRoomsName = "";
+
+  if (
+    customerRoomsList.length === 0 ||
+    customerRoomsList.some((r) => r.toLowerCase().includes("tümü") || r.toLowerCase().includes("farketmez")) ||
+    !propRoomsClean
+  ) {
+    isRoomsMatch = true;
+    matchedRoomsName = "Farketmez / Esnek";
+  } else {
+    for (const r of customerRoomsList) {
+      const cleanR = r.toLowerCase().replace(/\s+/g, "");
+      if (propRoomsClean.includes(cleanR) || cleanR.includes(propRoomsClean)) {
+        isRoomsMatch = true;
+        matchedRoomsName = r;
+        break;
+      }
+    }
+  }
+
+  if (isRoomsMatch) {
+    score += 15;
+    matchedCriteria.push(`Oda Sayısı Uyumu: ${matchedRoomsName || property.rooms}`);
+  } else {
+    const requestedRoomsStr = customerRoomsList.slice(0, 3).join(", ") + (customerRoomsList.length > 3 ? ` (+${customerRoomsList.length - 3})` : "");
+    missingCriteria.push(`Farklı Oda Sayısı (Talep: ${requestedRoomsStr}, Mülk: ${property.rooms})`);
+  }
+
+  // 6. SICAKLIK VE VIP ÖNCELİK PUANI (BONUS)
+  if (customer.temperature === "hot") {
+    matchedCriteria.push("🔥 Sıcak Alıcı Önceliği");
+  }
+  if (customer.isVip) {
+    matchedCriteria.push("⭐ VIP Müşteri Önceliği");
+  }
+
+  // Kusursuz Eşleşme Şartı
   const isStrictMatch =
     isIntentMatch &&
-    isCurrencyMatch &&
-    customer.budget >= property.price &&
+    convertedBudget >= property.price &&
     isRegionMatch &&
-    isTypeMatch;
+    isTypeMatch &&
+    isRoomsMatch;
 
   return {
-    score: Math.min(100, score),
+    score: Math.min(100, Math.round(score)),
+    isEligible: true,
     matchedCriteria,
     missingCriteria,
     isStrictMatch,
+    convertedBudgetDisplay: fxNote,
   };
 }
 
+/**
+ * Müşteri için En Uygun Portföyleri Bulur ve Sıralar
+ */
 export function findMatchesForCustomer(
   customer: Customer,
   properties: Property[]
@@ -146,10 +270,24 @@ export function findMatchesForCustomer(
       property,
       result: matchCustomerAndProperty(customer, property),
     }))
-    .filter((item) => item.result.score >= 55)
-    .sort((a, b) => b.result.score - a.result.score);
+    .filter((item) => item.result.isEligible && item.result.score >= 50)
+    .sort((a, b) => {
+      // 1. Eşleşme puanı
+      if (b.result.score !== a.result.score) {
+        return b.result.score - a.result.score;
+      }
+      // 2. Strict match önceliği
+      if (b.result.isStrictMatch !== a.result.isStrictMatch) {
+        return b.result.isStrictMatch ? 1 : -1;
+      }
+      // 3. Fiyat yakınlığı
+      return a.property.price - b.property.price;
+    });
 }
 
+/**
+ * Portföy için En Uygun Müşterileri Bulur ve Sıralar (Sıcaklık & VIP Ağırlıklı)
+ */
 export function findMatchesForProperty(
   property: Property,
   customers: Customer[]
@@ -160,6 +298,23 @@ export function findMatchesForProperty(
       customer,
       result: matchCustomerAndProperty(customer, property),
     }))
-    .filter((item) => item.result.score >= 55)
-    .sort((a, b) => b.result.score - a.result.score);
+    .filter((item) => item.result.isEligible && item.result.score >= 50)
+    .sort((a, b) => {
+      // 1. Eşleşme puanı
+      if (b.result.score !== a.result.score) {
+        return b.result.score - a.result.score;
+      }
+      // 2. VIP Önceliği
+      if (b.customer.isVip !== a.customer.isVip) {
+        return b.customer.isVip ? 1 : -1;
+      }
+      // 3. Müşteri Sıcaklığı (Hot > Warm > Cold)
+      const tempWeights: Record<string, number> = { hot: 3, warm: 2, cold: 1 };
+      const weightA = tempWeights[a.customer.temperature] || 1;
+      const weightB = tempWeights[b.customer.temperature] || 1;
+      if (weightB !== weightA) {
+        return weightB - weightA;
+      }
+      return 0;
+    });
 }

@@ -1,14 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Customer, Property } from "@/lib/types";
 import { formatCustomerCategory, formatCustomerTemperature } from "@/lib/formatters";
 import {
   findMatchesForCustomer,
   findMatchesForProperty,
-  MatchResult,
 } from "@/lib/matchmaker";
+import {
+  getCurrentExchangeRates,
+  updateLiveExchangeRates,
+  ExchangeRates,
+} from "@/lib/currency";
 import {
   Sparkles,
   User,
@@ -18,11 +22,13 @@ import {
   Share2,
   Phone,
   MessageSquare,
-  ArrowRight,
-  TrendingUp,
-  SlidersHorizontal,
-  ChevronRight,
-  Calendar,
+  RefreshCw,
+  Coins,
+  Flame,
+  Star,
+  MapPin,
+  Home,
+  Layers,
 } from "lucide-react";
 
 interface MatchmakerViewProps {
@@ -36,7 +42,6 @@ export function MatchmakerView({
   initialCustomer,
   initialProperty,
   onOpenBrochure,
-  onCreateAppointment,
 }: MatchmakerViewProps) {
   const { customers, properties } = useStore();
 
@@ -51,6 +56,30 @@ export function MatchmakerView({
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(
     initialProperty?.id || properties[0]?.id || ""
   );
+
+  // Canlı Kur Durumu
+  const [fxData, setFxData] = useState(() => getCurrentExchangeRates());
+  const [isUpdatingFx, setIsUpdatingFx] = useState(false);
+
+  useEffect(() => {
+    // Sayfa açıldığında veya periyodik 10 dk'da bir kurları güncelle
+    updateLiveExchangeRates().then(() => {
+      setFxData(getCurrentExchangeRates());
+    });
+    const interval = setInterval(() => {
+      updateLiveExchangeRates().then(() => {
+        setFxData(getCurrentExchangeRates());
+      });
+    }, 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleRefreshFx = async () => {
+    setIsUpdatingFx(true);
+    await updateLiveExchangeRates();
+    setFxData(getCurrentExchangeRates());
+    setIsUpdatingFx(false);
+  };
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
   const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
@@ -71,11 +100,11 @@ export function MatchmakerView({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="font-mono text-xs text-[#00adb5] font-bold tracking-wider uppercase">
-              YAPAY ZEKA & ALGORİTMA MOTORU
+              YAPAY ZEKA & ALGORİTMA MOTORU (V2)
             </span>
             <span className="text-slate-300">•</span>
             <span className="text-xs text-slate-500 font-mono">
-              4 Kriterli Deterministik Eşleştirme
+              Sert Niyet Filtresi & Anlık FX Kur Çevirici
             </span>
           </div>
           <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
@@ -83,9 +112,9 @@ export function MatchmakerView({
             Akıllı Portföy & Müşteri Eşleştirme Motoru
           </h1>
           <p className="text-xs text-slate-600 mt-1 max-w-2xl leading-relaxed">
-            PRD kuralı uyarınca: Para birimi mutlak uyumu (TRY-TRY, GBP-GBP), bütçe
-            kapasitesi, lokasyon & mülk tipi ve işlem niyeti (satılık/kiralık)
-            kurallarına göre portföyünüzü en sıcak alıcılarla anında buluşturun.
+            • <strong>Sert Niyet Kuralı:</strong> Alıcıya kiralık, kiracıya satılık portföy ASLA önerilmez.<br />
+            • <strong>Canlı Kur Çevirici:</strong> Para birimi engeli yok; bütçe anlık KKTC / MB kurlarıyla otomatik dönüştürülerek karşılaştırılır.<br />
+            • <strong>Çoklu Tercih Desteği:</strong> Müşterinin seçtiği alternatif bölgeler, konut tipleri ve oda sayıları tam taranır.
           </p>
         </div>
 
@@ -112,6 +141,38 @@ export function MatchmakerView({
             <Building className="w-3.5 h-3.5" /> Portföye Müşteri Bul
           </button>
         </div>
+      </div>
+
+      {/* Canlı Kur Göstergesi Bandı */}
+      <div className="sharp-card p-3 bg-gradient-to-r from-slate-900 to-[#1d2566] text-white flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="flex items-center gap-1 text-[#00adb5] font-bold uppercase tracking-wider">
+            <Coins className="w-4 h-4 text-[#00adb5]" /> Canlı FX Kurları:
+          </span>
+          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
+            1 GBP = <strong>{fxData.rates.GBP.toFixed(2)} ₺</strong>
+          </span>
+          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
+            1 EUR = <strong>{fxData.rates.EUR.toFixed(2)} ₺</strong>
+          </span>
+          <span className="bg-white/10 px-2 py-0.5 border border-white/20">
+            1 USD = <strong>{fxData.rates.USD.toFixed(2)} ₺</strong>
+          </span>
+          <span className="text-[10px] text-slate-300">
+            ({fxData.lastUpdated})
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleRefreshFx}
+          disabled={isUpdatingFx}
+          className="px-2.5 py-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-[11px] font-mono flex items-center gap-1 cursor-pointer transition disabled:opacity-50"
+          title="Kurları Şimdi Güncelle"
+        >
+          <RefreshCw className={`w-3 h-3 ${isUpdatingFx ? "animate-spin" : ""}`} />
+          <span>{isUpdatingFx ? "Çekiliyor..." : "Kurları Güncelle"}</span>
+        </button>
       </div>
 
       {/* Kaynak Seçim Alanı */}
@@ -155,39 +216,119 @@ export function MatchmakerView({
 
             {/* Seçili Kartın Kriter Özeti */}
             {mode === "customer_to_property" && selectedCustomer && (
-              <div className="bg-slate-50 border border-slate-200 p-4 space-y-2.5 text-xs">
+              <div className="bg-slate-50 border border-slate-200 p-4 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-[#1d2566]">
+                  <span className="font-bold text-[#1d2566] text-sm">
                     {selectedCustomer.fullName}
                   </span>
-                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                    {formatCustomerCategory(selectedCustomer.category)}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
+                      {formatCustomerCategory(selectedCustomer.category)}
+                    </span>
+                    {selectedCustomer.isVip && (
+                      <span className="text-[9px] font-mono uppercase bg-amber-500 text-black px-1.5 py-0.5 font-bold flex items-center gap-0.5">
+                        <Star className="w-2.5 h-2.5 fill-black" /> VIP
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="text-[11px] font-mono space-y-1 text-slate-600">
-                  <div className="flex justify-between">
-                    <span>Maksimum Bütçe:</span>
-                    <span className="text-[#1d2566] font-bold">
+                <div className="text-[11px] font-mono space-y-2 text-slate-600">
+                  <div className="flex justify-between items-center py-1 border-b border-slate-200">
+                    <span className="text-slate-500">Maksimum Bütçe:</span>
+                    <span className="text-[#1d2566] font-bold text-xs">
                       {selectedCustomer.budget?.toLocaleString("tr-TR")}{" "}
                       {selectedCustomer.budgetCurrency}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Aranan Bölge:</span>
-                    <span className="text-slate-800 font-semibold">
-                      {selectedCustomer.region}
-                    </span>
+
+                  {/* Bölgeler */}
+                  <div className="py-1 border-b border-slate-200">
+                    <div className="flex items-center gap-1 text-slate-500 mb-1">
+                      <MapPin className="w-3 h-3 text-[#00adb5]" />
+                      <span>Aranan Bölge(ler):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedCustomer.regions && selectedCustomer.regions.length > 0 ? (
+                        selectedCustomer.regions.map((rg, idx) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 text-[10px] font-semibold"
+                          >
+                            {rg}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="font-semibold text-slate-800">
+                          {selectedCustomer.region || "KKTC Genel"}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Konut Tipi:</span>
-                    <span className="text-slate-800 font-semibold">
-                      {selectedCustomer.propertyType}
-                    </span>
+
+                  {/* Konut Tipleri */}
+                  <div className="py-1 border-b border-slate-200">
+                    <div className="flex items-center gap-1 text-slate-500 mb-1">
+                      <Home className="w-3 h-3 text-[#00adb5]" />
+                      <span>Gayrimenkul Tipi:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedCustomer.propertyTypes && selectedCustomer.propertyTypes.length > 0 ? (
+                        selectedCustomer.propertyTypes.map((pt, idx) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 text-[10px] font-semibold"
+                          >
+                            {pt}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="font-semibold text-slate-800">
+                          {selectedCustomer.propertyType || "Tümü"}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Sıcaklık:</span>
-                    <span className="text-rose-600 font-bold">
+
+                  {/* Oda Sayıları */}
+                  <div className="py-1 border-b border-slate-200">
+                    <div className="flex items-center gap-1 text-slate-500 mb-1">
+                      <Layers className="w-3 h-3 text-[#00adb5]" />
+                      <span>Oda Sayısı Tercihi:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedCustomer.roomsList && selectedCustomer.roomsList.length > 0 ? (
+                        selectedCustomer.roomsList.map((rm, idx) => (
+                          <span
+                            key={idx}
+                            className="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 text-[10px] font-semibold"
+                          >
+                            {rm}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="font-semibold text-slate-800">
+                          {selectedCustomer.rooms || "Farketmez"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Sıcaklık Seviyesi */}
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-slate-500">Müşteri Sıcaklığı:</span>
+                    <span
+                      className={`font-bold flex items-center gap-1 ${
+                        selectedCustomer.temperature === "hot"
+                          ? "text-rose-600"
+                          : selectedCustomer.temperature === "warm"
+                          ? "text-amber-600"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      {selectedCustomer.temperature === "hot" && (
+                        <Flame className="w-3 h-3 text-rose-600 fill-rose-600" />
+                      )}
                       {formatCustomerTemperature(selectedCustomer.temperature)}
                     </span>
                   </div>
@@ -212,24 +353,30 @@ export function MatchmakerView({
                   </span>
                 </div>
 
-                <div className="text-[11px] font-mono space-y-1 text-slate-600">
-                  <div className="flex justify-between">
-                    <span>Liste Fiyatı:</span>
-                    <span className="text-[#1d2566] font-bold">
+                <div className="text-[11px] font-mono space-y-1.5 text-slate-600">
+                  <div className="flex justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-500">Liste Fiyatı:</span>
+                    <span className="text-[#1d2566] font-bold text-xs">
                       {selectedProperty.price.toLocaleString("tr-TR")}{" "}
                       {selectedProperty.currency}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Konum:</span>
+                  <div className="flex justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-500">Konum:</span>
                     <span className="text-slate-800 font-semibold">
                       {selectedProperty.region}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Kullanım / Oda:</span>
+                  <div className="flex justify-between py-1 border-b border-slate-200">
+                    <span className="text-slate-500">Tip & Oda:</span>
                     <span className="text-slate-800 font-semibold">
-                      {selectedProperty.area} m² / {selectedProperty.rooms}
+                      {selectedProperty.propertyType} • {selectedProperty.rooms}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-1">
+                    <span className="text-slate-500">Alan:</span>
+                    <span className="text-slate-800 font-semibold">
+                      {selectedProperty.area} m²
                     </span>
                   </div>
                 </div>
@@ -249,8 +396,8 @@ export function MatchmakerView({
                   : `Uygun Müşteriler (${matchesForProperty.length} Eşleşme)`}
               </h2>
             </div>
-            <span className="text-[10px] font-mono text-slate-400 font-bold">
-              Skor &gt;= %55 Olanlar Listelenir
+            <span className="text-[10px] font-mono text-slate-500 font-bold">
+              Skor &ge; %50 Olanlar • Niyeti Uyuşmayanlar Elendi
             </span>
           </div>
 
@@ -258,9 +405,13 @@ export function MatchmakerView({
           {mode === "customer_to_property" && (
             <div className="space-y-3">
               {matchesForCustomer.length === 0 ? (
-                <div className="sharp-card p-12 text-center text-slate-400 font-mono text-xs">
-                  Bu müşterinin bütçesine, para birimine ve tercihine uygun aktif
-                  portföy bulunamadı.
+                <div className="sharp-card p-12 text-center text-slate-500 font-mono text-xs space-y-2">
+                  <p className="font-bold text-slate-700">
+                    Bu müşterinin işlem niyetine ({selectedCustomer?.category === "BUYER" ? "Satılık" : "Kiralık"}) ve bütçesine uygun aktif portföy bulunamadı.
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Satılık arayan alıcılara kiralık portföyler kural gereği kesinlikle önerilmemektedir.
+                  </p>
                 </div>
               ) : (
                 matchesForCustomer.map(({ property, result }) => (
@@ -269,11 +420,11 @@ export function MatchmakerView({
                     className="sharp-card p-4 hover:border-[#00adb5] transition flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs"
                   >
                     <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         {/* Skor Rozeti */}
                         <span
                           className={`text-xs font-mono font-bold px-2.5 py-0.5 border ${
-                            result.score >= 90
+                            result.score >= 85
                               ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                               : result.score >= 70
                               ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/40"
@@ -293,6 +444,13 @@ export function MatchmakerView({
                           {property.price.toLocaleString("tr-TR")}{" "}
                           {property.currency}
                         </span>
+
+                        {/* Kur Çevrim Hapı */}
+                        {result.convertedBudgetDisplay && (
+                          <span className="text-[10px] font-mono text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5">
+                            💱 {result.convertedBudgetDisplay}
+                          </span>
+                        )}
                       </div>
 
                       <h3 className="text-xs font-bold text-slate-800">
@@ -301,6 +459,8 @@ export function MatchmakerView({
 
                       <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
                         <span>{property.region}</span>
+                        <span>•</span>
+                        <span>{property.propertyType}</span>
                         <span>•</span>
                         <span>{property.area} m²</span>
                         <span>•</span>
@@ -366,9 +526,13 @@ export function MatchmakerView({
           {mode === "property_to_customer" && (
             <div className="space-y-3">
               {matchesForProperty.length === 0 ? (
-                <div className="sharp-card p-12 text-center text-slate-400 font-mono text-xs">
-                  Bu portföyün fiyatı ve niteliklerine uygun kayıtlı müşteri adayı
-                  bulunamadı.
+                <div className="sharp-card p-12 text-center text-slate-500 font-mono text-xs space-y-2">
+                  <p className="font-bold text-slate-700">
+                    Bu portföyün işlem türüne ({selectedProperty?.listingType === "sale" ? "Satılık Alıcı" : "Kiralık Kiracı"}) ve fiyatına uygun müşteri adayı bulunamadı.
+                  </p>
+                  <p className="text-[11px] text-slate-400">
+                    Satılık portföylere kiracı müşteriler kesinlikle önerilmemektedir.
+                  </p>
                 </div>
               ) : (
                 matchesForProperty.map(({ customer, result }) => (
@@ -377,10 +541,10 @@ export function MatchmakerView({
                     className="sharp-card p-4 hover:border-[#00adb5] transition flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs"
                   >
                     <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span
                           className={`text-xs font-mono font-bold px-2.5 py-0.5 border ${
-                            result.score >= 90
+                            result.score >= 85
                               ? "bg-emerald-50 text-emerald-800 border-emerald-300"
                               : result.score >= 70
                               ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/40"
@@ -398,26 +562,37 @@ export function MatchmakerView({
                           {formatCustomerCategory(customer.category)}
                         </span>
 
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-bold">
-                          {formatCustomerTemperature(customer.temperature)}
-                        </span>
+                        {customer.temperature === "hot" ? (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-300 font-bold flex items-center gap-1">
+                            <Flame className="w-3 h-3 fill-rose-600" /> SICAK ALICI
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                            {formatCustomerTemperature(customer.temperature)}
+                          </span>
+                        )}
 
                         {customer.isVip && (
-                          <span className="text-[9px] font-mono uppercase bg-amber-500 text-black px-1 font-bold">
-                            VIP
+                          <span className="text-[9px] font-mono uppercase bg-amber-500 text-black px-1.5 py-0.5 font-bold flex items-center gap-0.5">
+                            <Star className="w-2.5 h-2.5 fill-black" /> VIP
                           </span>
                         )}
                       </div>
 
-                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 flex-wrap">
                         <span className="text-[#1d2566] font-bold">
                           Bütçe: {customer.budget?.toLocaleString("tr-TR")}{" "}
                           {customer.budgetCurrency}
                         </span>
+                        {result.convertedBudgetDisplay && (
+                          <span className="text-cyan-800 bg-cyan-50 border border-cyan-200 px-1.5 py-0.2 text-[10px]">
+                            💱 {result.convertedBudgetDisplay}
+                          </span>
+                        )}
                         <span>•</span>
-                        <span>{customer.region}</span>
+                        <span>{customer.regions?.join(", ") || customer.region}</span>
                         <span>•</span>
-                        <span>{customer.propertyType}</span>
+                        <span>{customer.propertyTypes?.join(", ") || customer.propertyType}</span>
                       </div>
 
                       {/* Kriter Açıklamaları */}
@@ -446,8 +621,8 @@ export function MatchmakerView({
                       {customer.phone && (
                         <a
                           href={`tel:${customer.phone}`}
-                          className="p-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-600 transition"
-                          title="Ara"
+                          className="p-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-600 transition shadow-2xs"
+                          title="Hemen Ara"
                         >
                           <Phone className="w-3.5 h-3.5 text-[#00adb5]" />
                         </a>

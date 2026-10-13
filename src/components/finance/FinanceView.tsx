@@ -640,7 +640,7 @@ export function FinanceView() {
                   )}
                   {searchQuery && (
                     <span className="px-2 py-0.5 bg-slate-200 text-slate-800 border border-slate-300 flex items-center gap-1">
-                      Arama: "{searchQuery}"
+                      Arama: &quot;{searchQuery}&quot;
                       <button
                         type="button"
                         onClick={() => setSearchQuery("")}

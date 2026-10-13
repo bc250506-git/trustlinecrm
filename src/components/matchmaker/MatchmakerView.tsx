@@ -336,7 +336,7 @@ export function MatchmakerView({
 
                 {selectedCustomer.notes && (
                   <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-600 italic">
-                    "{selectedCustomer.notes}"
+                    &quot;{selectedCustomer.notes}&quot;
                   </div>
                 )}
               </div>

@@ -102,9 +102,10 @@ export function convertCurrency(
   to: Currency,
   rates: ExchangeRates = currentRates
 ): number {
-  if (from === to || amount <= 0) return amount;
+  if (from === to || !Number.isFinite(amount) || amount <= 0) return amount || 0;
   const fromRate = rates[from] || 1;
   const toRate = rates[to] || 1;
+  if (toRate <= 0) return 0;
   const inTry = amount * fromRate;
   return inTry / toRate;
 }

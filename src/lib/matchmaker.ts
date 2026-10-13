@@ -278,7 +278,7 @@ export function findMatchesForCustomer(
       }
       // 2. Strict match önceliği
       if (b.result.isStrictMatch !== a.result.isStrictMatch) {
-        return b.result.isStrictMatch ? 1 : -1;
+        return (b.result.isStrictMatch ? 1 : 0) - (a.result.isStrictMatch ? 1 : 0);
       }
       // 3. Fiyat yakınlığı
       return a.property.price - b.property.price;
@@ -306,7 +306,7 @@ export function findMatchesForProperty(
       }
       // 2. VIP Önceliği
       if (b.customer.isVip !== a.customer.isVip) {
-        return b.customer.isVip ? 1 : -1;
+        return (b.customer.isVip ? 1 : 0) - (a.customer.isVip ? 1 : 0);
       }
       // 3. Müşteri Sıcaklığı (Hot > Warm > Cold)
       const tempWeights: Record<string, number> = { hot: 3, warm: 2, cold: 1 };

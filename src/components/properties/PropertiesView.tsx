@@ -1563,7 +1563,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                         Diğer Danışmanlara Paylaş
                       </span>
                       <p className="text-[11px] text-slate-500 font-mono">
-                        İşaretlenirse ofisteki diğer danışmanların "Paylaşılan Portföyler" panelinde görünür.
+                        İşaretlenirse ofisteki diğer danışmanların &quot;Paylaşılan Portföyler&quot; panelinde görünür.
                       </p>
                     </div>
                   </label>

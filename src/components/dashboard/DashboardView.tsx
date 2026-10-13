@@ -38,6 +38,11 @@ import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 import { AddMandateModal } from "@/components/modals/AddMandateModal";
+import {
+  formatFollowUpKind,
+  formatCustomerCategory,
+  formatCustomerTemperature,
+} from "@/lib/formatters";
 
 interface DashboardViewProps {
   onNavigate: (tab: any) => void;
@@ -594,19 +599,19 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <span
-                              className={`text-[10px] font-mono uppercase px-2 py-0.5 font-bold ${
+                              className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
                                 task.kind === "showing"
-                                  ? "bg-[#1d2566]/10 text-[#1d2566] border border-[#1d2566]/20"
+                                  ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
                                   : task.kind === "meeting"
-                                  ? "bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30"
-                                  : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
+                                  : task.isOfficeEvent || task.kind === "office_event"
+                                  ? "bg-purple-100 text-purple-900 border-purple-300"
+                                  : task.kind === "call"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-100 text-slate-700 border-slate-300"
                               }`}
                             >
-                              {task.kind === "showing"
-                                ? "Yer Gösterme"
-                                : task.kind === "meeting"
-                                ? "Yüz Yüze Görüşme"
-                                : "Telefon Araması"}
+                              {formatFollowUpKind(task.kind, task.isOfficeEvent)}
                             </span>
                             {isPast && (
                               <span className="text-[10px] font-mono text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-300 font-bold">
@@ -791,8 +796,20 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                         </div>
                       </div>
 
-                      <span className="text-[10px] uppercase font-mono px-2 py-0.5 bg-white text-slate-700 border border-slate-200 font-medium">
-                        {task.kind}
+                      <span
+                        className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
+                          task.kind === "showing"
+                            ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
+                            : task.kind === "meeting"
+                            ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
+                            : task.isOfficeEvent || task.kind === "office_event"
+                            ? "bg-purple-100 text-purple-900 border-purple-300"
+                            : task.kind === "call"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-100 text-slate-700 border-slate-200"
+                        }`}
+                      >
+                        {formatFollowUpKind(task.kind, task.isOfficeEvent)}
                       </span>
                     </div>
                   ))}

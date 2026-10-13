@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Customer, Property } from "@/lib/types";
+import { formatCustomerCategory, formatCustomerTemperature } from "@/lib/formatters";
 import {
   findMatchesForCustomer,
   findMatchesForProperty,
@@ -132,7 +133,7 @@ export function MatchmakerView({
               >
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.fullName} ({c.category} - {c.budget?.toLocaleString("tr-TR")}{" "}
+                    {c.fullName} ({formatCustomerCategory(c.category)} - {c.budget?.toLocaleString("tr-TR")}{" "}
                     {c.budgetCurrency})
                   </option>
                 ))}
@@ -160,7 +161,7 @@ export function MatchmakerView({
                     {selectedCustomer.fullName}
                   </span>
                   <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                    {selectedCustomer.category}
+                    {formatCustomerCategory(selectedCustomer.category)}
                   </span>
                 </div>
 
@@ -186,8 +187,8 @@ export function MatchmakerView({
                   </div>
                   <div className="flex justify-between">
                     <span>Sıcaklık:</span>
-                    <span className="text-rose-600 uppercase font-bold">
-                      {selectedCustomer.temperature}
+                    <span className="text-rose-600 font-bold">
+                      {formatCustomerTemperature(selectedCustomer.temperature)}
                     </span>
                   </div>
                 </div>
@@ -391,6 +392,14 @@ export function MatchmakerView({
 
                         <span className="text-xs font-bold text-slate-800">
                           {customer.fullName}
+                        </span>
+
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
+                          {formatCustomerCategory(customer.category)}
+                        </span>
+
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                          {formatCustomerTemperature(customer.temperature)}
                         </span>
 
                         {customer.isVip && (

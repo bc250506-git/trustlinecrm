@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { WorkflowNotification } from "@/lib/types";
+import { formatAutomationCategory } from "@/lib/formatters";
 import {
   Bell,
   Sparkles,
@@ -379,7 +380,7 @@ export function NotificationCenterDrawer({
                           {rule.description}
                         </p>
                         <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
-                          <span>Kategori: <strong className="text-slate-700 uppercase">{rule.category}</strong></span>
+                          <span>Kategori: <strong className="text-slate-700 font-bold">{formatAutomationCategory(rule.category)}</strong></span>
                           <span>•</span>
                           <span>Son Tetiklenme: <strong className="text-[#00adb5]">{rule.lastTriggeredAt || "Henüz tetiklenmedi"}</strong></span>
                         </div>

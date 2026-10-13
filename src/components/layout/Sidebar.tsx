@@ -127,7 +127,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       id: "security" as NavTab,
       label: "Veri Koruma",
       icon: ShieldAlert,
-      badge: isBroker ? "Audit" : null,
+      badge: isBroker ? "Denetim" : null,
       brokerOnly: true,
     },
     {

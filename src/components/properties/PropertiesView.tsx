@@ -522,7 +522,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                       {p.isOffMarket && (
                         <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500 text-white font-bold shadow-xs flex items-center gap-1">
                           <Lock className="w-2.5 h-2.5" />
-                          <span>Off-Market</span>
+                          <span>İlansız Portföy</span>
                         </span>
                       )}
                     </div>
@@ -909,7 +909,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                     {activePropertyDetail.isOffMarket && (
                       <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500 text-white font-bold flex items-center gap-1">
                         <Lock className="w-2.5 h-2.5" />
-                        <span>Off-Market</span>
+                        <span>İlansız Portföy</span>
                       </span>
                     )}
                     <span className="text-xs font-mono text-slate-500 flex items-center gap-1 font-bold">

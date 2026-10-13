@@ -337,29 +337,43 @@ export async function seedAllDataToSupabase(data: {
   try {
     let insertedCounts = 0;
 
+    const errors: string[] = [];
+
     if (data.customers.length > 0) {
       const { error: custErr } = await supabase.from("customers").upsert(data.customers);
-      if (!custErr) insertedCounts += data.customers.length;
+      if (custErr) errors.push(`customers: ${custErr.message}`);
+      else insertedCounts += data.customers.length;
     }
 
     if (data.properties.length > 0) {
       const { error: propErr } = await supabase.from("properties").upsert(data.properties);
-      if (!propErr) insertedCounts += data.properties.length;
+      if (propErr) errors.push(`properties: ${propErr.message}`);
+      else insertedCounts += data.properties.length;
     }
 
     if (data.deals.length > 0) {
       const { error: dealErr } = await supabase.from("deals").upsert(data.deals);
-      if (!dealErr) insertedCounts += data.deals.length;
+      if (dealErr) errors.push(`deals: ${dealErr.message}`);
+      else insertedCounts += data.deals.length;
     }
 
     if (data.rentals.length > 0) {
       const { error: rentErr } = await supabase.from("rentals").upsert(data.rentals);
-      if (!rentErr) insertedCounts += data.rentals.length;
+      if (rentErr) errors.push(`rentals: ${rentErr.message}`);
+      else insertedCounts += data.rentals.length;
     }
 
     if (data.mandates.length > 0) {
       const { error: mandErr } = await supabase.from("mandates").upsert(data.mandates);
-      if (!mandErr) insertedCounts += data.mandates.length;
+      if (mandErr) errors.push(`mandates: ${mandErr.message}`);
+      else insertedCounts += data.mandates.length;
+    }
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        message: `Kayıt başarısız: Tablolar henüz veritabanında mevcut değil (${errors[0]}). Lütfen önce SQL Editor'de şemayı çalıştırın.`,
+      };
     }
 
     return {

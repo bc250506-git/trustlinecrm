@@ -1,207 +1,234 @@
 -- ==============================================================================
--- TRUSTLINE CRM 4.0 — SUPABASE POSTGRESQL VERİTABANI ŞEMASI
+-- TRUSTLINE CRM — SUPABASE POSTGRESQL VERİTABANI ŞEMASI (TAM VE UYUMLU)
 -- ==============================================================================
--- Bu betiği Supabase Dashboard -> SQL Editor alanına yapıştırıp "Run" butonuna basarak
--- tüm tabloları, ilişkileri ve indeksleri doğrudan oluşturabilirsiniz.
+-- Bu SQL betiğini Supabase Dashboard -> SQL Editor alanına yapıştırıp "Run" butonuna basarak
+-- tüm tabloları, izinleri ve başlangıç verilerini tek tıkla oluşturabilirsiniz.
 -- ==============================================================================
 
--- 1. ENUM TİPLERİ
-CREATE TYPE user_role AS ENUM ('ADMIN', 'AGENT');
-CREATE TYPE pipeline_stage AS ENUM ('NEW', 'CONTACTED', 'QUALIFIED', 'LISTING_SENT', 'APPOINTMENT', 'SHOWING', 'OFFER', 'WON', 'LOST');
-CREATE TYPE currency_code AS ENUM ('TRY', 'USD', 'EUR', 'GBP');
-CREATE TYPE customer_category AS ENUM ('BUYER', 'SELLER', 'TENANT');
-CREATE TYPE property_status AS ENUM ('AVAILABLE', 'RESERVED', 'SOLD', 'RENTED', 'ARCHIVED');
-
--- 2. KULLANICILAR & DANIŞMANLAR
+-- 1. KULLANICILAR & DANIŞMANLAR (users)
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    role user_role DEFAULT 'AGENT',
+    email TEXT,
+    role TEXT DEFAULT 'AGENT',
+    title TEXT,
+    password TEXT DEFAULT '123',
+    "commissionSplitRatio" NUMERIC(4,2) DEFAULT 0.60,
     active BOOLEAN DEFAULT TRUE,
-    avatar_url TEXT,
+    "mustChangePassword" BOOLEAN DEFAULT FALSE,
+    "avatarUrl" TEXT,
     phone TEXT,
-    permissions JSONB DEFAULT '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false}'::jsonb,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    permissions JSONB DEFAULT '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 3. MÜŞTERİLER (CUSTOMERS & VIP)
+-- 2. MÜŞTERİLER (customers)
 CREATE TABLE IF NOT EXISTS customers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    full_name TEXT NOT NULL,
-    phone TEXT UNIQUE,
-    whatsapp TEXT UNIQUE,
-    instagram_handle TEXT,
+    id TEXT PRIMARY KEY,
+    "fullName" TEXT NOT NULL,
+    phone TEXT,
+    whatsapp TEXT,
+    "instagramHandle" TEXT,
     email TEXT,
     source TEXT DEFAULT 'manual',
-    category customer_category DEFAULT 'BUYER',
+    category TEXT DEFAULT 'BUYER',
     temperature TEXT DEFAULT 'warm',
-    is_vip BOOLEAN DEFAULT FALSE,
+    "isVip" BOOLEAN DEFAULT FALSE,
     region TEXT,
-    property_type TEXT,
-    budget NUMERIC(15,2),
-    budget_currency currency_code DEFAULT 'TRY',
-    notes TEXT,
-    stage pipeline_stage DEFAULT 'NEW',
-    assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    last_contact_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ,
-    merged_into_id UUID,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. PORTFÖYLER (PROPERTIES)
-CREATE TABLE IF NOT EXISTS properties (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    region TEXT NOT NULL,
-    property_type TEXT DEFAULT 'Daire',
-    listing_type TEXT DEFAULT 'sale', -- sale | rent
-    price NUMERIC(15,2) NOT NULL,
-    currency currency_code DEFAULT 'TRY',
-    area NUMERIC(10,2),
+    "propertyType" TEXT,
     rooms TEXT,
-    status property_status DEFAULT 'AVAILABLE',
-    address TEXT,
-    owner_name TEXT,
-    owner_phone TEXT,
-    key_holder TEXT,
-    location TEXT,
-    mandate_start DATE,
-    mandate_end DATE,
+    regions JSONB DEFAULT '[]'::jsonb,
+    "propertyTypes" JSONB DEFAULT '[]'::jsonb,
+    "roomsList" JSONB DEFAULT '[]'::jsonb,
+    budget NUMERIC(15,2) DEFAULT 0,
+    "budgetCurrency" TEXT DEFAULT 'TRY',
     notes TEXT,
-    public_description TEXT DEFAULT '',
-    assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    deleted_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    stage TEXT DEFAULT 'NEW',
+    "assignedToId" TEXT,
+    "assignedToName" TEXT,
+    "isShared" BOOLEAN DEFAULT FALSE,
+    "lastContactAt" TIMESTAMPTZ,
+    "deletedAt" TIMESTAMPTZ,
+    "mergedIntoId" TEXT,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. PORTFÖY FOTOĞRAFLARI (STORAGE METADATA)
-CREATE TABLE IF NOT EXISTS property_photos (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
-    url TEXT NOT NULL,
-    shareable BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. FİYAT GEÇMİŞİ (AUDIT)
-CREATE TABLE IF NOT EXISTS property_price_history (
-    id BIGSERIAL PRIMARY KEY,
-    property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
-    old_price NUMERIC(15,2),
-    old_currency currency_code,
-    price NUMERIC(15,2) NOT NULL,
-    currency currency_code NOT NULL,
-    actor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 7. TAKİPLER & AJANDA (FOLLOW UPS)
-CREATE TABLE IF NOT EXISTS follow_ups (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    customer_id UUID REFERENCES customers(id) ON DELETE CASCADE,
-    property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+-- 3. PORTFÖYLER (properties)
+CREATE TABLE IF NOT EXISTS properties (
+    id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    kind TEXT DEFAULT 'call', -- call, meeting, showing, other
-    due_at TIMESTAMPTZ NOT NULL,
-    status TEXT DEFAULT 'open', -- open, done, cancelled
-    outcome TEXT DEFAULT 'pending',
-    feedback TEXT DEFAULT '',
-    assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 8. FİNANS & SATIŞ ANLAŞMALARI (DEALS)
-CREATE TABLE IF NOT EXISTS deals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title TEXT NOT NULL,
-    customer_id UUID REFERENCES customers(id),
-    property_id UUID REFERENCES properties(id),
-    currency currency_code DEFAULT 'TRY',
-    stage TEXT DEFAULT 'offer',
-    asking_price NUMERIC(15,2) DEFAULT 0,
-    offered_price NUMERIC(15,2) DEFAULT 0,
-    agreed_price NUMERIC(15,2) DEFAULT 0,
-    deposit NUMERIC(15,2) DEFAULT 0,
-    commission_expected NUMERIC(15,2) DEFAULT 0,
-    commission_received NUMERIC(15,2) DEFAULT 0,
-    portfolio_origin TEXT NOT NULL, -- advisor (%60/%40) | office (%50/%50)
-    payment_due DATE,
-    closing_date DATE,
-    notes TEXT,
-    created_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 9. KİRA SÖZLEŞMELERİ & ÇİZELGE (RENTALS)
-CREATE TABLE IF NOT EXISTS rentals (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    source_key TEXT UNIQUE,
-    data JSONB NOT NULL, -- Kiracı, ev sahibi, kira tutarı, vadeler, ödemeler
-    active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE IF NOT EXISTS rental_receipts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rental_id UUID REFERENCES rentals(id) ON DELETE CASCADE,
-    due_date TEXT NOT NULL,
-    file_url TEXT NOT NULL,
-    mime_type TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(rental_id, due_date)
-);
-
--- 10. İNDEKSLEME VE PERFORMANS
-CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
-CREATE INDEX IF NOT EXISTS idx_customers_assigned ON customers(assigned_to_id);
-CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
-CREATE INDEX IF NOT EXISTS idx_properties_region ON properties(region);
-CREATE INDEX IF NOT EXISTS idx_followups_due ON follow_ups(due_at);
-
--- 12. YETKİ SÖZLEŞMELERİ (MANDATES)
-CREATE TABLE IF NOT EXISTS mandates (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
-    property_title TEXT NOT NULL,
-    property_type TEXT DEFAULT 'Daire',
     region TEXT NOT NULL,
-    listing_price NUMERIC(15,2) DEFAULT 0,
-    currency currency_code DEFAULT 'GBP',
-    owner_customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
-    owner_name TEXT NOT NULL,
-    owner_phone TEXT,
-    mandate_type TEXT DEFAULT 'exclusive', -- exclusive | open
-    commission_rate NUMERIC(5,2) DEFAULT 5.0,
-    start_date DATE NOT NULL,
-    end_date DATE NOT NULL,
-    status TEXT DEFAULT 'active', -- active | expiring_soon | expired | cancelled
-    contract_number TEXT,
+    "propertyType" TEXT DEFAULT 'Daire',
+    "listingType" TEXT DEFAULT 'sale',
+    price NUMERIC(15,2) NOT NULL DEFAULT 0,
+    currency TEXT DEFAULT 'TRY',
+    area NUMERIC(10,2) DEFAULT 0,
+    rooms TEXT,
+    status TEXT DEFAULT 'AVAILABLE',
+    address TEXT,
+    "ownerCustomerId" TEXT,
+    "ownerName" TEXT,
+    "ownerPhone" TEXT,
+    "keyHolder" TEXT,
+    location TEXT,
+    "mandateStart" TEXT,
+    "mandateEnd" TEXT,
     notes TEXT,
-    assigned_to_id UUID REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    "publicDescription" TEXT,
+    "assignedToId" TEXT,
+    "assignedToName" TEXT,
+    "isShared" BOOLEAN DEFAULT FALSE,
+    "isOffMarket" BOOLEAN DEFAULT FALSE,
+    "listingUrl" TEXT,
+    photos JSONB DEFAULT '[]'::jsonb,
+    "deletedAt" TIMESTAMPTZ,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW(),
+    "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_mandates_status ON mandates(status);
-CREATE INDEX IF NOT EXISTS idx_mandates_end_date ON mandates(end_date);
-CREATE INDEX IF NOT EXISTS idx_mandates_assigned ON mandates(assigned_to_id);
+-- 4. AJANDA & TAKİPLER (follow_ups)
+CREATE TABLE IF NOT EXISTS follow_ups (
+    id TEXT PRIMARY KEY,
+    "customerId" TEXT,
+    "customerName" TEXT,
+    "customerPhone" TEXT,
+    "propertyId" TEXT,
+    "propertyTitle" TEXT,
+    title TEXT NOT NULL,
+    kind TEXT DEFAULT 'call',
+    "dueAt" TIMESTAMPTZ NOT NULL,
+    status TEXT DEFAULT 'open',
+    outcome TEXT DEFAULT 'pending',
+    feedback TEXT,
+    "assignedToId" TEXT,
+    "assignedToName" TEXT,
+    "isOfficeEvent" BOOLEAN DEFAULT FALSE,
+    "hasSpecificTime" BOOLEAN DEFAULT FALSE,
+    "createdById" TEXT,
+    "createdByName" TEXT,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
 
--- 11. BAŞLANGIÇ EKİP KADROSU (SEED DATA)
-INSERT INTO users (name, username, email, role, phone, permissions)
+-- 5. FİNANS & SATIŞ ANLAŞMALARI (deals)
+CREATE TABLE IF NOT EXISTS deals (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    "customerId" TEXT,
+    "customerName" TEXT,
+    "propertyId" TEXT,
+    "propertyTitle" TEXT,
+    currency TEXT DEFAULT 'TRY',
+    stage TEXT DEFAULT 'offer',
+    "askingPrice" NUMERIC(15,2) DEFAULT 0,
+    "offeredPrice" NUMERIC(15,2) DEFAULT 0,
+    "agreedPrice" NUMERIC(15,2) DEFAULT 0,
+    deposit NUMERIC(15,2) DEFAULT 0,
+    "commissionExpected" NUMERIC(15,2) DEFAULT 0,
+    "commissionReceived" NUMERIC(15,2) DEFAULT 0,
+    "portfolioOrigin" TEXT DEFAULT 'advisor',
+    "paymentDue" TEXT,
+    "closingDate" TEXT,
+    "closingNotes" TEXT,
+    notes TEXT,
+    "dealDate" TEXT,
+    "createdById" TEXT,
+    "createdByName" TEXT,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 6. KİRA SÖZLEŞMELERİ (rentals)
+CREATE TABLE IF NOT EXISTS rentals (
+    id TEXT PRIMARY KEY,
+    "propertyId" TEXT,
+    "propertyTitle" TEXT NOT NULL,
+    region TEXT,
+    "tenantCustomerId" TEXT,
+    "tenantName" TEXT NOT NULL,
+    "tenantPhone" TEXT,
+    "landlordCustomerId" TEXT,
+    "landlordName" TEXT NOT NULL,
+    "landlordPhone" TEXT,
+    "monthlyRent" NUMERIC(15,2) NOT NULL DEFAULT 0,
+    currency TEXT DEFAULT 'GBP',
+    "dueDay" INTEGER NOT NULL DEFAULT 5,
+    "contractStart" TEXT,
+    "contractEnd" TEXT,
+    "depositAmount" NUMERIC(15,2) DEFAULT 0,
+    active BOOLEAN DEFAULT TRUE,
+    notes TEXT,
+    "assignedToId" TEXT,
+    "assignedToName" TEXT,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW(),
+    payments JSONB DEFAULT '[]'::jsonb
+);
+
+-- 7. YETKİ SÖZLEŞMELERİ (mandates)
+CREATE TABLE IF NOT EXISTS mandates (
+    id TEXT PRIMARY KEY,
+    "propertyId" TEXT,
+    "propertyTitle" TEXT NOT NULL,
+    "propertyType" TEXT DEFAULT 'Daire',
+    region TEXT NOT NULL,
+    "listingPrice" NUMERIC(15,2) DEFAULT 0,
+    currency TEXT DEFAULT 'GBP',
+    "ownerCustomerId" TEXT,
+    "ownerName" TEXT NOT NULL,
+    "ownerPhone" TEXT,
+    "mandateType" TEXT DEFAULT 'exclusive',
+    "commissionRate" NUMERIC(5,2) DEFAULT 5.0,
+    "startDate" TEXT NOT NULL,
+    "endDate" TEXT NOT NULL,
+    status TEXT DEFAULT 'active',
+    "contractNumber" TEXT,
+    notes TEXT,
+    "assignedToId" TEXT,
+    "assignedToName" TEXT,
+    "createdAt" TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. GÜVENLİK VE ERİŞİM İZİNLERİ (RLS - Row Level Security)
+-- Tüm tabloların anon ve authenticated rolleri tarafından okunup yazılabilmesini sağla
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+ALTER TABLE follow_ups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE deals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rentals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mandates ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Public access on users" ON users;
+CREATE POLICY "Public access on users" ON users FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on customers" ON customers;
+CREATE POLICY "Public access on customers" ON customers FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on properties" ON properties;
+CREATE POLICY "Public access on properties" ON properties FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on follow_ups" ON follow_ups;
+CREATE POLICY "Public access on follow_ups" ON follow_ups FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on deals" ON deals;
+CREATE POLICY "Public access on deals" ON deals FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on rentals" ON rentals;
+CREATE POLICY "Public access on rentals" ON rentals FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public access on mandates" ON mandates;
+CREATE POLICY "Public access on mandates" ON mandates FOR ALL TO public USING (true) WITH CHECK (true);
+
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- 9. BAŞLANGIÇ EKİP KADROSU
+INSERT INTO users (id, name, username, email, role, title, phone, permissions)
 VALUES 
-    ('Ofis (Tüm Yetkiler)', 'ofis.yonetim', 'ofis@trustline.com.tr', 'ADMIN', '+90 212 287 00 00', '{"scope":"all","customers":true,"properties":true,"followups":true,"pipeline":true,"import":true,"finance":true,"rentals":true,"audit":true}'::jsonb),
-    ('Bora Boran', 'bora.boran', 'bora@trustline.com.tr', 'AGENT', '+90 532 111 22 33', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
-    ('Hasan Yoldağ', 'hasan.yoldag', 'hasan@trustline.com.tr', 'AGENT', '+90 533 444 55 66', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
-    ('Anıl Özkan', 'anil.ozkan', 'anil@trustline.com.tr', 'AGENT', '+90 535 777 88 99', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb)
-ON CONFLICT (username) DO NOTHING;
-
+    ('usr-volkan', 'Volkan Affan Kanıgür', 'volkan.kanigur', 'volkan@trustline.com.tr', 'ADMIN', 'Yönetici Ortak (Broker)', '+90 533 860 00 00', '{"scope":"all","customers":true,"properties":true,"followups":true,"pipeline":true,"import":true,"finance":true,"rentals":true,"audit":true}'::jsonb),
+    ('usr-bora', 'Bora Boran', 'bora.boran', 'bora@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 532 111 22 33', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
+    ('usr-hasan', 'Hasan Yoldağ', 'hasan.yoldag', 'hasan@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 533 444 55 66', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
+    ('usr-anil', 'Anıl Özkan', 'anil.ozkan', 'anil@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 535 777 88 99', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
+    ('usr-berk', 'Berk Çiftçi', 'berk.ciftci', 'berk@trustline.com.tr', 'AGENT', 'Asistan', '+90 533 888 99 00', '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, role = EXCLUDED.role, title = EXCLUDED.title;

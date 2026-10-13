@@ -10,7 +10,6 @@ import {
   Search,
   ChevronDown,
   Building2,
-  AlertTriangle,
   Zap,
   Settings,
   LogOut,
@@ -22,7 +21,7 @@ interface HeaderProps {
 }
 
 export function Header({ onNavigateTab }: HeaderProps) {
-  const { currentUser, followUps, customers, isBroker, notifications, logout } =
+  const { currentUser, isBroker, notifications, logout } =
     useStore();
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
   const unreadNotificationCount = notifications.filter((n) => !n.read).length;
@@ -57,28 +56,6 @@ export function Header({ onNavigateTab }: HeaderProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [fourteenDayWarningCount, setFourteenDayWarningCount] = useState(0);
-
-  useEffect(() => {
-    const now = new Date();
-    const overdue = followUps.filter((f) => {
-      if (f.status !== "open") return false;
-      return new Date(f.dueAt) < now;
-    }).length;
-
-    const fourteen = customers.filter((c) => {
-      if (!c.lastContactAt) return true;
-      const diffDays =
-        (now.getTime() - new Date(c.lastContactAt).getTime()) /
-        (1000 * 3600 * 24);
-      return diffDays >= 14;
-    }).length;
-
-    setOverdueCount(overdue);
-    setFourteenDayWarningCount(fourteen);
-  }, [followUps, customers]);
-
   return (
     <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs">
       {/* Sol: Logo (Orijinal PNG) & Marka */}
@@ -108,16 +85,6 @@ export function Header({ onNavigateTab }: HeaderProps) {
 
       {/* Sağ: Bildirimler ve Kullanıcı Rol Seçici */}
       <div className="flex items-center gap-3">
-        {/* Alarmlar */}
-        {(overdueCount > 0 || fourteenDayWarningCount > 0) && (
-          <div className="flex items-center gap-2 bg-amber-50 border border-amber-300 px-3 py-1 text-xs text-amber-900 font-mono">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 animate-pulse shrink-0" />
-            <span className="font-semibold">
-              {overdueCount} Geciken Takip | {fourteenDayWarningCount} İlişki Alarmı
-            </span>
-          </div>
-        )}
-
         {/* Bildirim Zili ve Otomasyon Masası Butonu */}
         <button
           type="button"

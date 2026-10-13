@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Property } from "@/lib/types";
+import { useStore } from "@/lib/store";
 import {
   X,
   Share2,
@@ -14,6 +15,7 @@ import {
   Copy,
   Printer,
   ExternalLink,
+  Award,
 } from "lucide-react";
 
 interface BrochureModalProps {
@@ -22,7 +24,18 @@ interface BrochureModalProps {
 }
 
 export function BrochureModal({ property, onClose }: BrochureModalProps) {
+  const { mandates } = useStore();
   const [copied, setCopied] = useState(false);
+
+  const isExclusive = mandates.some(
+    (m) =>
+      (m.propertyId === property.id ||
+        (m.propertyTitle &&
+          property.title &&
+          m.propertyTitle.trim().toLowerCase() === property.title.trim().toLowerCase())) &&
+      m.mandateType === "exclusive" &&
+      m.status !== "cancelled"
+  );
 
   // Müşteri Paylaşımına Uygun Fotoğraflar (PRD Güvenlik Kuralı)
   const displayPhotos = property.photos.filter((p) => p.shareable);
@@ -102,8 +115,15 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
             </div>
 
             <div className="text-right">
-              <div className="text-xs font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold inline-block">
-                {property.listingType === "sale" ? "SATILIK" : "KİRALIK"}
+              <div className="flex items-center gap-1.5 justify-end">
+                {isExclusive && (
+                  <span className="text-xs font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30">
+                    <Award className="w-3.5 h-3.5 text-[#1d2566]" /> Tek Yetkili
+                  </span>
+                )}
+                <div className="text-xs font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold inline-block">
+                  {property.listingType === "sale" ? "SATILIK" : "KİRALIK"}
+                </div>
               </div>
               <div className="text-xl font-bold font-mono text-[#1d2566] mt-1">
                 {property.price.toLocaleString("tr-TR")} {property.currency}

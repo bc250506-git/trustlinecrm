@@ -37,6 +37,7 @@ import {
   Trash2,
   Archive,
   Edit3,
+  Award,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
@@ -61,7 +62,21 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     isBroker,
     currentUser,
     users,
+    mandates,
   } = useStore();
+
+  // İlgili portföyün Tek Yetki Sözleşmesi kontrolü
+  const getExclusiveMandate = (property: Property) => {
+    return mandates.find(
+      (m) =>
+        (m.propertyId === property.id ||
+          (m.propertyTitle &&
+            property.title &&
+            m.propertyTitle.trim().toLowerCase() === property.title.trim().toLowerCase())) &&
+        m.mandateType === "exclusive" &&
+        m.status !== "cancelled"
+    );
+  };
 
   const [searchTerm, setSearchTerm] = useState("");
   const [listingTypeFilter, setListingTypeFilter] = useState<string>("ALL");
@@ -493,6 +508,16 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                         {p.propertyType}
                       </span>
 
+                      {/* Tek Yetkili Rozeti (Yetki Ekranındaki Tasarımın Birebir Aynısı) */}
+                      {getExclusiveMandate(p) && (
+                        <span
+                          className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30 shadow-2xs"
+                          title={`Tek Yetkili Aracılık Sözleşmesi (${getExclusiveMandate(p)?.contractNumber || "Aktif"})`}
+                        >
+                          <Award className="w-3 h-3 text-[#1d2566]" /> Tek Yetkili
+                        </span>
+                      )}
+
                       {/* İlansız (Off-Market) Rozeti */}
                       {p.isOffMarket && (
                         <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500 text-white font-bold shadow-xs flex items-center gap-1">
@@ -870,6 +895,17 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                     <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-slate-100 text-slate-700 font-bold border border-slate-200">
                       {activePropertyDetail.propertyType}
                     </span>
+
+                    {/* Tek Yetkili Rozeti */}
+                    {getExclusiveMandate(activePropertyDetail) && (
+                      <span
+                        className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30 shadow-2xs"
+                        title={`Tek Yetkili Aracılık Sözleşmesi (${getExclusiveMandate(activePropertyDetail)?.contractNumber || "Aktif"})`}
+                      >
+                        <Award className="w-3 h-3 text-[#1d2566]" /> Tek Yetkili
+                      </span>
+                    )}
+
                     {activePropertyDetail.isOffMarket && (
                       <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-amber-500 text-white font-bold flex items-center gap-1">
                         <Lock className="w-2.5 h-2.5" />
@@ -989,6 +1025,31 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   </div>
                 )}
               </div>
+
+              {/* Tek Yetkili Sözleşme Bilgi Paneli */}
+              {(() => {
+                const mandate = getExclusiveMandate(activePropertyDetail);
+                if (!mandate) return null;
+                return (
+                  <div className="p-3 bg-[#1d2566]/5 border border-[#1d2566]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30 shadow-2xs">
+                        <Award className="w-3 h-3 text-[#1d2566]" /> Tek Yetkili
+                      </span>
+                      <span className="font-mono text-[11px] text-[#1d2566] font-bold">
+                        {mandate.contractNumber || "Sözleşme Aktif"}
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-600 font-mono text-[11px]">
+                        Geçerlilik: {mandate.startDate} / {mandate.endDate}
+                      </span>
+                    </div>
+                    <div className="font-mono font-bold text-emerald-700 text-xs shrink-0">
+                      Komisyon Oranı: %{mandate.commissionRate || 5}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Tanıtım Metni */}
               {activePropertyDetail.publicDescription && (

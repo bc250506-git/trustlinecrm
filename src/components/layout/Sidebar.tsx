@@ -17,6 +17,8 @@ import {
   FileCheck,
   Settings,
   LogOut,
+  Landmark,
+  ExternalLink,
 } from "lucide-react";
 
 export type NavTab =
@@ -107,6 +109,14 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       brokerOnly: false,
     },
     {
+      id: "accounting",
+      label: "Muhasebe",
+      icon: Landmark,
+      badge: "Harici ↗",
+      brokerOnly: true,
+      href: "https://trustline-muhasebe.vercel.app/",
+    },
+    {
       id: "inbox" as NavTab,
       label: "AI Mesaj",
       icon: MessageSquareCode,
@@ -144,10 +154,37 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 
+              if ("href" in item && item.href) {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs text-left transition font-medium cursor-pointer text-slate-600 hover:bg-slate-100 hover:text-[#1d2566] group"
+                    title="Muhasebe portalını yeni sekmede aç"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4 shrink-0 text-slate-400 group-hover:text-[#1d2566]" />
+                      <span className="tracking-tight">{item.label}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {item.badge !== null && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 font-bold bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1 group-hover:border-slate-300">
+                          {item.badge}
+                          <ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover:opacity-100" />
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                );
+              }
+
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => setActiveTab(item.id as NavTab)}
                   className={`w-full flex items-center justify-between px-4 py-2.5 text-xs text-left transition font-medium cursor-pointer ${
                     isActive
                       ? "bg-[#1d2566] text-white border-l-4 border-[#00adb5] font-semibold shadow-xs"

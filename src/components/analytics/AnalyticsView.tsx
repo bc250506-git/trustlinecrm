@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
 import {
   TrendingUp,
@@ -18,6 +18,9 @@ import {
   Coins,
   Compass,
   Zap,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -35,28 +38,82 @@ import {
   Legend,
 } from "recharts";
 
+// Yıllık tüm aylar listesi ve veri şablonu
+const ANALYTICS_MONTH_LIST = [
+  { key: "2026-01", label: "Ocak 2026", short: "Oca 26", volume: 380000, commission: 19000, advisor: 11400, office: 7600, deals: 2 },
+  { key: "2026-02", label: "Şubat 2026", short: "Şub 26", volume: 420000, commission: 21000, advisor: 12600, office: 8400, deals: 2 },
+  { key: "2026-03", label: "Mart 2026", short: "Mar 26", volume: 460000, commission: 23000, advisor: 13800, office: 9200, deals: 2 },
+  { key: "2026-04", label: "Nisan 2026", short: "Nis 26", volume: 510000, commission: 25500, advisor: 15300, office: 10200, deals: 3 },
+  { key: "2026-05", label: "Mayıs 2026", short: "May 26", volume: 450000, commission: 22500, advisor: 13500, office: 9000, deals: 2 },
+  { key: "2026-06", label: "Haziran 2026", short: "Haz 26", volume: 620000, commission: 31000, advisor: 18600, office: 12400, deals: 3 },
+  { key: "2026-07", label: "Temmuz 2026", short: "Tem 26", volume: 540000, commission: 27000, advisor: 16200, office: 10800, deals: 2 },
+  { key: "2026-08", label: "Ağustos 2026", short: "Ağu 26", volume: 780000, commission: 39000, advisor: 23400, office: 15600, deals: 3 },
+  { key: "2026-09", label: "Eylül 2026", short: "Eyl 26", volume: 890000, commission: 44500, advisor: 26700, office: 17800, deals: 4 },
+  { key: "2026-10", label: "Ekim 2026", short: "Eki 26", volume: 1120000, commission: 56000, advisor: 33600, office: 22400, deals: 5 },
+  { key: "2026-11", label: "Kasım 2026", short: "Kas 26", volume: 750000, commission: 37500, advisor: 22500, office: 15000, deals: 3 },
+  { key: "2026-12", label: "Aralık 2026", short: "Ara 26", volume: 980000, commission: 49000, advisor: 29400, office: 19600, deals: 4 },
+];
+
 export function AnalyticsView() {
   const { deals, customers, properties, users, currentUser, isBroker } = useStore();
   const [isMounted, setIsMounted] = useState(false);
-  const [timeRange, setTimeRange] = useState<"30d" | "6m" | "1y">("6m");
+  const [timeRange, setTimeRange] = useState<"30d" | "6m" | "1y" | "month">("6m");
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [chartType, setChartType] = useState<"bar" | "area">("bar");
+  const monthScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // 1. AYLIK CİRO VE KOMİSYON TRENDİ (GBP BAZINDA)
+  // 1. AYLIK VEYA SEÇİLİ AYA AİT HAFTALIK CİRO VE KOMİSYON TRENDİ (GBP BAZINDA)
   const monthlyTrendData = useMemo(() => {
-    const months = [
-      { key: "2026-05", name: "Mayıs 26", volume: 450000, commission: 22500, advisor: 13500, office: 9000 },
-      { key: "2026-06", name: "Haziran 26", volume: 620000, commission: 31000, advisor: 18600, office: 12400 },
-      { key: "2026-07", name: "Temmuz 26", volume: 540000, commission: 27000, advisor: 16200, office: 10800 },
-      { key: "2026-08", name: "Ağustos 26", volume: 780000, commission: 39000, advisor: 23400, office: 15600 },
-      { key: "2026-09", name: "Eylül 26", volume: 890000, commission: 44500, advisor: 26700, office: 17800 },
-      { key: "2026-10", name: "Ekim 26", volume: 1120000, commission: 56000, advisor: 33600, office: 22400 },
-    ];
+    // Eğer spesifik bir ay seçildiyse: o ayın 4 haftalık dökümünü göster
+    if (timeRange === "month" && selectedMonth) {
+      const monthObj = ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth) || ANALYTICS_MONTH_LIST[9];
+      return [
+        {
+          name: `${monthObj.short} / 1. Hf`,
+          volume: Math.round(monthObj.volume * 0.22),
+          commission: Math.round(monthObj.commission * 0.22),
+          advisor: Math.round(monthObj.advisor * 0.22),
+          office: Math.round(monthObj.office * 0.22),
+        },
+        {
+          name: `${monthObj.short} / 2. Hf`,
+          volume: Math.round(monthObj.volume * 0.28),
+          commission: Math.round(monthObj.commission * 0.28),
+          advisor: Math.round(monthObj.advisor * 0.28),
+          office: Math.round(monthObj.office * 0.28),
+        },
+        {
+          name: `${monthObj.short} / 3. Hf`,
+          volume: Math.round(monthObj.volume * 0.24),
+          commission: Math.round(monthObj.commission * 0.24),
+          advisor: Math.round(monthObj.advisor * 0.24),
+          office: Math.round(monthObj.office * 0.24),
+        },
+        {
+          name: `${monthObj.short} / 4. Hf`,
+          volume: Math.round(monthObj.volume * 0.26),
+          commission: Math.round(monthObj.commission * 0.26),
+          advisor: Math.round(monthObj.advisor * 0.26),
+          office: Math.round(monthObj.office * 0.26),
+        },
+      ];
+    }
 
-    // Mevcut aktif GBP anlaşmalarını cari aya dahil et
+    // Standart dönem filtreleri: Son 30 Gün, Son 6 Ay, Tüm Yıl
+    const baseList = ANALYTICS_MONTH_LIST.map((m) => ({
+      key: m.key,
+      name: m.short,
+      volume: m.volume,
+      commission: m.commission,
+      advisor: m.advisor,
+      office: m.office,
+    }));
+
+    // Cari ay anlaşma verilerini cari aya (Ekim 2026) ekle
     const activeGbpVolume = deals
       .filter((d) => d.currency === "GBP")
       .reduce((sum, d) => sum + d.agreedPrice, 0);
@@ -65,17 +122,22 @@ export function AnalyticsView() {
       .filter((d) => d.currency === "GBP")
       .reduce((sum, d) => sum + d.commissionExpected, 0);
 
-    if (activeGbpVolume > 0) {
-      months[months.length - 1].volume = Math.max(months[months.length - 1].volume, activeGbpVolume);
-      months[months.length - 1].commission = Math.max(months[months.length - 1].commission, activeGbpCommission);
-      months[months.length - 1].advisor = Math.round(months[months.length - 1].commission * 0.6);
-      months[months.length - 1].office = Math.round(months[months.length - 1].commission * 0.4);
+    const octIndex = baseList.findIndex((m) => m.key === "2026-10");
+    if (octIndex >= 0 && activeGbpVolume > 0) {
+      baseList[octIndex].volume = Math.max(baseList[octIndex].volume, activeGbpVolume);
+      baseList[octIndex].commission = Math.max(baseList[octIndex].commission, activeGbpCommission);
+      baseList[octIndex].advisor = Math.round(baseList[octIndex].commission * 0.6);
+      baseList[octIndex].office = Math.round(baseList[octIndex].commission * 0.4);
     }
 
-    if (timeRange === "30d") return months.slice(-2);
-    if (timeRange === "6m") return months;
-    return months;
-  }, [deals, timeRange]);
+    if (timeRange === "30d") {
+      return baseList.slice(8, 10); // Eylül & Ekim
+    }
+    if (timeRange === "6m") {
+      return baseList.slice(4, 10); // Mayıs - Ekim (Son 6 Ay)
+    }
+    return baseList; // Tüm Yıl (12 Ay)
+  }, [deals, timeRange, selectedMonth]);
 
   // 2. SATIŞ HUNİSİ DÖNÜŞÜM ORANLARI (CONVERSION FUNNEL)
   const funnelData = useMemo(() => {
@@ -100,15 +162,18 @@ export function AnalyticsView() {
 
     const wonCount = deals.filter((d) => d.stage === "won").length;
 
+    // Eğer spesifik ay seçildiyse aya özel ölçekleme uygula
+    const multiplier = selectedMonth ? 0.35 : 1;
+
     return [
-      { stage: "Yeni Talep (Lead)", count: totalCustomers + 14, color: "#3b82f6", dropRate: "100%" },
-      { stage: "İletişim Kuruldu", count: Math.round(totalCustomers * 0.85) + 10, color: "#06b6d4", dropRate: "82%" },
-      { stage: "Nitelikli / Portföy Sunumu", count: Math.round(totalCustomers * 0.55) + 6, color: "#00adb5", dropRate: "54%" },
-      { stage: "Yer Gösterme (Randevu)", count: Math.round(totalCustomers * 0.35) + 4, color: "#f59e0b", dropRate: "33%" },
-      { stage: "Teklif / Müzakere", count: Math.max(deals.length, 3), color: "#8b5cf6", dropRate: "18%" },
-      { stage: "Kapanan Satış (Kazanıldı)", count: Math.max(wonCount, 2), color: "#10b981", dropRate: "9%" },
+      { stage: "Yeni Talep (Lead)", count: Math.round((totalCustomers + 14) * multiplier) || 12, color: "#3b82f6", dropRate: "100%" },
+      { stage: "İletişim Kuruldu", count: Math.round((totalCustomers * 0.85 + 10) * multiplier) || 9, color: "#06b6d4", dropRate: "82%" },
+      { stage: "Nitelikli / Portföy Sunumu", count: Math.round((totalCustomers * 0.55 + 6) * multiplier) || 6, color: "#00adb5", dropRate: "54%" },
+      { stage: "Yer Gösterme (Randevu)", count: Math.round((totalCustomers * 0.35 + 4) * multiplier) || 4, color: "#f59e0b", dropRate: "33%" },
+      { stage: "Teklif / Müzakere", count: Math.max(Math.round(deals.length * multiplier), 2), color: "#8b5cf6", dropRate: "18%" },
+      { stage: "Kapanan Satış (Kazanıldı)", count: Math.max(Math.round(wonCount * multiplier), 1), color: "#10b981", dropRate: "9%" },
     ];
-  }, [customers, deals]);
+  }, [customers, deals, selectedMonth]);
 
   // 3. DANIŞMAN LİDERLİK TABLOSU (LEADERBOARD)
   const leaderboardData = useMemo(() => {
@@ -121,10 +186,18 @@ export function AnalyticsView() {
       const totalCommission = userDeals.reduce((sum, d) => sum + d.commissionExpected, 0) || Math.round(totalVolume * 0.05);
       const closedDealsCount = userDeals.length || (user.role === "ADMIN" ? 3 : Math.max(1, 3 - idx));
 
+      // Berk Çiftçi gayrimenkul danışmanı değil, kesinlikle "Asistan" olarak tanımlanır!
+      let userRoleTitle = user.title;
+      if (user.id === "usr-berk" || user.name.toLowerCase().includes("berk")) {
+        userRoleTitle = "Asistan";
+      } else if (!userRoleTitle) {
+        userRoleTitle = user.role === "ADMIN" ? "Broker / Yönetici" : "Gayrimenkul Danışmanı";
+      }
+
       return {
         id: user.id,
         name: user.name,
-        role: user.role === "ADMIN" ? "Broker / Yönetici" : "Gayrimenkul Danışmanı",
+        role: userRoleTitle,
         avatar: user.name.slice(0, 2).toUpperCase(),
         volume: totalVolume,
         commission: totalCommission,
@@ -228,50 +301,148 @@ export function AnalyticsView() {
           </p>
         </div>
 
-        {/* Zaman Aralığı Seçici */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 self-start md:self-auto">
-          <button
-            type="button"
-            onClick={() => setTimeRange("30d")}
-            className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
-              timeRange === "30d"
-                ? "bg-[#1d2566] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Son 30 Gün
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("6m")}
-            className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
-              timeRange === "6m"
-                ? "bg-[#1d2566] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Son 6 Ay
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeRange("1y")}
-            className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
-              timeRange === "1y"
-                ? "bg-[#1d2566] text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Tüm Yıl
-          </button>
+        {/* Zaman Aralığı Seçici & Ay Scroll Şeridi */}
+        <div className="flex flex-col xl:flex-row items-start xl:items-center gap-2 self-start md:self-auto">
+          {/* Standart Dönem Butonları: Son 30 Gün | Son 6 Ay | Tüm Yıl */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-300 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setTimeRange("30d");
+                setSelectedMonth(null);
+              }}
+              className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
+                timeRange === "30d" && !selectedMonth
+                  ? "bg-[#1d2566] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Son 30 Gün
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTimeRange("6m");
+                setSelectedMonth(null);
+              }}
+              className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
+                timeRange === "6m" && !selectedMonth
+                  ? "bg-[#1d2566] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Son 6 Ay
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTimeRange("1y");
+                setSelectedMonth(null);
+              }}
+              className={`px-3 py-1 text-xs font-mono font-bold transition cursor-pointer ${
+                timeRange === "1y" && !selectedMonth
+                  ? "bg-[#1d2566] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Tüm Yıl
+            </button>
+          </div>
+
+          {/* Ay Scroll Şeridi (İstenen ayı seçme ve inceleme) */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-300">
+            <span className="text-[10px] font-mono text-slate-500 font-bold px-1.5 flex items-center gap-1 shrink-0">
+              <Calendar className="w-3 h-3 text-[#00adb5]" /> Ay:
+            </span>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (monthScrollRef.current) {
+                  monthScrollRef.current.scrollBy({ left: -140, behavior: "smooth" });
+                }
+              }}
+              className="p-1 hover:bg-white text-slate-600 hover:text-[#1d2566] border border-slate-200 transition cursor-pointer"
+              title="Önceki Aylar"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <div
+              ref={monthScrollRef}
+              className="flex items-center gap-1 overflow-x-auto no-scrollbar scroll-smooth max-w-[240px] sm:max-w-[320px] md:max-w-[420px] py-0.5"
+            >
+              {ANALYTICS_MONTH_LIST.map((m) => {
+                const isActive = selectedMonth === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedMonth(m.key);
+                      setTimeRange("month");
+                    }}
+                    className={`px-2.5 py-0.5 text-xs font-mono shrink-0 transition-all cursor-pointer border ${
+                      isActive
+                        ? "bg-[#1d2566] text-white border-[#1d2566] shadow-xs font-bold"
+                        : "bg-white hover:bg-slate-50 text-slate-700 border-slate-200"
+                    }`}
+                  >
+                    {m.short}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (monthScrollRef.current) {
+                  monthScrollRef.current.scrollBy({ left: 140, behavior: "smooth" });
+                }
+              }}
+              className="p-1 hover:bg-white text-slate-600 hover:text-[#1d2566] border border-slate-200 transition cursor-pointer"
+              title="Sonraki Aylar"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Seçili Ay İnceleme Bildirim Bandı */}
+      {selectedMonth && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-blue-50/70 border border-blue-200 text-xs font-mono text-slate-700">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-[#00adb5] shrink-0" />
+            <span className="font-bold text-[#1d2566]">
+              {ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label || selectedMonth} Ayı İstatistikleri
+            </span>
+            <span className="hidden md:inline text-slate-400">|</span>
+            <span className="hidden md:inline text-slate-600">
+              Bu aya ait 4 haftalık satış hacmi, komisyon ve dönüşüm hunisi göstergeleri incelenmektedir.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedMonth(null);
+              setTimeRange("6m");
+            }}
+            className="px-2.5 py-1 bg-white border border-slate-300 hover:border-red-400 text-slate-600 hover:text-red-600 font-bold text-[11px] cursor-pointer flex items-center gap-1 shrink-0 shadow-2xs"
+          >
+            <X className="w-3 h-3 text-red-500" />
+            Filtreyi Temizle (Son 6 Ay)
+          </button>
+        </div>
+      )}
 
       {/* 4 TEMEL KPI ÖZET KARTI */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              Toplam Satış Hacmi
+              {selectedMonth ? "Aylık Satış Hacmi" : "Toplam Satış Hacmi"}
             </span>
             <span className="text-emerald-700 font-bold flex items-center text-[11px]">
               <ArrowUpRight className="w-3.5 h-3.5" /> +22.4%
@@ -281,14 +452,14 @@ export function AnalyticsView() {
             {totalVolumeSum.toLocaleString("tr-TR")} <span className="text-xs font-normal text-slate-500">GBP</span>
           </div>
           <div className="text-[11px] font-mono text-slate-500 mt-1">
-            Dönem içi gerçekleşen brüt ciro
+            {selectedMonth ? "Seçili ayda gerçekleşen brüt ciro" : "Dönem içi gerçekleşen brüt ciro"}
           </div>
         </div>
 
         <div className="sharp-card p-4 border-t-3 border-t-emerald-600">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-emerald-800 px-2 py-0.5 bg-emerald-50 border border-emerald-200 uppercase">
-              Toplam Üretilen Komisyon
+              {selectedMonth ? "Aylık Üretilen Komisyon" : "Toplam Üretilen Komisyon"}
             </span>
             <span className="text-emerald-700 font-bold flex items-center text-[11px]">
               <ArrowUpRight className="w-3.5 h-3.5" /> +18.2%
@@ -340,14 +511,18 @@ export function AnalyticsView() {
             <div className="flex items-center gap-2 mb-1">
               <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00adb5]" />
-                Aylık Satış Hacmi & Komisyon Paylaşım Dağılımı (GBP - £)
+                {selectedMonth
+                  ? `${ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label || selectedMonth} - Haftalık Satış Hacmi & Komisyon Dağılımı (GBP - £)`
+                  : "Aylık Satış Hacmi & Komisyon Paylaşım Dağılımı (GBP - £)"}
               </h3>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200">
                 %60 / %40 Paylaşım
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Aylık toplam komisyon üretimi ve ofis / danışman net hak edişlerinin karşılaştırmalı görünümü.
+              {selectedMonth
+                ? `${ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label} ayının haftalık komisyon üretimi ve ofis / danışman net hak edişleri.`
+                : "Aylık toplam komisyon üretimi ve ofis / danışman net hak edişlerinin karşılaştırmalı görünümü."}
             </p>
           </div>
 

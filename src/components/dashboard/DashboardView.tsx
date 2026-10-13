@@ -30,6 +30,8 @@ import {
   CalendarPlus,
   FileCheck,
   Calculator,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { NotificationCenterDrawer } from "@/components/automation/NotificationCenterDrawer";
@@ -61,8 +63,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
     notifications,
     postponeFollowUp,
     completeFollowUp,
+    updateFollowUp,
   } = useStore();
 
+  const [lastCompletedTask, setLastCompletedTask] = useState<any | null>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [completeFeedback, setCompleteFeedback] = useState("");
   const [completeOutcome, setCompleteOutcome] = useState("attended");
@@ -192,9 +196,21 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   }, [followUps, customers, rentals, isBroker, currentUser.id]);
 
   const handleFinishTask = (id: string) => {
+    const t = followUps.find((f) => f.id === id);
     completeFollowUp(id, completeOutcome, completeFeedback);
     setCompletingId(null);
     setCompleteFeedback("");
+    if (t) setLastCompletedTask(t);
+  };
+
+  const handleReopenTask = (id: string) => {
+    updateFollowUp(id, {
+      status: "open",
+      outcome: "pending",
+    });
+    if (lastCompletedTask?.id === id) {
+      setLastCompletedTask(null);
+    }
   };
 
   return (
@@ -582,6 +598,36 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                 {overdueAndTodayTasks.length} Görev
               </span>
             </div>
+
+            {/* Yanlışlıkla Tamamlayanlar İçin Hızlı Geri Al Bildirimi */}
+            {lastCompletedTask && (
+              <div className="p-3 bg-amber-50 border-b border-amber-300 flex items-center justify-between gap-3 text-xs font-mono text-amber-950 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>&ldquo;{lastCompletedTask.title}&rdquo;</strong> tamamlandı yapıldı.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleReopenTask(lastCompletedTask.id)}
+                    className="px-2.5 py-1 bg-white border border-amber-400 hover:bg-amber-100 text-amber-900 font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Geri Al (Tamamlanmadı Yap)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLastCompletedTask(null)}
+                    className="p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    title="Kapat"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="divide-y divide-slate-100">
               {overdueAndTodayTasks.length === 0 ? (

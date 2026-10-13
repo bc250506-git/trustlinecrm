@@ -12,9 +12,10 @@ interface AddFollowUpModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialDate?: string;
 }
 
-export function AddFollowUpModal({ isOpen, onClose, onSuccess }: AddFollowUpModalProps) {
+export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: AddFollowUpModalProps) {
   const {
     currentUser,
     isBroker,
@@ -35,7 +36,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess }: AddFollowUpModa
   useEffect(() => {
     if (isOpen) {
       const now = new Date();
-      const localDate = now.toISOString().split("T")[0];
+      const localDate = initialDate || now.toISOString().split("T")[0];
       setFormTitle("");
       setFormCustomerId("");
       setFormPropertyId("");
@@ -44,7 +45,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess }: AddFollowUpModa
       setFormTime("");
       setFormIsOfficeEvent(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialDate]);
 
   if (!isOpen) return null;
 

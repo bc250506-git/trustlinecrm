@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { NotificationCenterDrawer } from "@/components/automation/NotificationCenterDrawer";
+import { MonthCalendarView } from "@/components/calendar/MonthCalendarView";
 import { AddDealModal } from "@/components/modals/AddDealModal";
 import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
@@ -1175,6 +1176,9 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
           </div>
         </div>
       </div>
+
+      {/* Ana Sayfa En Altı: Aylık Kareli Takvim ve Günlük Detay Kartı */}
+      <MonthCalendarView isDashboard={true} onNavigate={onNavigate} />
         </>
       )}
 

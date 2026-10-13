@@ -9,6 +9,7 @@ import {
   Sparkles,
   Kanban,
   CalendarDays,
+  Calendar,
   KeyRound,
   Calculator,
   MessageSquareCode,
@@ -23,11 +24,12 @@ import {
 
 export type NavTab =
   | "dashboard"
+  | "month_calendar"
+  | "calendar"
   | "customers"
   | "properties"
   | "matchmaker"
   | "pipeline"
-  | "calendar"
   | "rentals"
   | "mandates"
   | "finance"
@@ -49,6 +51,13 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       label: "Anasayfa",
       icon: LayoutDashboard,
       badge: null,
+      brokerOnly: false,
+    },
+    {
+      id: "month_calendar" as NavTab,
+      label: "Takvim",
+      icon: Calendar,
+      badge: "Aylık",
       brokerOnly: false,
     },
     {

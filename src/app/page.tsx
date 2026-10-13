@@ -10,6 +10,7 @@ import { PropertiesView } from "@/components/properties/PropertiesView";
 import { MatchmakerView } from "@/components/matchmaker/MatchmakerView";
 import { PipelineView } from "@/components/pipeline/PipelineView";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { MonthCalendarView } from "@/components/calendar/MonthCalendarView";
 import { RentalsView } from "@/components/rentals/RentalsView";
 import { MandatesView } from "@/components/mandates/MandatesView";
 import { FinanceView } from "@/components/finance/FinanceView";
@@ -95,6 +96,10 @@ function MainApp() {
             )}
 
             {activeTab === "pipeline" && <PipelineView />}
+
+            {activeTab === "month_calendar" && (
+              <MonthCalendarView onNavigate={setActiveTab} />
+            )}
 
             {activeTab === "calendar" && <CalendarView />}
 

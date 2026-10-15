@@ -45,66 +45,156 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
       ? [{ id: "cover-photo", propertyId: property.id, url: property.imageUrl, shareable: true }]
       : [];
 
-  // Broşürden Yüksek Çözünürlüklü PDF Blob Üretici
+  // Görselleri Canvas Tainting / CORS Hatası Olmadan Base64 Data URL'e Çevirici
+  const imageSrcToBase64 = async (src: string): Promise<string> => {
+    if (!src) return "";
+    if (src.startsWith("data:")) return src;
+
+    // Yerel relative yollar (/logo.png vb.)
+    if (src.startsWith("/")) {
+      try {
+        const res = await fetch(src);
+        if (!res.ok) throw new Error("Local image fetch failed");
+        const blob = await res.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (err) {
+        console.warn("Local image to base64 failed:", err);
+        return src;
+      }
+    }
+
+    // Harici HTTP/HTTPS görselleri (Unsplash, Supabase CDN vb.) API Proxy üzerinden çek
+    try {
+      const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(src)}`;
+      const res = await fetch(proxyUrl);
+      if (!res.ok) throw new Error(`Proxy error: ${res.status}`);
+      const blob = await res.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      // Proxy başarısız olursa direkt CORS denemesi yap
+      try {
+        const directRes = await fetch(src, { mode: "cors" });
+        const blob = await directRes.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e2) {
+        console.warn("Direct image conversion failed:", e2);
+        return src;
+      }
+    }
+  };
+
+  // Broşürden Yüksek Çözünürlüklü Gerçek PDF Blob Üretici
   const generateBrochurePdf = async (): Promise<{ blob: Blob; filename: string }> => {
     const brochureElement = document.getElementById("printable-brochure-content");
     if (!brochureElement) throw new Error("Broşür içeriği bulunamadı.");
 
-    const canvas = await html2canvas(brochureElement, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: "#ffffff",
-    });
+    const imgElements = Array.from(brochureElement.querySelectorAll("img"));
+    const originalSrcs = imgElements.map((img) => img.src);
 
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
+    try {
+      // 1. Broşürdeki tüm görselleri geçici olarak Base64'e dönüştür (Canvas Tainting %100 önlenir)
+      await Promise.all(
+        imgElements.map(async (img) => {
+          try {
+            const b64 = await imageSrcToBase64(img.src);
+            if (b64 && b64.startsWith("data:")) {
+              img.src = b64;
+            }
+          } catch (e) {
+            console.warn("Image conversion skipped for:", img.src, e);
+          }
+        })
+      );
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const imgWidth = pageWidth;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      // DOM ve imajların render olması için kısa bekleme
+      await new Promise((r) => setTimeout(r, 60));
 
-    if (imgHeight <= pageHeight) {
-      pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
-    } else {
-      let heightLeft = imgHeight;
-      let position = 0;
+      const canvas = await html2canvas(brochureElement, {
+        scale: 2, // Yüksek çözünürlüklü A4 kalitesi
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        backgroundColor: "#ffffff",
+      });
 
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      const pageWidth = pdf.internal.pageSize.getWidth(); // 210mm
+      const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
+      const margin = 8; // 8mm kenar boşluğu
+      const printableWidth = pageWidth - margin * 2;
+      const printableHeight = pageHeight - margin * 2;
+      const imgWidth = printableWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight <= printableHeight * 1.05) {
+        // Tek A4 sayfasına orantılı ve net sığdırma
+        const finalHeight = Math.min(imgHeight, printableHeight);
+        pdf.addImage(imgData, "JPEG", margin, margin, imgWidth, finalHeight);
+      } else {
+        // Uzun metinlerde sayfaları taşmadan bölme
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        pdf.addImage(imgData, "JPEG", margin, margin, imgWidth, imgHeight);
+        heightLeft -= printableHeight;
+
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", margin, position + margin, imgWidth, imgHeight);
+          heightLeft -= printableHeight;
+        }
       }
+
+      const cleanTitle = (property.title || "Portfoy_Brosuru")
+        .replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ_-]/g, "_")
+        .slice(0, 40);
+      const filename = `Trustline_${cleanTitle}.pdf`;
+      const blob = pdf.output("blob");
+
+      return { blob, filename };
+    } finally {
+      // Orijinal görsel bağlantılarını eksiksiz geri yükle
+      imgElements.forEach((img, i) => {
+        img.src = originalSrcs[i];
+      });
     }
-
-    const cleanTitle = (property.title || "Portfoy_Brosuru")
-      .replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ_-]/g, "_")
-      .slice(0, 40);
-    const filename = `Trustline_${cleanTitle}.pdf`;
-    const blob = pdf.output("blob");
-
-    return { blob, filename };
   };
 
-  // 1. WP PAYLAŞ: PDF Üretip WhatsApp Uygulamasına Yönlendirir
+  // 1. WP PAYLAŞ: PDF Üretip WhatsApp Uygulamasına ve Doğrudan Broşür Linkine Yönlendirir
   const handleShareWhatsApp = async () => {
     try {
       setIsGenerating(true);
       const { blob, filename } = await generateBrochurePdf();
       const pdfFile = new File([blob], filename, { type: "application/pdf" });
 
-      const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım Alanı:* ${property.area} m² (${property.rooms || ""})\n🏢 *Yetkili Danışman:* ${property.assignedToName || "Trustline Gayrimenkul"}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const brochureUrl = `${origin}/brosur/${property.id}`;
 
-      // 1. Web Share API (Mobil ve dosya paylaşımını destekleyen tarayıcılarda doğrudan WhatsApp'a dosya olarak atar)
+      const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım Alanı:* ${property.area} m² (${property.rooms || ""})\n🏢 *Yetkili Danışman:* ${property.assignedToName || "Trustline Gayrimenkul"}\n\n📄 *Canlı Broşür & PDF İncele:* ${brochureUrl}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+
+      // 1. Web Share API (Mobil ve dosya paylaşımını destekleyen tarayıcılarda doğrudan WhatsApp'a PDF ekler)
       if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         try {
           await navigator.share({
@@ -118,7 +208,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
         }
       }
 
-      // 2. Masaüstü Fallback: PDF'i cihaza otomatik indir ve WhatsApp uygulamasını/webini hazır metinle aç
+      // 2. Masaüstü Fallback: PDF dosyasını bilgisayara otomatik indir ve WhatsApp uygulamasını/webini hazır link ile aç
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -128,23 +218,102 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      const desktopText = `${text}\n\n📎 *Not:* Broşür PDF dosyası (${filename}) bilgisayarınıza indirilmiştir. Sohbete dosya olarak ekleyebilirsiniz.`;
+      const desktopText = `${text}\n\n📎 *PDF Dosyası:* ${filename} dosyanız hazırlandı ve cihazınıza indirildi.`;
       window.open(`https://wa.me/?text=${encodeURIComponent(desktopText)}`, "_blank");
-    } catch (err) {
+    } catch (err: any) {
       console.error("WhatsApp paylaşım hatası:", err);
-      const fallbackText = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım:* ${property.area} m² (${property.rooms || ""})\n\n*Trustline Gayrimenkul Danışmanlığı*`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(fallbackText)}`, "_blank");
+      alert("Broşür hazırlanırken bir hata oluştu: " + (err?.message || "Lütfen tekrar deneyiniz."));
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // 2. YAZDIR: Doğrudan Yazdırma Ekranını Açar
+  // 2. YAZDIR: Yalnızca Broşür Tasarımını İzole Bir Iframe İle Yazdırır (CRM Arayüzü Asla Çıkmaz)
   const handlePrint = () => {
-    window.print();
+    const brochureElement = document.getElementById("printable-brochure-content");
+    if (!brochureElement) {
+      alert("Broşür içeriği bulunamadı.");
+      return;
+    }
+
+    // İzole gizli iframe oluştur
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      return;
+    }
+
+    // Sayfadaki tüm Tailwind ve CSS stillerini iframe içine klonla
+    const styleTags = Array.from(document.querySelectorAll("link[rel='stylesheet'], style"))
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8" />
+          <title>${property.title || "Portföy Broşürü"} - Trustline</title>
+          ${styleTags}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 8mm 10mm;
+            }
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #0f172a !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            .printable-brochure {
+              padding: 0 !important;
+              max-width: 100% !important;
+              box-shadow: none !important;
+              border: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="printable-brochure">
+            ${brochureElement.innerHTML}
+          </div>
+        </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    // iframe içeriği hazır olduğunda ve görseller render olduğunda yazdır
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.error("Iframe print hatası:", e);
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+        }, 1500);
+      }
+    }, 400);
   };
 
-  // 3. İNDİR: Broşürü Doğrudan PDF Olarak İndirir
+  // 3. İNDİR: Broşürü Doğrudan Gerçek PDF Dosyası Olarak İndirir (Asla Yazdırma Açmaz)
   const handleDownloadPdf = async () => {
     try {
       setIsGenerating(true);
@@ -157,9 +326,9 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
+    } catch (err: any) {
       console.error("PDF indirme hatası:", err);
-      window.print();
+      alert("Broşür PDF'i indirilirken bir hata oluştu: " + (err?.message || "Lütfen tekrar deneyiniz."));
     } finally {
       setIsGenerating(false);
     }
@@ -174,7 +343,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
 
   return (
     <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-3xl bg-white border border-slate-200 shadow-2xl my-8">
+      <div className="brochure-modal-container sharp-card w-full max-w-3xl bg-white border border-slate-200 shadow-2xl my-8">
         {/* Güvenlik & İşlem Başlığı (Sadece 3 Net Aksiyon: WP PAYLAŞ, YAZDIR, İNDİR) */}
         <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">

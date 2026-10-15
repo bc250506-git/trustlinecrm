@@ -208,13 +208,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return initialUsers[0]; // Volkan Affan Kanıgür
   });
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [properties, setProperties] = useState<Property[]>(initialProperties);
+  const [properties, setProperties] = useState<Property[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("trustline_crm_properties_v3");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch (e) {}
+    }
+    return initialProperties;
+  });
   const [followUps, setFollowUps] = useState<FollowUp[]>(initialFollowUps);
   const [deals, setDeals] = useState<Deal[]>(initialDeals);
   const [rentals, setRentals] = useState<RentalContract[]>(initialRentals);
   const [mandates, setMandates] = useState<MandateContract[]>(initialMandates);
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && properties.length > 0) {
+      try {
+        localStorage.setItem("trustline_crm_properties_v3", JSON.stringify(properties));
+      } catch (e) {}
+    }
+  }, [properties]);
 
   // Supabase Realtime Canlı Senkronizasyon (Faz 5) ve Kullanıcı Kimlikleri
   useEffect(() => {

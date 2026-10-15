@@ -211,28 +211,78 @@ export function RentalsView() {
     return list;
   }, [timelineYears]);
 
-  const WINDOW_SIZE = 12;
-  const maxStartIndex = Math.max(0, allTimelineMonths.length - WINDOW_SIZE);
+  // Tablo yatay kaydırma referansı ve dinamik kesintisiz scroll takibi
+  const tableScrollRef = React.useRef<HTMLDivElement>(null);
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
+  const [visibleStartMonth, setVisibleStartMonth] = useState<string>("Ocak 2026");
+  const [visibleEndMonth, setVisibleEndMonth] = useState<string>("Aralık 2026");
 
-  // Başlangıç ayı varsayılanı (2026 Ocak)
-  const defaultTimelineIndex = React.useMemo(() => {
-    const idx = allTimelineMonths.findIndex(
-      (m) => m.year === 2026 && m.month === 1
-    );
-    return idx >= 0 ? Math.min(idx, maxStartIndex) : 0;
-  }, [allTimelineMonths, maxStartIndex]);
+  // Tablo kaydıkça sliderı ve ekranda görünen ay aralığını kesintisiz senkronize et
+  const handleTableScroll = () => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll > 0) {
+      const progress = Math.min(1, Math.max(0, el.scrollLeft / maxScroll));
+      setScrollProgress(progress);
 
-  const [timelineStartIndex, setTimelineStartIndex] = useState<number>(defaultTimelineIndex);
-  const [showAllMonths, setShowAllMonths] = useState<boolean>(false);
+      const monthColWidth = 82;
+      const firstVisibleIdx = Math.min(
+        allTimelineMonths.length - 1,
+        Math.max(0, Math.floor(el.scrollLeft / monthColWidth))
+      );
+      const visibleCount = Math.floor((el.clientWidth - 365) / monthColWidth) || 8;
+      const lastVisibleIdx = Math.min(
+        allTimelineMonths.length - 1,
+        firstVisibleIdx + visibleCount - 1
+      );
 
-  // Default timeline sync
+      const firstM = allTimelineMonths[firstVisibleIdx];
+      const lastM = allTimelineMonths[lastVisibleIdx];
+      if (firstM) setVisibleStartMonth(`${firstM.fullName} ${firstM.year}`);
+      if (lastM) setVisibleEndMonth(`${lastM.fullName} ${lastM.year}`);
+    }
+  };
+
+  // Slider hareket ettikçe tabloyu piksel hassasiyetinde akıcı kaydır ("fışşş diye")
+  const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = Number(e.target.value);
+    const progress = val / 1000;
+    setScrollProgress(progress);
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    el.scrollLeft = progress * maxScroll;
+  };
+
+  // Belirli bir aya yumuşak şekilde atla
+  const scrollToMonthKey = (monthKey: string, smooth = true) => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const idx = allTimelineMonths.findIndex((m) => m.key === monthKey);
+    if (idx >= 0) {
+      const monthColWidth = 82;
+      // 1 ay öncesini de göstererek görsel bağlam sağla
+      const targetScroll = Math.max(0, (idx - 1) * monthColWidth);
+      el.scrollTo({ left: targetScroll, behavior: smooth ? "smooth" : "auto" });
+    }
+  };
+
+  // Ay bazında kaydırma butonu
+  const scrollByMonths = (monthDelta: number) => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const monthColWidth = 82;
+    el.scrollBy({ left: monthDelta * monthColWidth, behavior: "smooth" });
+  };
+
+  // İlk açılışta cari aya (Ekim 2026) otomatik ve akıcı şekilde konumlan
   useEffect(() => {
-    setTimelineStartIndex(defaultTimelineIndex);
-  }, [defaultTimelineIndex]);
-
-  const displayedMonths = showAllMonths
-    ? allTimelineMonths
-    : allTimelineMonths.slice(timelineStartIndex, timelineStartIndex + WINDOW_SIZE);
+    const timer = setTimeout(() => {
+      scrollToMonthKey("2026-10", false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [allTimelineMonths]);
 
   // Silme Onay Modalı State
   const [rentalToDelete, setRentalToDelete] = useState<RentalContract | null>(null);
@@ -677,120 +727,157 @@ export function RentalsView() {
         </div>
       </div>
 
-      {/* ZAMAN ÇİZELGESİ & YATAY SLİDER KONTROL PANELİ */}
+      {/* TABLONUN ÜSTÜ BOYUNCA YATAYDA UZANAN ZAMAN TÜNELİ & KESİNTİSİZ SLIDER ŞERİDİ */}
       {rentals.length > 0 && (
-        <div className="sharp-card p-3 bg-white border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs shadow-2xs">
-          {/* Sol: Gösterilen Dönem & Hızlı Ay Atlama */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 font-mono text-[11px] font-bold text-[#1d2566]">
-              <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
-              <span>
-                {showAllMonths
-                  ? `Tüm Zamanlar (${allTimelineMonths.length} Ay — ${timelineYears[0]} - ${timelineYears[timelineYears.length - 1]})`
-                  : displayedMonths.length > 0
-                  ? `${displayedMonths[0].fullName} ${displayedMonths[0].year} — ${displayedMonths[displayedMonths.length - 1].fullName} ${displayedMonths[displayedMonths.length - 1].year} (12 Ay)`
-                  : ""}
+        <div className="sharp-card bg-white border border-slate-200 overflow-hidden shadow-xs mb-3">
+          {/* 1. ÜST BİLGİ & HIZLI AY / YIL ATLAMALARI */}
+          <div className="p-3 bg-slate-50/90 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="font-mono text-xs text-[#00adb5] font-bold tracking-wider uppercase flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+                ZAMAN TÜNELİ & KİRA MATRİSİ
+              </span>
+              <span className="text-slate-300">•</span>
+              <div className="px-2.5 py-1 bg-white border border-slate-200 text-[#1d2566] font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>
+                  Görüntülenen: <strong>{visibleStartMonth}</strong> — <strong>{visibleEndMonth}</strong>
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400">
+                ({allTimelineMonths.length} Ay Kesintisiz Şerit • {timelineYears[0]} - {timelineYears[timelineYears.length - 1]})
               </span>
             </div>
 
-            {/* Önceki / Sonraki Ay Butonları */}
-            <div className="flex items-center gap-1">
+            {/* Sağ: Hızlı Yıl & Cari Ay Butonları */}
+            <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
-                disabled={showAllMonths || timelineStartIndex <= 0}
-                onClick={() => setTimelineStartIndex((prev) => Math.max(0, prev - 1))}
-                className="px-2 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition"
-                title="1 Ay Geri Kaydır"
+                onClick={() => scrollByMonths(-3)}
+                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition shadow-2xs"
+                title="3 Ay Geri Kaydır"
               >
                 <ChevronLeft className="w-3.5 h-3.5" />
-                <span>Önceki</span>
+                <span>3 Ay Geri</span>
+              </button>
+
+              {timelineYears.map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => scrollToMonthKey(`${year}-01`, true)}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 hover:text-[#1d2566] border border-slate-300 text-slate-700 font-mono text-[11px] font-bold cursor-pointer transition shadow-2xs"
+                  title={`${year} yılı başlangıcına atla`}
+                >
+                  {year}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => scrollToMonthKey("2026-10", true)}
+                className="px-2.5 py-1 bg-[#1d2566] hover:bg-[#151c4f] text-white border border-[#1d2566] font-mono text-[11px] font-bold cursor-pointer transition shadow-xs flex items-center gap-1"
+                title="Cari aya (Ekim 2026) akıcı şekilde konumlan"
+              >
+                <span>🎯 Cari Ay (Ekim &apos;26)</span>
               </button>
 
               <button
                 type="button"
-                disabled={showAllMonths || timelineStartIndex >= maxStartIndex}
-                onClick={() => setTimelineStartIndex((prev) => Math.min(maxStartIndex, prev + 1))}
-                className="px-2 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition"
-                title="1 Ay İleri Kaydır"
+                onClick={() => scrollByMonths(3)}
+                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition shadow-2xs"
+                title="3 Ay İleri Kaydır"
               >
-                <span>Sonraki</span>
+                <span>3 Ay İleri</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          {/* Orta: Zaman Çizelgesi Slider Barı */}
-          {!showAllMonths && maxStartIndex > 0 && (
-            <div className="flex items-center gap-2 flex-1 w-full max-w-xs md:mx-4">
-              <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">
-                {allTimelineMonths[0]?.shortName} {`'${String(allTimelineMonths[0]?.year).slice(-2)}`}
-              </span>
-              <div className="flex-1 flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00adb5] shrink-0" />
-                <input
-                  type="range"
-                  min={0}
-                  max={maxStartIndex}
-                  value={timelineStartIndex}
-                  onChange={(e) => {
-                    setShowAllMonths(false);
-                    setTimelineStartIndex(Number(e.target.value));
-                  }}
-                  className="w-full accent-[#00adb5] h-1.5 bg-slate-200 rounded-none cursor-pointer"
-                  title="Zaman Çizelgesini Aylara Göre İleri/Geri Kaydır"
-                />
+          {/* 2. TABLONUN ÜSTÜ BOYUNCA BOYLU BOYUNCA UZANAN ZAMAN ÇİZELGESİ & SLİDER */}
+          <div className="p-3 bg-linear-to-b from-slate-900 to-[#10163a] text-white select-none space-y-2">
+            {/* Zaman Cetveli (Yıllar ve Çeyrek Aylar Bölümleri) */}
+            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 px-1">
+              {timelineYears.map((year) => (
+                <div
+                  key={year}
+                  className="flex-1 flex items-center justify-between border-l border-slate-700 first:border-l-0 px-2"
+                >
+                  <span className="text-[#00adb5] font-bold text-xs">{year}</span>
+                  <span className="text-slate-500 hidden sm:inline">Nis</span>
+                  <span className="text-slate-500 hidden sm:inline">Tem</span>
+                  <span className="text-slate-500 hidden sm:inline">Eki</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Tam Genişlik Kesintisiz Timeline Slider Rayı */}
+            <div className="relative flex items-center h-7 px-1">
+              {/* Arka plan kanal rayı ve dolu ilerleme */}
+              <div className="absolute inset-x-1 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                <div
+                  className="h-full bg-linear-to-r from-[#00adb5]/40 via-[#00adb5] to-[#00adb5]/80 transition-all duration-75"
+                  style={{ width: `${Math.max(4, Math.min(100, scrollProgress * 100))}%` }}
+                ></div>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">
-                {allTimelineMonths[allTimelineMonths.length - 1]?.shortName} {`'${String(allTimelineMonths[allTimelineMonths.length - 1]?.year).slice(-2)}`}
+
+              {/* Cari Ay Sabit İşareti (Ekim 2026 noktası) */}
+              <div
+                className="absolute z-10 -top-1 pointer-events-none flex flex-col items-center"
+                style={{
+                  left: `${Math.round(
+                    ((allTimelineMonths.findIndex((m) => m.key === "2026-10") || 18) /
+                      allTimelineMonths.length) *
+                      100
+                  )}%`,
+                }}
+                title="Cari Ay: Ekim 2026"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-4 ring-emerald-500/30"></span>
+                <span className="text-[9px] font-mono text-emerald-300 font-bold mt-0.5 hidden md:inline">
+                  Eki &apos;26
+                </span>
+              </div>
+
+              {/* Kesintisiz Kaydırma Slider Inputu */}
+              <input
+                type="range"
+                min={0}
+                max={1000}
+                step={1}
+                value={Math.round(scrollProgress * 1000)}
+                onChange={handleSliderChange}
+                className="w-full relative z-20 opacity-0 hover:opacity-100 cursor-grab active:cursor-grabbing h-7 transition-opacity"
+                title="Tabloyu fışşş diye akıcı kaydırmak için tutun ve sürükleyin"
+              />
+
+              {/* Görsel Sürükleme Rozeti (Thumb Indicator) */}
+              <div
+                className="absolute z-15 top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75"
+                style={{
+                  left: `calc(${scrollProgress * 100}% - 28px)`,
+                }}
+              >
+                <div className="px-2.5 py-0.5 bg-[#00adb5] text-[#1d2566] text-[10px] font-mono font-extrabold rounded-full shadow-lg border-2 border-white flex items-center gap-1">
+                  <span>◀</span>
+                  <span className="hidden sm:inline">KAYDIR</span>
+                  <span>▶</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Alt Bilgi İpucu */}
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1 pt-0.5">
+              <span className="flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00adb5]" />
+                <span>
+                  Sliderı sürükleyerek veya aşağıdaki tabloyu yatayda kaydırarak (Trackpad / Shift + Tekerlek) kesintisiz gezebilirsiniz.
+                </span>
+              </span>
+              <span className="hidden md:inline text-slate-400">
+                {allTimelineMonths[0]?.label} ➔ {allTimelineMonths[allTimelineMonths.length - 1]?.label}
               </span>
             </div>
-          )}
-
-          {/* Sağ: Yıl Atlama Butonları & Tümünü Göster */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-mono text-slate-400 font-bold hidden sm:inline">
-              Hızlı Yıl:
-            </span>
-            {timelineYears.map((year) => {
-              const isYearActive =
-                !showAllMonths &&
-                displayedMonths.some((m) => m.year === year && m.month === 6);
-              return (
-                <button
-                  key={year}
-                  type="button"
-                  onClick={() => {
-                    setShowAllMonths(false);
-                    const idx = allTimelineMonths.findIndex(
-                      (m) => m.year === year && m.month === 1
-                    );
-                    if (idx >= 0) {
-                      setTimelineStartIndex(Math.min(idx, maxStartIndex));
-                    }
-                  }}
-                  className={`px-2 py-0.5 text-[11px] font-mono font-bold border transition cursor-pointer ${
-                    isYearActive
-                      ? "bg-[#1d2566] text-white border-[#1d2566]"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
-                  }`}
-                >
-                  {year}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setShowAllMonths(!showAllMonths)}
-              className={`px-2 py-0.5 text-[11px] font-mono font-bold border transition cursor-pointer ${
-                showAllMonths
-                  ? "bg-[#00adb5] text-white border-[#00adb5]"
-                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
-              }`}
-              title="Tüm ayları tek ekranda görmek için tıkla"
-            >
-              {showAllMonths ? "12 Aylık Slider" : "Tümünü Göster"}
-            </button>
           </div>
         </div>
       )}
@@ -815,17 +902,22 @@ export function RentalsView() {
           </button>
         </div>
       ) : (
-        <div className="sharp-card overflow-x-auto relative">
+        <div
+          ref={tableScrollRef}
+          onScroll={handleTableScroll}
+          className="sharp-card overflow-x-auto relative scroll-smooth focus:outline-none"
+          tabIndex={0}
+        >
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                <th className="py-3 px-4 min-w-[270px] sticky left-0 bg-slate-50 z-20 shadow-[1px_0_0_0_#e2e8f0]">
+                <th className="py-3 px-4 min-w-[270px] w-[270px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                   Mülk & Kiracı / Vade Günü
                 </th>
-                <th className="py-3 px-3 text-right sticky left-[270px] bg-slate-50 z-20 shadow-[1px_0_0_0_#e2e8f0] min-w-[95px]">
+                <th className="py-3 px-3 text-right sticky left-[270px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[95px] w-[95px]">
                   Aylık Kira
                 </th>
-                {displayedMonths.map((m) => {
+                {allTimelineMonths.map((m) => {
                   const isCurrentRealMonth =
                     currentDate &&
                     currentDate.getFullYear() === m.year &&
@@ -834,9 +926,10 @@ export function RentalsView() {
                   return (
                     <th
                       key={m.key}
-                      className={`py-2 px-1 text-center min-w-[72px] transition ${
+                      data-month-key={m.key}
+                      className={`py-2 px-1 text-center min-w-[82px] w-[82px] transition border-r border-slate-200/60 ${
                         isCurrentRealMonth
-                          ? "bg-cyan-50/80 text-[#00adb5] border-b-2 border-[#00adb5]"
+                          ? "bg-cyan-50/90 text-[#00adb5] border-b-2 border-[#00adb5] font-black"
                           : ""
                       }`}
                     >
@@ -845,7 +938,7 @@ export function RentalsView() {
                     </th>
                   );
                 })}
-                <th className="py-3 px-2 text-center min-w-[50px] sticky right-0 bg-slate-50 z-20 shadow-[-1px_0_0_0_#e2e8f0]">
+                <th className="py-3 px-2 text-center min-w-[50px] sticky right-0 bg-slate-50 z-20 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                   İşlem
                 </th>
               </tr>
@@ -859,7 +952,7 @@ export function RentalsView() {
                 return (
                   <tr key={r.id} className="group hover:bg-slate-50/80 transition">
                     {/* Mülk & Kiracı Bilgisi (Sticky Sol) */}
-                    <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[1px_0_0_0_#f1f5f9]">
+                    <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/95 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                       <div className="font-bold text-[#1d2566] flex items-center gap-2 flex-wrap">
                         <span>{r.propertyTitle}</span>
                         {isBroker && r.assignedToName && (
@@ -925,21 +1018,31 @@ export function RentalsView() {
                     </td>
 
                     {/* Aylık Kira Tutarı (Sticky Sol 2) */}
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[270px] bg-white group-hover:bg-slate-50/90 z-10 shadow-[1px_0_0_0_#f1f5f9]">
+                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[270px] bg-white group-hover:bg-slate-50/95 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                       {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
                     </td>
 
-                    {/* Dinamik Zaman Çizelgesi Hücreleri (Sözleşme süresine sadık kutular) */}
-                    {displayedMonths.map((m) => {
+                    {/* Dinamik Kesintisiz Zaman Çizelgesi Hücreleri */}
+                    {allTimelineMonths.map((m) => {
                       const isContractMonth =
                         Boolean(startPeriodKey && endPeriodKey) &&
                         m.key >= startPeriodKey &&
                         m.key <= endPeriodKey;
 
+                      const isCurrentRealMonth =
+                        currentDate &&
+                        currentDate.getFullYear() === m.year &&
+                        currentDate.getMonth() + 1 === m.month;
+
                       // Sözleşme dışındaki aylar için boş pasif kutu (—)
                       if (!isContractMonth) {
                         return (
-                          <td key={m.key} className="py-2 px-1 text-center bg-slate-50/30">
+                          <td
+                            key={m.key}
+                            className={`py-2 px-1 text-center border-r border-slate-100 ${
+                              isCurrentRealMonth ? "bg-cyan-50/25" : "bg-slate-50/30"
+                            }`}
+                          >
                             <div
                               className="h-10 flex items-center justify-center text-slate-300 font-mono text-sm select-none border border-transparent"
                               title={`${r.propertyTitle} — Bu ay (${m.fullName} ${m.year}) sözleşme kapsamında değil`}
@@ -965,7 +1068,12 @@ export function RentalsView() {
                       const dueDayLabel = `${adjustedDay} ${m.shortName}`;
 
                       return (
-                        <td key={m.key} className="py-2 px-1 text-center">
+                        <td
+                          key={m.key}
+                          className={`py-2 px-1 text-center border-r border-slate-100 ${
+                            isCurrentRealMonth ? "bg-cyan-50/20" : ""
+                          }`}
+                        >
                           <div
                             className={`p-1 border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                               isPaid
@@ -1034,7 +1142,7 @@ export function RentalsView() {
                     })}
 
                     {/* İşlem Aksiyonları (Düzenle & Sil) (Sticky Sağ) */}
-                    <td className="py-2 px-2 text-center sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-1px_0_0_0_#f1f5f9]">
+                    <td className="py-2 px-2 text-center sticky right-0 bg-white group-hover:bg-slate-50/95 z-10 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                       <ActionMenu
                         onEdit={() => handleOpenEditRental(r)}
                         onDelete={() => setRentalToDelete(r)}

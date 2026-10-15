@@ -169,7 +169,7 @@ export function CustomersView({
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => setActiveCustomerDetail(c)}
-                      className="text-left font-bold text-[#1d2566] hover:text-[#00adb5] transition block text-xs cursor-pointer"
+                      className="text-left font-bold text-[#1d2566] hover:text-[#00adb5] transition block text-sm cursor-pointer leading-snug"
                     >
                       {c.fullName}
                     </button>
@@ -185,9 +185,9 @@ export function CustomersView({
                         return (
                           <span
                             title="Bugün doğum günü! Tebrik mesajı iletin."
-                            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold bg-pink-100 text-pink-700 border border-pink-300 px-1.5 py-0.2 animate-pulse"
+                            className="inline-flex items-center gap-1 text-xs font-mono font-bold bg-pink-100 text-pink-700 border border-pink-300 px-2 py-0.5 animate-pulse"
                           >
-                            <Cake className="w-3 h-3 text-pink-600" />
+                            <Cake className="w-3.5 h-3.5 text-pink-600" />
                             Bugün Doğum Günü!
                           </span>
                         );
@@ -195,11 +195,11 @@ export function CustomersView({
                       return null;
                     })()}
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-mono">
-                    <span>{c.phone || "Telefon yok"}</span>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-slate-600 font-mono">
+                    <span className="font-semibold text-slate-700">{c.phone || "Telefon yok"}</span>
                     {c.email && <span>• {c.email}</span>}
                     {c.birthDate && (
-                      <span className="text-slate-400">
+                      <span className="text-slate-500">
                         • 🎂 {c.birthDate.split("-").reverse().join(".")}
                       </span>
                     )}
@@ -209,7 +209,7 @@ export function CustomersView({
                 {/* Kategori */}
                 <td className="py-3 px-4">
                   <span
-                    className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
+                    className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${
                       c.category === "BUYER"
                         ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
                         : c.category === "SELLER"
@@ -227,22 +227,22 @@ export function CustomersView({
 
                 {/* Bölge & Gayrimenkul Tipi */}
                 <td className="py-3 px-4 text-slate-700">
-                  <div className="font-semibold text-slate-800">{c.region || "Belirtilmedi"}</div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-sm font-semibold text-slate-800">{c.region || "Belirtilmedi"}</div>
+                  <div className="text-xs text-slate-600 mt-0.5">
                     {c.propertyType || "Herhangi"}
                     {c.rooms && c.rooms !== "Farketmez / Tümü" && ` • ${c.rooms}`}
                   </div>
                 </td>
 
                 {/* Bütçe */}
-                <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
+                <td className="py-3 px-4 font-mono font-bold text-sm text-[#1d2566]">
                   {c.budget?.toLocaleString("tr-TR")} {c.budgetCurrency}
                 </td>
 
                 {/* Sıcaklık */}
                 <td className="py-3 px-4">
                   <span
-                    className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold flex items-center gap-1 w-fit ${
+                    className={`text-xs font-mono uppercase px-2.5 py-0.5 border font-bold flex items-center gap-1 w-fit ${
                       c.temperature === "hot"
                         ? "bg-rose-50 text-rose-700 border-rose-300"
                         : c.temperature === "warm"
@@ -250,7 +250,7 @@ export function CustomersView({
                         : "bg-slate-100 text-slate-600 border-slate-200"
                     }`}
                   >
-                    {c.temperature === "hot" && <Flame className="w-2.5 h-2.5 text-rose-600" />}
+                    {c.temperature === "hot" && <Flame className="w-3 h-3 text-rose-600" />}
                     {c.temperature === "hot"
                       ? "Sıcak"
                       : c.temperature === "warm"
@@ -260,22 +260,22 @@ export function CustomersView({
                 </td>
 
                 {/* Danışman & Paylaşım Durumu */}
-                <td className="py-3 px-4 text-[11px] font-mono">
-                  <div className="font-medium text-slate-800">
+                <td className="py-3 px-4 text-xs font-mono">
+                  <div className="font-semibold text-slate-800">
                     {c.assignedToName || "Atanmadı"}
                   </div>
                   {c.assignedToId === currentUser.id ? (
                     <button
                       type="button"
                       onClick={() => toggleCustomerShare(c.id)}
-                      className={`mt-1 inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 border cursor-pointer font-bold transition ${
+                      className={`mt-1 inline-flex items-center gap-1 text-xs px-2 py-0.5 border cursor-pointer font-bold transition ${
                         c.isShared
                           ? "bg-cyan-50 text-[#00adb5] border-cyan-300 hover:bg-cyan-100"
                           : "bg-slate-100 text-slate-500 border-slate-200 hover:border-slate-300 hover:text-slate-700"
                       }`}
                       title="Diğer danışmanlara paylaşımı aç/kapat"
                     >
-                      <Share2 className="w-2.5 h-2.5" />
+                      <Share2 className="w-3 h-3" />
                       <span>{c.isShared ? "Ekiple Paylaşıldı" : "Bireysel (Gizli)"}</span>
                     </button>
                   ) : (

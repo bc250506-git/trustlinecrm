@@ -680,32 +680,32 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   </div>
 
                   {/* Ofis İçi Bilgiler */}
-                  <div className="p-2.5 bg-slate-50 border border-slate-200 text-[10px] font-mono space-y-1">
+                  <div className="p-2.5 bg-slate-50 border border-slate-200 text-xs font-mono space-y-1.5">
                     <div className="flex items-center justify-between text-slate-600">
-                      <span className="flex items-center gap-1">
-                        <User className="w-2.5 h-2.5 text-slate-500" /> Mal Sahibi:
+                      <span className="flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-slate-500" /> Mal Sahibi:
                       </span>
-                      <span className="text-slate-800 font-bold">
+                      <span className="text-slate-900 font-bold">
                         {p.ownerName || "Bilinmiyor"}
                       </span>
                     </div>
                     {p.ownerPhone && (
                       <div className="flex items-center justify-between text-slate-600">
                         <span>Telefon:</span>
-                        <span className="text-slate-700 font-mono">{p.ownerPhone}</span>
+                        <span className="text-slate-800 font-mono font-medium">{p.ownerPhone}</span>
                       </div>
                     )}
                     {p.keyHolder && (
                       <div className="flex items-center justify-between text-slate-600">
-                        <span className="flex items-center gap-1">
-                          <Key className="w-2.5 h-2.5 text-[#00adb5]" /> Anahtar:
+                        <span className="flex items-center gap-1.5">
+                          <Key className="w-3.5 h-3.5 text-[#00adb5]" /> Anahtar:
                         </span>
-                        <span className="text-slate-700 truncate max-w-[140px]">
+                        <span className="text-slate-800 truncate max-w-[150px] font-medium">
                           {p.keyHolder}
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between text-slate-600 pt-0.5 border-t border-slate-200">
+                    <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200">
                       <span>Danışman:</span>
                       <span className="text-[#1d2566] font-bold">
                         {p.assignedToName || "Atanmadı"}

@@ -69,10 +69,10 @@ export function Header({ onNavigateTab }: HeaderProps) {
         </div>
 
         {/* Canlı Saat / Zaman Dilimi (Asia/Famagusta - KKTC) */}
-        <div className="hidden lg:flex items-center gap-2 pl-6 ml-2 border-l border-slate-200 text-xs text-slate-500 font-mono">
-          <Clock className="w-3.5 h-3.5 text-[#00adb5]" />
+        <div className="hidden lg:flex items-center gap-2 pl-6 ml-2 border-l border-slate-200 text-sm text-slate-600 font-mono">
+          <Clock className="w-4 h-4 text-[#00adb5]" />
           <span className="text-slate-700 font-medium">{currentDate}</span>
-          <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-[#1d2566] font-bold">
+          <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 text-[#1d2566] font-bold">
             {currentTime || "--:--:--"} (KKTC)
           </span>
         </div>
@@ -84,13 +84,13 @@ export function Header({ onNavigateTab }: HeaderProps) {
         <button
           type="button"
           onClick={() => setIsNotificationDrawerOpen(true)}
-          className="relative px-2.5 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 hover:text-[#1d2566] transition cursor-pointer shadow-2xs flex items-center gap-1.5 font-mono text-xs"
+          className="relative px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 hover:text-[#1d2566] transition cursor-pointer shadow-2xs flex items-center gap-1.5 font-mono text-sm"
           title="Akıllı Bildirim & Otomasyon Masası (Faz 2)"
         >
           <Bell className="w-4 h-4 text-[#1d2566]" />
           <span className="hidden sm:inline font-bold text-[#1d2566]">Otomasyon</span>
           {unreadNotificationCount > 0 ? (
-            <span className="bg-rose-500 text-white font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
+            <span className="bg-rose-500 text-white font-mono text-xs font-bold px-1.5 py-0.2 rounded-full animate-pulse">
               {unreadNotificationCount}
             </span>
           ) : (
@@ -108,10 +108,10 @@ export function Header({ onNavigateTab }: HeaderProps) {
               {currentUser.name.replace(/[()]/g, "").trim().split(/\s+/).slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-[#1d2566] leading-tight">
+              <span className="text-sm font-bold text-[#1d2566] leading-tight">
                 {currentUser.name}
               </span>
-              <span className="text-[10px] font-mono leading-tight">
+              <span className="text-xs font-mono leading-tight">
                 {currentUser.title ? (
                   <span className={isBroker ? "text-emerald-700 font-bold" : "text-[#00adb5] font-bold"}>
                     {currentUser.title.toUpperCase()}
@@ -135,10 +135,10 @@ export function Header({ onNavigateTab }: HeaderProps) {
             <div className="absolute right-0 mt-1 w-64 bg-white border border-slate-200 shadow-xl py-2 z-50">
               {/* Kullanıcı Kartı */}
               <div className="px-3 pb-2.5 mb-1.5 border-b border-slate-100">
-                <div className="text-xs font-bold text-[#1d2566] leading-tight">
+                <div className="text-sm font-bold text-[#1d2566] leading-tight">
                   {currentUser.name}
                 </div>
-                <div className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">
+                <div className="text-xs text-slate-500 font-mono mt-0.5 truncate">
                   @{currentUser.username} • {currentUser.email}
                 </div>
                 <div className="mt-1.5">

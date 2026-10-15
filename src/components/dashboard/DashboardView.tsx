@@ -452,10 +452,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-800 transition-colors leading-tight">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-emerald-800 transition-colors leading-tight">
                 İşlem Kapama
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Satış & Kiralama Raporu
               </div>
             </div>
@@ -475,10 +475,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-600 transition-colors" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-amber-800 transition-colors leading-tight">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-amber-800 transition-colors leading-tight">
                 İş Ekle
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Randevu & Ajanda
               </div>
             </div>
@@ -498,10 +498,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#00adb5] transition-colors" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
                 Müşteri Ekle
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Müşteri Havuzu
               </div>
             </div>
@@ -521,10 +521,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-[#1d2566] transition-colors" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-[#1d2566] transition-colors leading-tight">
                 Portföy Ekle
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Yeni Gayrimenkul
               </div>
             </div>
@@ -544,10 +544,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <Plus className="w-3.5 h-3.5 text-slate-300 group-hover:text-purple-600 transition-colors" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-purple-800 transition-colors leading-tight">
+              <div className="text-sm font-bold text-slate-800 group-hover:text-purple-800 transition-colors leading-tight">
                 Yetki Ekle
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Sözleşme Kaydı
               </div>
             </div>
@@ -567,10 +567,10 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               <ArrowRight className="w-3.5 h-3.5 text-[#00adb5] group-hover:translate-x-0.5 transition-transform" />
             </div>
             <div>
-              <div className="text-xs font-bold text-[#1d2566] group-hover:text-[#00adb5] transition-colors leading-tight">
+              <div className="text-sm font-bold text-[#1d2566] group-hover:text-[#00adb5] transition-colors leading-tight">
                 Eşleştirme
               </div>
-              <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
+              <div className="text-xs text-slate-500 font-mono mt-0.5 leading-tight">
                 Portföy & Müşteri ↗
               </div>
             </div>
@@ -586,11 +586,11 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
             <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-[#00adb5]" />
-                <h2 className="text-sm font-bold text-[#1d2566] tracking-wide">
+                <h2 className="text-base font-bold text-[#1d2566] tracking-wide">
                   Geciken ve Bugün Yapılacak Takip Listesi
                 </h2>
               </div>
-              <span className="text-[11px] font-mono px-2 py-0.5 bg-white text-[#1d2566] border border-slate-300 font-bold">
+              <span className="text-xs font-mono px-2.5 py-0.5 bg-white text-[#1d2566] border border-slate-300 font-bold">
                 {overdueAndTodayTasks.length} Görev
               </span>
             </div>
@@ -639,9 +639,9 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                     <div key={task.id} className="p-4 hover:bg-slate-50/80 transition">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                             <span
-                              className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
+                              className={`text-xs font-mono uppercase px-2 py-0.5 border font-bold ${
                                 task.kind === "showing"
                                   ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
                                   : task.kind === "meeting"
@@ -656,11 +656,11 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                               {formatFollowUpKind(task.kind, task.isOfficeEvent)}
                             </span>
                             {isPast && (
-                              <span className="text-[10px] font-mono text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-300 font-bold">
+                              <span className="text-xs font-mono text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-300 font-bold">
                                 GECİKMİŞ
                               </span>
                             )}
-                            <span className="text-[11px] font-mono text-slate-500 font-medium">
+                            <span className="text-xs font-mono text-slate-500 font-medium">
                               {new Date(task.dueAt).toLocaleTimeString("tr-TR", {
                                 hour: "2-digit",
                                 minute: "2-digit",
@@ -668,16 +668,16 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                             </span>
                           </div>
 
-                          <h3 className="text-xs font-bold text-slate-800">
+                          <h3 className="text-sm font-bold text-slate-800 leading-snug">
                             {task.title}
                           </h3>
 
-                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px] text-slate-600">
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-xs text-slate-600">
                             <span className="text-[#1d2566] font-semibold">
                               Müşteri: {task.customerName}
                             </span>
                             {task.customerPhone && (
-                              <span className="font-mono text-slate-500">
+                              <span className="font-mono text-slate-500 font-medium">
                                 ({task.customerPhone})
                               </span>
                             )}

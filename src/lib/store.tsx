@@ -170,19 +170,25 @@ interface StoreContextType {
 }
 
 
+const USERS_STORAGE_KEY = "trustline_crm_users_kktc_v1";
+const PROPERTIES_STORAGE_KEY = "trustline_crm_properties_kktc_v1";
+const CURRENT_USER_STORAGE_KEY = "trustline_crm_current_user_kktc_v1";
+const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Kullanıcılar (Kalıcı şifre güncellemeleri için)
   const [users, setUsers] = useState<User[]>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("trustline_crm_users_v3");
-      if (saved) {
-        try {
+      try {
+        localStorage.removeItem("trustline_crm_users_v3");
+        const saved = localStorage.getItem(USERS_STORAGE_KEY);
+        if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
     return initialUsers;
   });
@@ -190,7 +196,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Oturum durumu (Giriş yapıldı mı?)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      const savedAuth = localStorage.getItem("trustline_crm_auth_v3");
+      const savedAuth = localStorage.getItem(AUTH_STORAGE_KEY);
       if (savedAuth === "true") return true;
     }
     return false; // Login ekranını göstererek başla
@@ -198,12 +204,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const [currentUser, setCurrentUser] = useState<User>(() => {
     if (typeof window !== "undefined") {
-      const savedUser = localStorage.getItem("trustline_crm_current_user_v3");
-      if (savedUser) {
-        try {
+      try {
+        localStorage.removeItem("trustline_crm_current_user_v3");
+        const savedUser = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
+        if (savedUser) {
           return JSON.parse(savedUser);
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
     return initialUsers[0]; // Volkan Affan Kanıgür
   });
@@ -211,7 +218,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [properties, setProperties] = useState<Property[]>(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("trustline_crm_properties_v3");
+        localStorage.removeItem("trustline_crm_properties_v3");
+        const saved = localStorage.getItem(PROPERTIES_STORAGE_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -230,7 +238,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window !== "undefined" && properties.length > 0) {
       try {
-        localStorage.setItem("trustline_crm_properties_v3", JSON.stringify(properties));
+        localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(properties));
       } catch (e) {}
     }
   }, [properties]);
@@ -264,7 +272,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
           const merged = Array.from(map.values());
           try {
-            localStorage.setItem("trustline_crm_users_v3", JSON.stringify(merged));
+            localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(merged));
           } catch {}
           return merged;
         });
@@ -290,7 +298,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               ? prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u))
               : [...prev, updated];
             try {
-              localStorage.setItem("trustline_crm_users_v3", JSON.stringify(nextUsers));
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
             } catch {}
             return nextUsers;
           });
@@ -875,7 +883,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(user);
     try {
       localStorage.setItem("trustline_active_user", JSON.stringify(user));
-      localStorage.setItem("trustline_crm_current_user_v3", JSON.stringify(user));
+      localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
     } catch {}
   };
 
@@ -968,7 +976,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const updatedUsers = users.map((u) => (u.id === userId ? updatedUser : u));
     setUsers(updatedUsers);
     try {
-      localStorage.setItem("trustline_crm_users_v3", JSON.stringify(updatedUsers));
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
     } catch {}
 
     // Kullanıcı oturumunu hemen aç
@@ -1036,7 +1044,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const updatedUsers = users.map((u) => (u.id === userId ? updatedUser : u));
     setUsers(updatedUsers);
     try {
-      localStorage.setItem("trustline_crm_users_v3", JSON.stringify(updatedUsers));
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
     } catch {}
 
     if (currentUser.id === userId) {
@@ -1055,7 +1063,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     );
     setUsers(updatedUsers);
     try {
-      localStorage.setItem("trustline_crm_users_v3", JSON.stringify(updatedUsers));
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
     } catch {}
 
     if (currentUser.id === userId) {

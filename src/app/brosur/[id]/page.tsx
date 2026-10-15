@@ -36,7 +36,9 @@ function BrosurContent({ params }: PageProps) {
     // 1. Önce localStorage'daki güncel havuzdan ara
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("trustline_crm_properties_v3");
+        const saved =
+          localStorage.getItem("trustline_crm_properties_kktc_v1") ||
+          localStorage.getItem("trustline_crm_properties_v3");
         if (saved) {
           const parsed: Property[] = JSON.parse(saved);
           const found = parsed.find((p) => p.id === propertyId);

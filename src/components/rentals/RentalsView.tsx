@@ -727,47 +727,29 @@ export function RentalsView() {
         </div>
       </div>
 
-      {/* TABLONUN ÜSTÜ BOYUNCA YATAYDA UZANAN ZAMAN TÜNELİ & KESİNTİSİZ SLIDER ŞERİDİ */}
+      {/* KESİNTİSİZ ZAMAN ÇİZELGESİ SLIDERI (SADE VE MODERN TASARIM) */}
       {rentals.length > 0 && (
-        <div className="sharp-card bg-white border border-slate-200 overflow-hidden shadow-xs mb-3">
-          {/* 1. ÜST BİLGİ & HIZLI AY / YIL ATLAMALARI */}
-          <div className="p-3 bg-slate-50/90 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="font-mono text-xs text-[#00adb5] font-bold tracking-wider uppercase flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
-                ZAMAN TÜNELİ & KİRA MATRİSİ
+        <div className="sharp-card p-3 bg-white border border-slate-200 shadow-xs mb-3 space-y-2">
+          {/* Üst Satır: Görüntülenen Dönem ve Hızlı Yıl / Bugün Butonları */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-slate-700">
+              <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+              <span className="font-bold text-[#1d2566]">
+                {visibleStartMonth} — {visibleEndMonth}
               </span>
-              <span className="text-slate-300">•</span>
-              <div className="px-2.5 py-1 bg-white border border-slate-200 text-[#1d2566] font-mono text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>
-                  Görüntülenen: <strong>{visibleStartMonth}</strong> — <strong>{visibleEndMonth}</strong>
-                </span>
-              </div>
-              <span className="text-[10px] font-mono text-slate-400">
-                ({allTimelineMonths.length} Ay Kesintisiz Şerit • {timelineYears[0]} - {timelineYears[timelineYears.length - 1]})
+              <span className="text-slate-400 text-[10px]">
+                ({allTimelineMonths.length} Ay Kesintisiz Akış)
               </span>
             </div>
 
-            {/* Sağ: Hızlı Yıl & Cari Ay Butonları */}
             <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => scrollByMonths(-3)}
-                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition shadow-2xs"
-                title="3 Ay Geri Kaydır"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                <span>3 Ay Geri</span>
-              </button>
-
               {timelineYears.map((year) => (
                 <button
                   key={year}
                   type="button"
                   onClick={() => scrollToMonthKey(`${year}-01`, true)}
-                  className="px-2.5 py-1 bg-white hover:bg-slate-100 hover:text-[#1d2566] border border-slate-300 text-slate-700 font-mono text-[11px] font-bold cursor-pointer transition shadow-2xs"
-                  title={`${year} yılı başlangıcına atla`}
+                  className="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 hover:text-[#1d2566] border border-slate-300 text-slate-700 text-[11px] font-bold cursor-pointer transition shadow-2xs"
+                  title={`${year} yılına atla`}
                 >
                   {year}
                 </button>
@@ -776,70 +758,21 @@ export function RentalsView() {
               <button
                 type="button"
                 onClick={() => scrollToMonthKey("2026-10", true)}
-                className="px-2.5 py-1 bg-[#1d2566] hover:bg-[#151c4f] text-white border border-[#1d2566] font-mono text-[11px] font-bold cursor-pointer transition shadow-xs flex items-center gap-1"
-                title="Cari aya (Ekim 2026) akıcı şekilde konumlan"
+                className="px-2.5 py-0.5 bg-[#1d2566] hover:bg-[#151c4f] text-white border border-[#1d2566] text-[11px] font-bold cursor-pointer transition shadow-xs"
+                title="Cari aya (Ekim 2026) git"
               >
-                <span>🎯 Cari Ay (Ekim &apos;26)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => scrollByMonths(3)}
-                className="px-2 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition shadow-2xs"
-                title="3 Ay İleri Kaydır"
-              >
-                <span>3 Ay İleri</span>
-                <ChevronRight className="w-3.5 h-3.5" />
+                🎯 Bugün (Eki &apos;26)
               </button>
             </div>
           </div>
 
-          {/* 2. TABLONUN ÜSTÜ BOYUNCA BOYLU BOYUNCA UZANAN ZAMAN ÇİZELGESİ & SLİDER */}
-          <div className="p-3 bg-linear-to-b from-slate-900 to-[#10163a] text-white select-none space-y-2">
-            {/* Zaman Cetveli (Yıllar ve Çeyrek Aylar Bölümleri) */}
-            <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-400 px-1">
-              {timelineYears.map((year) => (
-                <div
-                  key={year}
-                  className="flex-1 flex items-center justify-between border-l border-slate-700 first:border-l-0 px-2"
-                >
-                  <span className="text-[#00adb5] font-bold text-xs">{year}</span>
-                  <span className="text-slate-500 hidden sm:inline">Nis</span>
-                  <span className="text-slate-500 hidden sm:inline">Tem</span>
-                  <span className="text-slate-500 hidden sm:inline">Eki</span>
-                </div>
-              ))}
-            </div>
+          {/* Sade, Temiz ve Modern Standart Slider Rayı */}
+          <div className="flex items-center gap-3 pt-0.5">
+            <span className="text-[10px] font-mono text-slate-400 shrink-0 font-semibold">
+              {allTimelineMonths[0]?.label}
+            </span>
 
-            {/* Tam Genişlik Kesintisiz Timeline Slider Rayı */}
-            <div className="relative flex items-center h-7 px-1">
-              {/* Arka plan kanal rayı ve dolu ilerleme */}
-              <div className="absolute inset-x-1 h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                <div
-                  className="h-full bg-linear-to-r from-[#00adb5]/40 via-[#00adb5] to-[#00adb5]/80 transition-all duration-75"
-                  style={{ width: `${Math.max(4, Math.min(100, scrollProgress * 100))}%` }}
-                ></div>
-              </div>
-
-              {/* Cari Ay Sabit İşareti (Ekim 2026 noktası) */}
-              <div
-                className="absolute z-10 -top-1 pointer-events-none flex flex-col items-center"
-                style={{
-                  left: `${Math.round(
-                    ((allTimelineMonths.findIndex((m) => m.key === "2026-10") || 18) /
-                      allTimelineMonths.length) *
-                      100
-                  )}%`,
-                }}
-                title="Cari Ay: Ekim 2026"
-              >
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 ring-4 ring-emerald-500/30"></span>
-                <span className="text-[9px] font-mono text-emerald-300 font-bold mt-0.5 hidden md:inline">
-                  Eki &apos;26
-                </span>
-              </div>
-
-              {/* Kesintisiz Kaydırma Slider Inputu */}
+            <div className="flex-1 relative flex items-center">
               <input
                 type="range"
                 min={0}
@@ -847,37 +780,14 @@ export function RentalsView() {
                 step={1}
                 value={Math.round(scrollProgress * 1000)}
                 onChange={handleSliderChange}
-                className="w-full relative z-20 opacity-0 hover:opacity-100 cursor-grab active:cursor-grabbing h-7 transition-opacity"
-                title="Tabloyu fışşş diye akıcı kaydırmak için tutun ve sürükleyin"
+                className="w-full h-1.5 bg-slate-200 rounded-full appearance-none cursor-pointer accent-[#00adb5]"
+                title="Tabloyu yatayda kaydırmak için sürükleyin"
               />
-
-              {/* Görsel Sürükleme Rozeti (Thumb Indicator) */}
-              <div
-                className="absolute z-15 top-1/2 -translate-y-1/2 pointer-events-none transition-all duration-75"
-                style={{
-                  left: `calc(${scrollProgress * 100}% - 28px)`,
-                }}
-              >
-                <div className="px-2.5 py-0.5 bg-[#00adb5] text-[#1d2566] text-[10px] font-mono font-extrabold rounded-full shadow-lg border-2 border-white flex items-center gap-1">
-                  <span>◀</span>
-                  <span className="hidden sm:inline">KAYDIR</span>
-                  <span>▶</span>
-                </div>
-              </div>
             </div>
 
-            {/* Alt Bilgi İpucu */}
-            <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 px-1 pt-0.5">
-              <span className="flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00adb5]" />
-                <span>
-                  Sliderı sürükleyerek veya aşağıdaki tabloyu yatayda kaydırarak (Trackpad / Shift + Tekerlek) kesintisiz gezebilirsiniz.
-                </span>
-              </span>
-              <span className="hidden md:inline text-slate-400">
-                {allTimelineMonths[0]?.label} ➔ {allTimelineMonths[allTimelineMonths.length - 1]?.label}
-              </span>
-            </div>
+            <span className="text-[10px] font-mono text-slate-400 shrink-0 font-semibold">
+              {allTimelineMonths[allTimelineMonths.length - 1]?.label}
+            </span>
           </div>
         </div>
       )}

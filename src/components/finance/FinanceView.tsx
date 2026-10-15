@@ -816,40 +816,39 @@ export function FinanceView() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredDeals.map((d) => {
-                  const isVolkanDeal = d.createdById === "usr-volkan";
-
                   const totalComm = d.commissionExpected;
+
+                  // Oran fallbackleri (Dış ofis, iç paylaşım veya tek danışman kuralları)
+                  let fallbackAdvRate = d.portfolioOrigin === "advisor" ? 60 : 50;
+                  let fallbackPartRate = 0;
+                  let fallbackOffRate = d.portfolioOrigin === "advisor" ? 40 : 50;
+
+                  if (d.sharingType === "external") {
+                    fallbackPartRate = 50;
+                    fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
+                    fallbackOffRate = d.portfolioOrigin === "advisor" ? 20 : 25;
+                  } else if (d.sharingType === "internal") {
+                    fallbackPartRate = 25;
+                    fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
+                    fallbackOffRate = d.portfolioOrigin === "advisor" ? 45 : 50;
+                  }
+
+                  const advRate = d.advisorShareRate !== undefined ? d.advisorShareRate : fallbackAdvRate;
+                  const partRate = d.partnerShareRate !== undefined ? d.partnerShareRate : fallbackPartRate;
+                  const offRate = d.officeShareRate !== undefined ? d.officeShareRate : fallbackOffRate;
+
                   const advShare =
                     d.advisorShareAmount !== undefined
                       ? d.advisorShareAmount
-                      : Math.round(
-                          totalComm * (isVolkanDeal ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5)
-                        );
+                      : Math.round((totalComm * advRate) / 100);
+                  const partShare =
+                    d.partnerShareAmount !== undefined
+                      ? d.partnerShareAmount
+                      : Math.round((totalComm * partRate) / 100);
                   const offShare =
                     d.officeShareAmount !== undefined
                       ? d.officeShareAmount
-                      : Math.round(
-                          totalComm * (isVolkanDeal ? 0.0 : d.portfolioOrigin === "advisor" ? 0.4 : 0.5)
-                        );
-                  const partShare = d.partnerShareAmount || 0;
-
-                  const advRate =
-                    d.advisorShareRate !== undefined
-                      ? d.advisorShareRate
-                      : isVolkanDeal
-                      ? 100
-                      : d.portfolioOrigin === "advisor"
-                      ? 60
-                      : 50;
-                  const offRate =
-                    d.officeShareRate !== undefined
-                      ? d.officeShareRate
-                      : isVolkanDeal
-                      ? 0
-                      : d.portfolioOrigin === "advisor"
-                      ? 40
-                      : 50;
-                  const partRate = d.partnerShareRate || 0;
+                      : totalComm - advShare - partShare;
 
                   const rawDate = d.closingDate || d.paymentDue || d.createdAt;
                   const formattedDate = rawDate ? rawDate.split("T")[0] : "—";
@@ -934,10 +933,6 @@ export function FinanceView() {
                               {d.portfolioOrigin === "advisor" ? "Kendi Portföyü (%30 GD1)" : "Ofis Portföyü (%25 GD1)"}
                             </div>
                           </div>
-                        ) : isVolkanDeal ? (
-                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-amber-50 text-amber-800 border-amber-300">
-                            Ortak (%100 Kendisinin)
-                          </span>
                         ) : (
                           <span
                             className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${

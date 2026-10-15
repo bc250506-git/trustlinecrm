@@ -74,6 +74,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
   const [formLandType, setFormLandType] = useState<"commercial" | "residential">("residential");
 
   // 02 Taraflar ve İşlem Tarihleri
+  const [formLandlordId, setFormLandlordId] = useState("");
   const [formLandlordName, setFormLandlordName] = useState("");
   const [formLandlordPhone, setFormLandlordPhone] = useState("");
   const [formMandateDate, setFormMandateDate] = useState("");
@@ -84,8 +85,11 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
   const [formClosingDate, setFormClosingDate] = useState(getTodayStr());
   const [formDurationText, setFormDurationText] = useState("");
 
-  // 03 Alıcının Ulaştığı Kanal
-  const [formLeadChannel, setFormLeadChannel] = useState("Web");
+  // Sub-modal hedefi (Alıcı mı eklenecek, Mülk Sahibi mi?)
+  const [customerModalTarget, setCustomerModalTarget] = useState<"buyer" | "landlord">("buyer");
+
+  // 03 Alıcının Ulaştığı Kanal (Opsiyonel)
+  const [formLeadChannel, setFormLeadChannel] = useState("");
 
   // 04 İşlem Bilgileri & Bedeller
   const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
@@ -131,6 +135,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       setFormPropertyType("Daire");
       setFormArea("");
       setFormLandType("residential");
+      setFormLandlordId("");
       setFormLandlordName("");
       setFormLandlordPhone("");
       setFormMandateDate("");
@@ -140,7 +145,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       setFormDepositDate("");
       setFormClosingDate(today);
       setFormDurationText("");
-      setFormLeadChannel("Web");
+      setFormLeadChannel("");
       setFormCurrency("GBP");
       setFormAskingPrice("");
       setFormAgreedPrice("");
@@ -196,6 +201,18 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       }
       if (prop.ownerName) {
         setFormLandlordName(prop.ownerName);
+        // Havuzda eşleşen mülk sahibi var mı kontrol et
+        const matchedLandlord = customers.find(
+          (c) =>
+            c.fullName.trim().toLowerCase() === prop.ownerName?.trim().toLowerCase() ||
+            (prop.ownerPhone && c.phone && c.phone.replace(/\D/g, "") === prop.ownerPhone.replace(/\D/g, ""))
+        );
+        if (matchedLandlord) {
+          setFormLandlordId(matchedLandlord.id);
+          if (matchedLandlord.phone) setFormLandlordPhone(matchedLandlord.phone);
+        } else {
+          setFormLandlordId("");
+        }
       }
       if (prop.ownerPhone) {
         setFormLandlordPhone(prop.ownerPhone);
@@ -214,7 +231,22 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
     }
   };
 
-  // Müşteri Seçimi Yapıldığında Otomatik Doldurma
+  // Mülk Sahibi Seçimi
+  const handleSelectLandlord = (cid: string) => {
+    setFormLandlordId(cid);
+    if (!cid) {
+      setFormLandlordName("");
+      setFormLandlordPhone("");
+      return;
+    }
+    const cust = customers.find((c) => c.id === cid);
+    if (cust) {
+      setFormLandlordName(cust.fullName);
+      setFormLandlordPhone(cust.phone || "");
+    }
+  };
+
+  // Müşteri (Alıcı / Kiracı) Seçimi
   const handleSelectCustomer = (cid: string) => {
     setFormCustomerId(cid);
     if (!cid) {
@@ -229,61 +261,72 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
     }
   };
 
-  // ==========================================
-  // HASSAS KOMİSYON VE PAYLAŞIM BÖLÜŞÜM MOTORU
-  // ==========================================
+  // ==============================================================
+  // HASSAS KOMİSYON VE PAYLAŞIM BÖLÜŞÜM MOTORU (RESMİ TRUSTLINE KURALI)
+  // ==============================================================
+  // Örnek 1.000 GBP komisyonda:
+  // 1) DIŞ OFİS PAYLAŞIMI: Dış Ofis 500 GBP (%50). Kalan 500 GBP:
+  //    - Danışman Kendi Portföyü ise: Danışman 300 GBP (%30), Ofis 200 GBP (%20)
+  //    - Ofis Portföyü ise: Danışman 250 GBP (%25), Ofis 250 GBP (%25)
+  // 2) OFİS İÇİ PAYLAŞIM: Danışman A ve B 500 GBP 500 GBP bölüşür:
+  //    - Danışman A (Portföy Sahibi): Kendi portföyü ise %40 ofis kesintisi (200 GBP) -> Net 300 GBP (%30)
+  //                                   Ofis portföyü ise %50 ofis kesintisi (250 GBP) -> Net 250 GBP (%25)
+  //    - Danışman B (Müşteriyi Getiren): %50 ofis kesintisi (250 GBP) -> Net 250 GBP (%25)
+  //    - Ofis: Danışman A'dan 200 GBP + Danışman B'den 250 GBP = 450 GBP (%45)
+  //            (Ofis portföyü ise: 250 + 250 = 500 GBP (%50))
+  // 3) TEK DANIŞMAN:
+  //    - Kendi Portföyü: Danışman %60 (600 GBP), Ofis %40 (400 GBP)
+  //    - Ofis Portföyü: Danışman %50 (500 GBP), Ofis %50 (500 GBP)
+  // ==============================================================
   const numericPrice = Number(formAgreedPrice) || 0;
   const calculatedCommission =
     formCommissionRate === 100
       ? numericPrice
-      : (numericPrice * formCommissionRate) / 100;
+      : Math.round((numericPrice * formCommissionRate) / 100);
 
-  let advisorShareRate = 0; // Satış Danışmanı (GD 1)
-  let partnerShareRate = 0; // Ortak (Dış Ofis veya GD 2)
+  let advisorShareRate = 0; // Danışman A (Satış GD / Portföy Sahibi GD)
+  let partnerShareRate = 0; // Ortak (Dış Ofis veya Danışman B)
   let officeShareRate = 0;  // Trustline Ofis
 
   if (formSharingType === "none") {
-    // Senaryo 1 & 2: Tek Danışman
+    // Tek Danışman
     if (formOrigin === "advisor") {
-      // Danışman Kendi Portföyü: %60 GD / %40 Ofis
       advisorShareRate = 60;
       officeShareRate = 40;
       partnerShareRate = 0;
     } else {
-      // Ofis Portföyü: %50 GD / %50 Ofis
       advisorShareRate = 50;
       officeShareRate = 50;
       partnerShareRate = 0;
     }
   } else if (formSharingType === "external") {
-    // Senaryo 3: Dışarı ile Paylaşım (%50 Dışarı, Kalan %50 içeride portföy menşeine göre bölünür)
-    partnerShareRate = 50;
+    // Dış Ofis Paylaşımı
+    partnerShareRate = 50; // Dış Emlak Ofisi
     if (formOrigin === "advisor") {
-      // Kendi portföyü: Kalan %50'nin %60'ı GD (%30), %40'ı Ofis (%20)
-      advisorShareRate = 30;
-      officeShareRate = 20;
+      advisorShareRate = 30; // Trustline GD
+      officeShareRate = 20;  // Trustline Ofis
     } else {
-      // Ofis portföyü: Kalan %50'nin %50'si GD (%25), %50'si Ofis (%25)
-      advisorShareRate = 25;
-      officeShareRate = 25;
+      advisorShareRate = 25; // Trustline GD
+      officeShareRate = 25;  // Trustline Ofis
     }
   } else if (formSharingType === "internal") {
-    // Senaryo 4: Şirket İçi 2 Danışman Paylaşımı
-    partnerShareRate = 25; // 2. Danışman (Müşteri Bacağı: %50'nin %50'si = %25)
+    // Şirket İçi 2 Danışman Paylaşımı
+    partnerShareRate = 25; // Danışman B (Müşteri Bacağı: %50 Brüt - %50 Ofis Payı = Net %25)
     if (formOrigin === "advisor") {
-      // 1. Danışman (Kendi Portföy Bacağı: %50'nin %60'ı = %30)
+      // Danışman A (Portföy Sahibi GD: %50 Brüt - %40 Ofis Payı = Net %30)
       advisorShareRate = 30;
-      // Ofis = %20 (portföy bacağından) + %25 (müşteri bacağından) = %45
+      // Ofis: Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45 (450 GBP)
       officeShareRate = 45;
     } else {
-      // Portföy zaten ofisin: 1. Danışman (%25), 2. Danışman (%25), Ofis (%50)
+      // Ofis Portföyü: Her iki danışman da %50 brüt - %50 ofis payı = Net %25'er
       advisorShareRate = 25;
+      // Ofis: %25 + %25 = Toplam %50 (500 GBP)
       officeShareRate = 50;
     }
   }
 
-  const calculatedAdvisorShare = (calculatedCommission * advisorShareRate) / 100;
-  const calculatedPartnerShare = (calculatedCommission * partnerShareRate) / 100;
+  const calculatedAdvisorShare = Math.round((calculatedCommission * advisorShareRate) / 100);
+  const calculatedPartnerShare = Math.round((calculatedCommission * partnerShareRate) / 100);
   const calculatedOfficeShare = calculatedCommission - calculatedAdvisorShare - calculatedPartnerShare;
 
   const assignedUser = users.find((u) => u.id === formAdvisorId) || currentUser;
@@ -296,9 +339,22 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       return;
     }
 
+    if (!formCustomerId && !formCustomerName) {
+      alert("Lütfen kayıtlı müşteri havuzundan bir alıcı/kiracı seçin veya '+ Yeni Müşteri' butonuyla ekleyin.");
+      return;
+    }
+
+    const finalCustomer = customers.find((c) => c.id === formCustomerId);
+    const finalCustomerName = formCustomerName || finalCustomer?.fullName || "Müşteri";
+    const finalCustomerPhone = formCustomerPhone || finalCustomer?.phone || undefined;
+
+    const finalLandlord = customers.find((c) => c.id === formLandlordId);
+    const finalLandlordName = formLandlordName || finalLandlord?.fullName || undefined;
+    const finalLandlordPhone = formLandlordPhone || finalLandlord?.phone || undefined;
+
     const titleToUse =
       formTitle.trim() ||
-      `${formAddress || formPropertyType} — ${formCustomerName || "Müşteri"} İşlem Kapama`;
+      `${formAddress || formPropertyType} — ${finalCustomerName} İşlem Kapama`;
 
     const selectedProp = properties.find((p) => p.id === formPropertyId);
 
@@ -306,21 +362,21 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       title: titleToUse,
       dealNumber: formDealNumber || undefined,
       dealType: formDealType,
-      customerId: formCustomerId,
-      customerName: formCustomerName || undefined,
-      customerPhone: formCustomerPhone || undefined,
+      customerId: formCustomerId || "custom-cst",
+      customerName: finalCustomerName,
+      customerPhone: finalCustomerPhone,
       propertyId: formPropertyId,
       propertyTitle: selectedProp ? selectedProp.title : formAddress || "Gayrimenkul",
       address: formAddress,
       propertyType: formPropertyType,
       area: Number(formArea) || undefined,
       landType: formPropertyType === "Arsa" ? formLandType : undefined,
-      landlordName: formLandlordName || undefined,
-      landlordPhone: formLandlordPhone || undefined,
+      landlordName: finalLandlordName,
+      landlordPhone: finalLandlordPhone,
       mandateDate: formMandateDate || undefined,
       depositDate: formDepositDate || undefined,
       durationText: formDurationText || undefined,
-      leadChannel: formLeadChannel,
+      leadChannel: formLeadChannel || undefined,
       currency: formCurrency,
       stage: formStage,
       askingPrice: Number(formAskingPrice) || numericPrice,
@@ -649,16 +705,38 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
             {/* Mülk Sahibi & Yetki Tarihi */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60 p-3 border border-slate-200">
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                  MÜLK SAHİBİ ADI SOYADI
-                </label>
-                <input
-                  type="text"
-                  value={formLandlordName}
-                  onChange={(e) => setFormLandlordName(e.target.value)}
-                  placeholder="Mülk Sahibi Adı"
-                  className="sharp-input w-full p-2 bg-white"
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-mono text-[11px] font-bold">
+                    MÜLK SAHİBİ (HAVUZDAN SEÇ)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerModalTarget("landlord");
+                      setIsAddCustomerModalOpen(true);
+                    }}
+                    className="text-[10px] text-[#00adb5] font-mono font-bold hover:underline cursor-pointer"
+                  >
+                    + Yeni Müşteri
+                  </button>
+                </div>
+                <select
+                  value={formLandlordId}
+                  onChange={(e) => handleSelectLandlord(e.target.value)}
+                  className="sharp-input w-full h-9 p-2 bg-white text-xs font-mono font-medium text-slate-800"
+                >
+                  <option value="">-- Müşteri havuzundan mülk sahibi seçin --</option>
+                  {formLandlordName && !customers.some((c) => c.id === formLandlordId) && (
+                    <option value="__prop_owner__">
+                      {formLandlordName} (Portföy Kaydından)
+                    </option>
+                  )}
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "SELLER" ? "• Satıcı/Ev Sahibi" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -671,7 +749,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   value={formLandlordPhone}
                   onChange={(e) => setFormLandlordPhone(e.target.value)}
                   placeholder="+90 533 ..."
-                  className="sharp-input w-full p-2 bg-white font-mono"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
                 />
               </div>
 
@@ -683,7 +761,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   type="date"
                   value={formMandateDate}
                   onChange={(e) => setFormMandateDate(e.target.value)}
-                  className="sharp-input w-full p-2 bg-white font-mono"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
                 />
               </div>
             </div>
@@ -693,38 +771,32 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-mono text-[11px] font-bold">
-                    ALICI / KİRACI ADI SOYADI *
+                    ALICI / KİRACI (HAVUZDAN SEÇ) *
                   </label>
                   <button
                     type="button"
-                    onClick={() => setIsAddCustomerModalOpen(true)}
+                    onClick={() => {
+                      setCustomerModalTarget("buyer");
+                      setIsAddCustomerModalOpen(true);
+                    }}
                     className="text-[10px] text-[#00adb5] font-mono font-bold hover:underline cursor-pointer"
                   >
                     + Yeni Müşteri
                   </button>
                 </div>
-                <div className="space-y-1">
-                  <select
-                    value={formCustomerId}
-                    onChange={(e) => handleSelectCustomer(e.target.value)}
-                    className="sharp-input w-full p-1.5 bg-white text-[11px] font-mono text-slate-700"
-                  >
-                    <option value="">Kayıtlı Müşteri Listesinden Seç...</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName} {c.phone ? `(${c.phone})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    required
-                    value={formCustomerName}
-                    onChange={(e) => setFormCustomerName(e.target.value)}
-                    placeholder="Alıcı / Kiracı Adı Soyadı"
-                    className="sharp-input w-full p-2 bg-white font-bold"
-                  />
-                </div>
+                <select
+                  required
+                  value={formCustomerId}
+                  onChange={(e) => handleSelectCustomer(e.target.value)}
+                  className="sharp-input w-full h-9 p-2 bg-white text-xs font-mono font-medium text-slate-800"
+                >
+                  <option value="">-- Müşteri havuzundan alıcı seçin * --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "BUYER" || c.category === "TENANT" ? "• Alıcı/Kiracı" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -737,7 +809,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   value={formCustomerPhone}
                   onChange={(e) => setFormCustomerPhone(e.target.value)}
                   placeholder="+90 548 ..."
-                  className="sharp-input w-full p-2 bg-white font-mono"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
                 />
               </div>
 
@@ -749,7 +821,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   type="date"
                   value={formDepositDate}
                   onChange={(e) => setFormDepositDate(e.target.value)}
-                  className="sharp-input w-full p-2 bg-white font-mono"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
                 />
               </div>
             </div>
@@ -766,7 +838,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   required
                   value={formClosingDate}
                   onChange={(e) => setFormClosingDate(e.target.value)}
-                  className="sharp-input w-full p-2 font-mono font-bold text-[#1d2566]"
+                  className="sharp-input w-full h-9 p-2 font-mono font-bold text-[#1d2566] text-xs"
                 />
               </div>
 
@@ -780,7 +852,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   value={formDurationText}
                   onChange={(e) => setFormDurationText(e.target.value)}
                   placeholder="Örn: 24 Gün, 6 Hafta, 3 Ay"
-                  className="sharp-input w-full p-2 font-mono"
+                  className="sharp-input w-full h-9 p-2 font-mono text-xs"
                 />
               </div>
             </div>
@@ -788,12 +860,17 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
 
           {/* 03 ALICININ ULAŞTIĞI KANAL */}
           <div className="space-y-3 p-4 border border-slate-200 bg-white shadow-2xs">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <span className="font-mono text-xs font-bold text-white bg-[#1d2566] px-1.5 py-0.5">
-                03
-              </span>
-              <span className="font-mono font-bold text-slate-800 uppercase tracking-wider">
-                ALICININ ULAŞTIĞI KANAL (MÜŞTERİ KAYNAĞI)
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-bold text-white bg-[#1d2566] px-1.5 py-0.5">
+                  03
+                </span>
+                <span className="font-mono font-bold text-slate-800 uppercase tracking-wider">
+                  ALICININ ULAŞTIĞI KANAL (MÜŞTERİ KAYNAĞI)
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5">
+                Opsiyonel
               </span>
             </div>
 
@@ -802,7 +879,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                 <button
                   key={ch}
                   type="button"
-                  onClick={() => setFormLeadChannel(ch)}
+                  onClick={() => setFormLeadChannel(formLeadChannel === ch ? "" : ch)}
                   className={`p-2 font-mono text-[11px] font-bold border transition text-left flex items-center gap-2 cursor-pointer ${
                     formLeadChannel === ch
                       ? "bg-cyan-50 border-[#00adb5] text-[#1d2566] shadow-2xs"
@@ -839,7 +916,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                 <select
                   value={formCurrency}
                   onChange={(e) => setFormCurrency(e.target.value as Currency)}
-                  className="sharp-input w-full p-2 bg-white font-mono font-bold text-[#1d2566]"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono font-bold text-xs text-[#1d2566]"
                 >
                   <option value="GBP">GBP (£ - Sterlin)</option>
                   <option value="EUR">EUR (€ - Euro)</option>
@@ -857,7 +934,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   value={formAskingPrice}
                   onChange={(e) => setFormAskingPrice(e.target.value)}
                   placeholder="Örn: 160000"
-                  className="sharp-input w-full p-2 font-mono text-slate-600"
+                  className="sharp-input w-full h-9 p-2 font-mono text-xs text-slate-600"
                 />
               </div>
 
@@ -871,7 +948,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   value={formAgreedPrice}
                   onChange={(e) => setFormAgreedPrice(e.target.value)}
                   placeholder="Örn: 150000"
-                  className="sharp-input w-full p-2 font-mono font-bold text-base text-[#1d2566]"
+                  className="sharp-input w-full h-9 p-2 font-mono font-bold text-xs text-[#1d2566]"
                 />
               </div>
 
@@ -882,7 +959,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                 <select
                   value={formCommissionRate}
                   onChange={(e) => setFormCommissionRate(Number(e.target.value))}
-                  className="sharp-input w-full p-2 bg-white font-mono font-bold"
+                  className="sharp-input w-full h-9 p-2 bg-white font-mono font-bold text-xs"
                 >
                   <option value={1}>%1</option>
                   <option value={2}>%2</option>
@@ -1105,15 +1182,15 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   </select>
                 </div>
 
-                <div className="flex items-center text-[11px] font-mono text-cyan-900 bg-white/80 p-2 border border-cyan-300">
+                <div className="flex items-center text-[11px] font-mono text-cyan-950 bg-white/90 p-2.5 border border-cyan-300">
                   <span>
-                    İç paylaşımda %50 portföy bacağı ({assignedUser.name}) ile %50 müşteri bacağı ({internalPartnerUser?.name || "2. Danışman"}) arasında hesaplanır.
+                    İç Paylaşım Kuralı: Komisyon 50/50 brüt bölüşülür. Her danışmandan ofis kendi payını keser (Portföy sahibi Danışman A&apos;dan %{formOrigin === "advisor" ? "40 ofis kesintisi (net %30)" : "50 ofis kesintisi (net %25)"}, Müşteri getiren Danışman B&apos;den %50 ofis kesintisi (net %25)).
                   </span>
                 </div>
               </div>
             )}
 
-            {/* CANLI KOMİSYON VE PAY BÖLÜŞÜM TABLOSU (PDF BİREBİR) */}
+            {/* CANLI KOMİSYON VE PAY BÖLÜŞÜM TABLOSU */}
             <div className="border border-slate-300 bg-white shadow-xs">
               <div className="p-2.5 bg-slate-100 border-b border-slate-300 flex items-center justify-between text-xs font-mono">
                 <span className="font-bold text-[#1d2566] flex items-center gap-1.5">
@@ -1135,14 +1212,46 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {/* Satış GD */}
+                    {/* Dış Ofis Payı (Eğer Dışarı ile Paylaşım Varsa) */}
+                    {formSharingType === "external" && (
+                      <tr className="bg-purple-50/50">
+                        <td className="py-2.5 px-2">
+                          <div className="font-bold text-purple-900">
+                            Dış Emlak Ofisi ({formPartnerCompany || formPartnerName || "Dış Ortak"})
+                          </div>
+                          <div className="text-[10px] text-purple-700">
+                            Dış Ofis Brüt Paylaşım Payı (%50)
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-2 text-center">
+                          <span className="px-2.5 py-1 bg-white border border-purple-300 font-bold text-purple-900 inline-block w-16">
+                            %{partnerShareRate}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-2 text-right font-bold text-purple-900 text-sm">
+                          {calculatedPartnerShare.toLocaleString("tr-TR")} {formCurrency}
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Satış Danışmanı (Danışman A / GD 1) */}
                     <tr className="bg-slate-50/50">
                       <td className="py-2.5 px-2">
                         <div className="font-bold text-[#1d2566]">
-                          Satış GD ({assignedUser.name})
+                          {formSharingType === "internal" ? "Danışman A — Portföy Sahibi" : "Satış GD"} ({assignedUser.name})
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          {formOrigin === "advisor" ? "Kendi Portföyü Bacağı" : "Ofis Portföyü Bacağı"}
+                          {formSharingType === "internal"
+                            ? formOrigin === "advisor"
+                              ? "Kendi Portföyü: %50 Brüt Paylaşım — %40 Ofis Kesintisi = Net %30"
+                              : "Ofis Portföyü: %50 Brüt Paylaşım — %50 Ofis Kesintisi = Net %25"
+                            : formSharingType === "external"
+                            ? formOrigin === "advisor"
+                              ? "Trustline GD (Kalan %50'nin %60'ı = %30)"
+                              : "Trustline GD (Kalan %50'nin %50'si = %25)"
+                            : formOrigin === "advisor"
+                            ? "Danışman Kendi Portföyü (%60)"
+                            : "Ofis Portföyü (%50)"}
                         </div>
                       </td>
                       <td className="py-2.5 px-2 text-center">
@@ -1155,15 +1264,15 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                       </td>
                     </tr>
 
-                    {/* Ortak (Eğer Paylaşım Varsa) */}
-                    {formSharingType !== "none" && (
-                      <tr className="bg-cyan-50/40">
+                    {/* Şirket İçi Ortak Danışman B (Müşteri Bacağı) */}
+                    {formSharingType === "internal" && (
+                      <tr className="bg-cyan-50/50">
                         <td className="py-2.5 px-2">
                           <div className="font-bold text-cyan-900">
-                            Ortak ({formSharingType === "external" ? formPartnerName || formPartnerCompany || "Dış Ofis" : internalPartnerUser?.name || "2. Danışman"})
+                            Danışman B — Müşteriyi Getiren ({internalPartnerUser?.name || "2. Danışman"})
                           </div>
                           <div className="text-[10px] text-cyan-700">
-                            {formSharingType === "external" ? "Dış Paylaşım Payı" : "Şirket İçi Müşteri Bacağı"}
+                            Müşteri Bacağı: %50 Brüt Paylaşım — %50 Ofis Kesintisi = Net %25
                           </div>
                         </td>
                         <td className="py-2.5 px-2 text-center">
@@ -1185,7 +1294,17 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                           <span>OFİS PAYI (Trustline Real Estate)</span>
                         </div>
                         <div className="text-[10px] text-emerald-700">
-                          Merkez Ofis & Şirket Hakedişi
+                          {formSharingType === "internal"
+                            ? formOrigin === "advisor"
+                              ? "Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45"
+                              : "Danışman A'dan %25 (250 GBP) + Danışman B'den %25 (250 GBP) = Toplam %50"
+                            : formSharingType === "external"
+                            ? formOrigin === "advisor"
+                              ? "Trustline Ofis (Kalan %50'nin %40'ı = %20)"
+                              : "Trustline Ofis (Kalan %50'nin %50'si = %25)"
+                            : formOrigin === "advisor"
+                            ? "Merkez Ofis Payı (%40)"
+                            : "Merkez Ofis Payı (%50)"}
                         </div>
                       </td>
                       <td className="py-2.5 px-2 text-center">
@@ -1256,11 +1375,27 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       <AddCustomerModal
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
+        onSuccess={(newCust) => {
+          if (customerModalTarget === "landlord") {
+            setFormLandlordId(newCust.id);
+            setFormLandlordName(newCust.fullName);
+            setFormLandlordPhone(newCust.phone || "");
+          } else {
+            setFormCustomerId(newCust.id);
+            setFormCustomerName(newCust.fullName);
+            setFormCustomerPhone(newCust.phone || "");
+          }
+          setIsAddCustomerModalOpen(false);
+        }}
       />
 
       <AddPropertyModal
         isOpen={isAddPropertyModalOpen}
         onClose={() => setIsAddPropertyModalOpen(false)}
+        onSuccess={(newProperty) => {
+          handleSelectProperty(newProperty.id);
+          setIsAddPropertyModalOpen(false);
+        }}
       />
     </div>
   );

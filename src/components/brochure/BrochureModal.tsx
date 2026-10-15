@@ -38,7 +38,12 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
   );
 
   // Müşteri Paylaşımına Uygun Fotoğraflar (PRD Güvenlik Kuralı)
-  const displayPhotos = property.photos.filter((p) => p.shareable);
+  const displayPhotos =
+    property.photos && property.photos.length > 0
+      ? property.photos.filter((p) => p.shareable)
+      : property.imageUrl
+      ? [{ id: "cover-photo", propertyId: property.id, url: property.imageUrl, shareable: true }]
+      : [];
 
   // Broşürden Yüksek Çözünürlüklü PDF Blob Üretici
   const generateBrochurePdf = async (): Promise<{ blob: Blob; filename: string }> => {

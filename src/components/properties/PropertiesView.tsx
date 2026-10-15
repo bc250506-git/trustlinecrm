@@ -41,6 +41,7 @@ import {
   RotateCcw,
   CheckCircle2,
 } from "lucide-react";
+import { PropertyImageUploader } from "./PropertyImageUploader";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AddDealModal } from "../modals/AddDealModal";
@@ -97,6 +98,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
 
   // Form State
   const [formTitle, setFormTitle] = useState("");
+  const [formImageUrl, setFormImageUrl] = useState<string | undefined>(undefined);
   const [formPropertyType, setFormPropertyType] = useState("Daire");
   const [formListingType, setFormListingType] = useState<"sale" | "rent">("sale");
   const [formPrice, setFormPrice] = useState("");
@@ -140,6 +142,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
   // Portföy Düzenleme Modalı State
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [editImageUrl, setEditImageUrl] = useState<string | undefined>(undefined);
   const [editDistrict, setEditDistrict] = useState("Girne");
   const [editSubRegion, setEditSubRegion] = useState("Alsancak");
   const [editListingType, setEditListingType] = useState<"sale" | "rent">("sale");
@@ -194,6 +197,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     setEditAssigneeId(p.assignedToId || currentUser.id);
     setEditNotes(p.notes || "");
     setEditPublicDesc(p.publicDescription || "");
+    setEditImageUrl(p.imageUrl || p.photos?.[0]?.url || undefined);
   };
 
   const handleEditDistrictChange = (d: string) => {
@@ -230,6 +234,17 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     const finalOwnerName = cust?.fullName || "Bilinmiyor";
     const finalOwnerPhone = cust?.phone || "";
 
+    const photos = editImageUrl
+      ? [
+          {
+            id: editingProperty.photos?.[0]?.id || `ph-${Date.now()}`,
+            propertyId: editingProperty.id,
+            url: editImageUrl,
+            shareable: true,
+          },
+        ]
+      : [];
+
     const updates = {
       title: editTitle.trim(),
       region: fullRegion,
@@ -252,7 +267,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       assignedToId: assignedUser?.id || editingProperty.assignedToId,
       assignedToName: assignedUser?.name || editingProperty.assignedToName,
       isShared: editIsShared,
-      photos: [],
+      imageUrl: editImageUrl,
+      photos,
     };
 
     const success = updateProperty(editingProperty.id, updates);
@@ -445,6 +461,17 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     const fullRegion = `${formDistrict} / ${formSubRegion}`;
     const owner = customers.find((c) => c.id === formOwnerCustomerId);
 
+    const photos = formImageUrl
+      ? [
+          {
+            id: `ph-${Date.now()}`,
+            propertyId: "",
+            url: formImageUrl,
+            shareable: true,
+          },
+        ]
+      : [];
+
     addProperty({
       title: formTitle,
       region: fullRegion,
@@ -467,10 +494,12 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       assignedToId: formAssigneeId,
       assignedToName: assignedUser?.name,
       isShared: formIsShared,
-      photos: [],
+      imageUrl: formImageUrl,
+      photos,
     });
 
     setIsAddModalOpen(false);
+    setFormImageUrl(undefined);
     setFormTitle("");
     setFormPrice("");
     setFormArea("");
@@ -512,7 +541,23 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               }`}
             >
               <div>
-                {/* Portföy Kartı Üst Bölümü (Fotoğrafsız, Temiz Tasarım) */}
+                {/* Portföy Fotoğrafı (Opsiyonel • Yüklendiyse Gösterilir) */}
+                {(() => {
+                  const photoUrl = p.imageUrl || p.photos?.[0]?.url;
+                  if (!photoUrl) return null;
+                  return (
+                    <div className="relative h-44 w-full bg-slate-100 overflow-hidden border-b border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photoUrl}
+                        alt={p.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                      />
+                    </div>
+                  );
+                })()}
+
+                {/* Portföy Kartı Üst Bölümü */}
                 <div className="p-3.5 border-b border-slate-100 bg-slate-50/70">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -771,6 +816,22 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               className="sharp-card border border-slate-300 bg-slate-100/75 hover:bg-white transition-all flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md opacity-85 hover:opacity-100 grayscale-[30%] hover:grayscale-0 group"
             >
               <div>
+                {/* Pasif Portföy Fotoğrafı */}
+                {(() => {
+                  const photoUrl = p.imageUrl || p.photos?.[0]?.url;
+                  if (!photoUrl) return null;
+                  return (
+                    <div className="relative h-40 w-full bg-slate-200 overflow-hidden border-b border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photoUrl}
+                        alt={p.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  );
+                })()}
+
                 {/* Portföy Kartı Üst Bölümü */}
                 <div className="p-3.5 border-b border-slate-200 bg-slate-100/90">
                   <div className="flex items-center justify-between gap-2 mb-2">
@@ -1113,6 +1174,18 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
             </div>
 
             <div className="p-6 space-y-5">
+              {/* Portföy Fotoğrafı */}
+              {(activePropertyDetail.imageUrl || activePropertyDetail.photos?.[0]?.url) && (
+                <div className="relative h-64 w-full overflow-hidden border border-slate-200 bg-slate-100">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activePropertyDetail.imageUrl || activePropertyDetail.photos?.[0]?.url}
+                    alt={activePropertyDetail.title}
+                    className="w-full h-full object-cover object-center"
+                  />
+                </div>
+              )}
+
               {/* Başlık ve Temel Bilgiler */}
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1462,6 +1535,12 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   className="sharp-input w-full p-2 text-xs"
                 />
               </div>
+
+              {/* Portföy Kapak Görseli (Opsiyonel • Maksimum 1 Adet) */}
+              <PropertyImageUploader
+                imageUrl={formImageUrl}
+                onChange={setFormImageUrl}
+              />
 
               {/* KKTC KONUM VE BÖLGE SEÇİMİ (ZORUNLU ALAN) */}
               <div className="p-3 bg-slate-50 border border-slate-200 space-y-2">
@@ -2087,6 +2166,12 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   className="sharp-input w-full p-2 text-xs font-semibold"
                 />
               </div>
+
+              {/* Portföy Kapak Görseli (Opsiyonel • Maksimum 1 Adet) */}
+              <PropertyImageUploader
+                imageUrl={editImageUrl}
+                onChange={setEditImageUrl}
+              />
 
               {/* KKTC KONUM VE BÖLGE SEÇİMİ */}
               <div className="p-3 bg-slate-50 border border-slate-200 space-y-2">

@@ -129,6 +129,7 @@ export interface Property {
   isShared?: boolean;
   isOffMarket?: boolean; // İlansız / Özel Portföy (Off-Market)
   listingUrl?: string; // Varsa portal/ilan linki
+  imageUrl?: string; // Optimize edilmiş kapak görseli (WebP)
   photos: PropertyPhoto[];
   deletedAt?: string | null;
   createdAt: string;

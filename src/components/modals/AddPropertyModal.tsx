@@ -15,6 +15,7 @@ import {
   Share2,
   Lock,
 } from "lucide-react";
+import { PropertyImageUploader } from "../properties/PropertyImageUploader";
 
 interface AddPropertyModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
   } = useStore();
 
   const [formTitle, setFormTitle] = useState("");
+  const [formImageUrl, setFormImageUrl] = useState<string | undefined>(undefined);
   const [formDistrict, setFormDistrict] = useState(KKTC_DISTRICTS[0]);
   const [formSubRegion, setFormSubRegion] = useState(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
   const [formListingType, setFormListingType] = useState<"sale" | "rent">("sale");
@@ -50,6 +52,7 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
   useEffect(() => {
     if (isOpen) {
       setFormTitle("");
+      setFormImageUrl(undefined);
       setFormDistrict(KKTC_DISTRICTS[0]);
       setFormSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
       setFormListingType("sale");
@@ -82,6 +85,17 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
 
     const selectedOwner = customers.find((c) => c.id === formOwnerCustomerId);
 
+    const photos = formImageUrl
+      ? [
+          {
+            id: `p-${Date.now()}`,
+            propertyId: "",
+            url: formImageUrl,
+            shareable: true,
+          },
+        ]
+      : [];
+
     const newProp = addProperty({
       title: formTitle,
       region: `${formDistrict} / ${formSubRegion}`,
@@ -103,7 +117,8 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
       listingUrl: formIsOffMarket ? undefined : formListingUrl,
       assignedToId: currentUser.id,
       assignedToName: currentUser.name,
-      photos: [],
+      imageUrl: formImageUrl,
+      photos,
     });
 
     onClose();
@@ -143,6 +158,12 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
               className="sharp-input w-full p-2 text-xs"
             />
           </div>
+
+          {/* Portföy Kapak Görseli (Opsiyonel • Maksimum 1 Adet) */}
+          <PropertyImageUploader
+            imageUrl={formImageUrl}
+            onChange={setFormImageUrl}
+          />
 
           {/* KKTC KONUM VE BÖLGE SEÇİMİ */}
           <div className="p-3 bg-slate-50 border border-slate-200 space-y-2">

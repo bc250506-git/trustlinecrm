@@ -293,6 +293,17 @@ export function MatchmakerView({
 
             {mode === "property_to_customer" && selectedProperty && (
               <div className="bg-slate-50 border border-slate-200 p-4 space-y-2.5 text-xs">
+                {(selectedProperty.imageUrl || selectedProperty.photos?.[0]?.url) && (
+                  <div className="h-32 w-full overflow-hidden border border-slate-200 bg-slate-100 mb-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedProperty.imageUrl || selectedProperty.photos?.[0]?.url}
+                      alt={selectedProperty.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-[#1d2566] line-clamp-1">
                     {selectedProperty.title}
@@ -365,72 +376,84 @@ export function MatchmakerView({
                     key={property.id}
                     className="sharp-card p-4 hover:border-[#00adb5] transition flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs"
                   >
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Skor Rozeti */}
-                        <span
-                          className={`text-xs font-mono font-bold px-2.5 py-0.5 border ${
-                            result.score >= 85
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                              : result.score >= 70
-                              ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/40"
-                              : "bg-amber-50 text-amber-800 border-amber-300"
-                          }`}
-                        >
-                          %{result.score} EŞLEŞME
-                        </span>
-
-                        {result.isStrictMatch && (
-                          <span className="text-[10px] font-mono uppercase bg-emerald-600 text-white px-2 py-0.5 font-bold">
-                            TAM KRİTER UYUMU
-                          </span>
-                        )}
-
-                        <span className="text-xs font-bold font-mono text-[#1d2566]">
-                          {property.price.toLocaleString("tr-TR")}{" "}
-                          {property.currency}
-                        </span>
-
-                        {/* Kur Çevrim Hapı */}
-                        {result.convertedBudgetDisplay && (
-                          <span className="text-[10px] font-mono text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5">
-                            💱 {result.convertedBudgetDisplay}
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 className="text-xs font-bold text-slate-800">
-                        {property.title}
-                      </h3>
-
-                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
-                        <span>{property.region}</span>
-                        <span>•</span>
-                        <span>{property.propertyType}</span>
-                        <span>•</span>
-                        <span>{property.area} m²</span>
-                        <span>•</span>
-                        <span>{property.rooms}</span>
-                      </div>
-
-                      {/* Kriter Açıklamaları */}
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {result.matchedCriteria.map((c, i) => (
+                    <div className="flex items-start gap-3 flex-1">
+                      {(property.imageUrl || property.photos?.[0]?.url) && (
+                        <div className="w-16 h-16 shrink-0 overflow-hidden border border-slate-200 bg-slate-100 hidden sm:block">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={property.imageUrl || property.photos?.[0]?.url}
+                            alt={property.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Skor Rozeti */}
                           <span
-                            key={i}
-                            className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 border border-emerald-200 flex items-center gap-1 font-semibold"
+                            className={`text-xs font-mono font-bold px-2.5 py-0.5 border ${
+                              result.score >= 85
+                                ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                : result.score >= 70
+                                ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/40"
+                                : "bg-amber-50 text-amber-800 border-amber-300"
+                            }`}
                           >
-                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> {c}
+                            %{result.score} EŞLEŞME
                           </span>
-                        ))}
-                        {result.missingCriteria.map((m, i) => (
-                          <span
-                            key={i}
-                            className="text-[10px] font-mono text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-200 flex items-center gap-1 font-semibold"
-                          >
-                            <XCircle className="w-2.5 h-2.5 text-rose-600" /> {m}
+
+                          {result.isStrictMatch && (
+                            <span className="text-[10px] font-mono uppercase bg-emerald-600 text-white px-2 py-0.5 font-bold">
+                              TAM KRİTER UYUMU
+                            </span>
+                          )}
+
+                          <span className="text-xs font-bold font-mono text-[#1d2566]">
+                            {property.price.toLocaleString("tr-TR")}{" "}
+                            {property.currency}
                           </span>
-                        ))}
+
+                          {/* Kur Çevrim Hapı */}
+                          {result.convertedBudgetDisplay && (
+                            <span className="text-[10px] font-mono text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5">
+                              💱 {result.convertedBudgetDisplay}
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-xs font-bold text-slate-800">
+                          {property.title}
+                        </h3>
+
+                        <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                          <span>{property.region}</span>
+                          <span>•</span>
+                          <span>{property.propertyType}</span>
+                          <span>•</span>
+                          <span>{property.area} m²</span>
+                          <span>•</span>
+                          <span>{property.rooms}</span>
+                        </div>
+
+                        {/* Kriter Açıklamaları */}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {result.matchedCriteria.map((c, i) => (
+                            <span
+                              key={i}
+                              className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 border border-emerald-200 flex items-center gap-1 font-semibold"
+                            >
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" /> {c}
+                            </span>
+                          ))}
+                          {result.missingCriteria.map((m, i) => (
+                            <span
+                              key={i}
+                              className="text-[10px] font-mono text-rose-700 bg-rose-50 px-2 py-0.5 border border-rose-200 flex items-center gap-1 font-semibold"
+                            >
+                              <XCircle className="w-2.5 h-2.5 text-rose-600" /> {m}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     </div>
 

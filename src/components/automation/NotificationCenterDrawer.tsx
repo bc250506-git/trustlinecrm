@@ -26,6 +26,11 @@ import {
   Cake,
   RotateCcw,
   CheckCircle2,
+  Calendar,
+  Landmark,
+  ShieldAlert,
+  Hourglass,
+  FileWarning,
 } from "lucide-react";
 
 interface NotificationCenterDrawerProps {
@@ -77,7 +82,13 @@ export function NotificationCenterDrawer({
         res.decayAlerts +
         res.mandateAlerts +
         (res.contractAlerts || 0) +
-        (res.birthdayAlerts || 0);
+        (res.birthdayAlerts || 0) +
+        (res.agendaAlerts || 0) +
+        (res.overdueAlerts || 0) +
+        (res.dealCollectionAlerts || 0) +
+        (res.brokerApprovalAlerts || 0) +
+        (res.staleAlerts || 0) +
+        (res.missingMandateAlerts || 0);
       setScanResult(
         totalNew > 0
           ? `✓ Tarama tamamlandı: ${totalNew} yeni otomasyon bildirimi oluşturuldu.`
@@ -110,13 +121,25 @@ export function NotificationCenterDrawer({
         return <KeyRound className="w-4 h-4 text-amber-600" />;
       case "birthday":
         return <Cake className="w-4 h-4 text-pink-500" />;
+      case "daily_agenda":
+        return <Calendar className="w-4 h-4 text-blue-600" />;
+      case "overdue_appointment":
+        return <AlertTriangle className="w-4 h-4 text-rose-600" />;
+      case "deal_collection_due":
+        return <Landmark className="w-4 h-4 text-emerald-600" />;
+      case "pending_broker_approval":
+        return <ShieldAlert className="w-4 h-4 text-indigo-600" />;
+      case "stale_property":
+        return <Hourglass className="w-4 h-4 text-orange-500" />;
+      case "missing_mandate":
+        return <FileWarning className="w-4 h-4 text-rose-500" />;
       default:
         return <Bell className="w-4 h-4 text-slate-500" />;
     }
   };
 
-  const getNotificationBadge = (type: WorkflowNotification["type"]) => {
-    switch (type) {
+  const getNotificationBadge = (notif: WorkflowNotification) => {
+    switch (notif.type) {
       case "match":
         return <span className="bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/20 px-2 py-0.5 text-[10px] font-mono font-bold">AKILLI EŞLEŞME</span>;
       case "rent_due":
@@ -126,11 +149,31 @@ export function NotificationCenterDrawer({
       case "lead_decay":
         return <span className="bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 text-[10px] font-mono font-bold">SOĞUMA ALARMI</span>;
       case "mandate_expiring":
-        return <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 text-[10px] font-mono font-bold">YETKİ YENİLEME (60 GÜN)</span>;
+        return notif.urgency === "high" ? (
+          <span className="bg-rose-600 text-white px-2 py-0.5 text-[10px] font-mono font-bold animate-pulse">🚨 YETKİ ACİL ALARM (&le;30 GÜN)</span>
+        ) : (
+          <span className="bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-mono font-bold">⚠️ YETKİ BİTİŞ UYARISI (60 GÜN)</span>
+        );
       case "contract_expiring":
-        return <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-mono font-bold">KİRA BİTİŞİ (60 GÜN)</span>;
+        return notif.urgency === "high" ? (
+          <span className="bg-rose-600 text-white px-2 py-0.5 text-[10px] font-mono font-bold animate-pulse">🚨 KİRA SÖZLEŞMESİ ACİL (&le;30 GÜN)</span>
+        ) : (
+          <span className="bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-mono font-bold">⚠️ KİRA BİTİŞ UYARISI (60 GÜN)</span>
+        );
       case "birthday":
         return <span className="bg-pink-50 text-pink-700 border border-pink-200 px-2 py-0.5 text-[10px] font-mono font-bold">🎂 DOĞUM GÜNÜ</span>;
+      case "daily_agenda":
+        return <span className="bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 text-[10px] font-mono font-bold">📅 GÜNÜN AJANDASI</span>;
+      case "overdue_appointment":
+        return <span className="bg-rose-100 text-rose-900 border border-rose-300 px-2 py-0.5 text-[10px] font-mono font-bold">⚠️ GECİKMİŞ RANDEVU</span>;
+      case "deal_collection_due":
+        return <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-[10px] font-mono font-bold">💰 KOMİSYON VADESİ</span>;
+      case "pending_broker_approval":
+        return <span className="bg-indigo-50 text-indigo-900 border border-indigo-300 px-2 py-0.5 text-[10px] font-mono font-bold">🛡️ BROKER ONAYI BEKLİYOR</span>;
+      case "stale_property":
+        return <span className="bg-orange-50 text-orange-800 border border-orange-300 px-2 py-0.5 text-[10px] font-mono font-bold">⏳ HAREKETSİZ PORTFÖY</span>;
+      case "missing_mandate":
+        return <span className="bg-red-50 text-red-800 border border-red-300 px-2 py-0.5 text-[10px] font-mono font-bold">📄 YETKİ BELGESİZ</span>;
       default:
         return <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 text-[10px] font-mono font-bold">BİLDİRİM</span>;
     }
@@ -250,12 +293,14 @@ export function NotificationCenterDrawer({
                     className={`sharp-card p-3.5 border transition ${
                       notif.read
                         ? "bg-white border-slate-200 opacity-80"
+                        : notif.urgency === "high"
+                        ? "bg-rose-50/40 border-l-4 border-l-rose-500 border-rose-200 shadow-xs"
                         : "bg-white border-l-4 border-l-[#00adb5] border-slate-300 shadow-xs"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2 mb-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {getNotificationBadge(notif.type)}
+                        {getNotificationBadge(notif)}
                         <span className="text-[10px] font-mono text-slate-400">
                           {notif.createdAt}
                         </span>
@@ -432,7 +477,7 @@ export function NotificationCenterDrawer({
                   </button>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Tüm kira sözleşmeleri, sıcak müşteri havuzu ve portföy eşleşmelerini 4 aktif kurala göre derinlemesine tarar.
+                  Ajanda randevuları, kira sözleşmeleri, komisyon tahsilatları, portföy yetkileri ve müşteri havuzunu aktif kurallara göre derinlemesine tarar.
                 </p>
 
                 {scanResult && (

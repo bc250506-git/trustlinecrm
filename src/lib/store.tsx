@@ -85,6 +85,12 @@ interface StoreContextType {
     mandateAlerts: number;
     contractAlerts?: number;
     birthdayAlerts?: number;
+    agendaAlerts?: number;
+    overdueAlerts?: number;
+    dealCollectionAlerts?: number;
+    brokerApprovalAlerts?: number;
+    staleAlerts?: number;
+    missingMandateAlerts?: number;
   };
   // Actions
   addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "updatedAt">) => Customer;
@@ -339,12 +345,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Akıllı Otomasyon ve Tarama Motoru
   const triggerAutomationEngine = () => {
     const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
     let matchesFound = 0;
     let rentAlerts = 0;
     let decayAlerts = 0;
     let mandateAlerts = 0;
     let contractAlerts = 0;
     let birthdayAlerts = 0;
+    let agendaAlerts = 0;
+    let overdueAlerts = 0;
+    let dealCollectionAlerts = 0;
+    let brokerApprovalAlerts = 0;
+    let staleAlerts = 0;
+    let missingMandateAlerts = 0;
     const newNotifications: WorkflowNotification[] = [];
 
     const isRuleEnabled = (id: string) =>
@@ -360,7 +373,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
             if (diffDays <= 3) {
               const alreadyNotified = notifications.some(
-                (n) => n.targetId === r.id && n.type === "rent_due"
+                (n) => n.targetId === r.id && n.type === "rent_due" && n.id.includes(`-${p.month}-`)
               );
               if (!alreadyNotified) {
                 rentAlerts++;
@@ -417,32 +430,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 3. Portföy Yetki Sözleşmesi Yenileme Alarmı (Yetki Takip Masası - 60 Gün Kuralı)
+    // 3. Portföy Yetki Sözleşmesi Yenileme Alarmı (Kademeli: 60 Gün Sarı Bilgilendirme / 30 Gün Kırmızı Acil)
     if (isRuleEnabled("rule-mandate-renewal")) {
       mandates.forEach((m) => {
         if (m.endDate && m.status !== "cancelled") {
           const endDate = new Date(m.endDate);
           const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
           if (diffDays <= 60) {
-            const alreadyNotified = notifications.some(
-              (n) => n.targetId === m.id && n.type === "mandate_expiring"
+            const isCritical = diffDays <= 30;
+            const notifType = "mandate_expiring";
+
+            const hasCriticalNotif = notifications.some(
+              (n) => n.targetId === m.id && n.type === notifType && n.urgency === "high"
             );
-            if (!alreadyNotified) {
+            const hasAnyNotif = notifications.some(
+              (n) => n.targetId === m.id && n.type === notifType
+            );
+
+            const shouldNotify = isCritical ? !hasCriticalNotif : !hasAnyNotif;
+
+            if (shouldNotify) {
               mandateAlerts++;
               newNotifications.push({
-                id: `notif-mandate-${m.id}-${Date.now()}`,
-                type: "mandate_expiring",
-                title: `📄 Yetki Sözleşmesi Uyarısı: ${m.propertyTitle}`,
-                message: `Mal sahibi ${m.ownerName} ile yapılan yetki sözleşmesi ${
-                  diffDays <= 0 ? "süresi doldu!" : `${diffDays} gün içinde dolacaktır.`
-                }`,
+                id: `notif-mandate-${m.id}-${isCritical ? "high" : "med"}-${Date.now()}`,
+                type: notifType,
+                title: isCritical
+                  ? `🚨 ACİL: Yetki Sözleşmesi Sona Eriyor (30 Gün): ${m.propertyTitle}`
+                  : `📄 Yetki Sözleşmesi Bilgilendirmesi (60 Gün): ${m.propertyTitle}`,
+                message: isCritical
+                  ? `Mal sahibi ${m.ownerName} ile yapılan tek yetki sözleşmesinin bitişine ${
+                      diffDays <= 0 ? "SÜRESİ DOLDU!" : `yalnızca ${diffDays} gün kaldı!`
+                    } Acil yetki uzatma görüşmesi yapın.`
+                  : `Mal sahibi ${m.ownerName} ile yapılan yetki sözleşmesinin bitişine ${diffDays} gün kaldı. Yenileme için hazırlık yapın.`,
                 targetTab: "mandates",
                 targetId: m.id,
                 whatsappPhone: m.ownerPhone,
-                whatsappDraft: `Merhaba ${m.ownerName}, ${m.propertyTitle} mülkünüzün satış yetki sözleşmesi ${diffDays <= 0 ? "süresi dolmuştur" : `${diffDays} gün sonra tamamlanacaktır`}. Satış çalışmalarına hız kesmeden devam etmek ve yetki süresini uzatmak üzere görüşebilir miyiz?`,
+                whatsappDraft: `Merhaba ${m.ownerName}, ${m.propertyTitle} mülkünüzün satış yetki sözleşmesi ${
+                  diffDays <= 0 ? "süresi dolmuştur" : `${diffDays} gün sonra tamamlanacaktır`
+                }. Satış çalışmalarına hız kesmeden devam etmek ve yetki süresini uzatmak üzere görüşebilir miyiz?`,
                 read: false,
-                createdAt: "Az önce",
-                urgency: diffDays <= 10 ? "high" : "medium",
+                createdAt: isCritical ? "Acil (30 Gün)" : "Bilgilendirme (60 Gün)",
+                urgency: isCritical ? "high" : "medium",
               });
             }
           }
@@ -450,25 +478,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 4. Kira Sözleşmesi Bitiş Alarmı (60 Gün Kuralı)
+    // 4. Kira Sözleşmesi Bitiş Alarmı (Kademeli: 60 Gün Sarı Bilgilendirme / 30 Gün Kırmızı Acil)
     if (isRuleEnabled("rule-contract-expiration")) {
       rentals.forEach((r) => {
         if (!r.active || !r.contractEnd) return;
         const end = new Date(r.contractEnd);
         const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
         if (diffDays <= 60) {
-          const alreadyNotified = notifications.some(
-            (n) => n.targetId === r.id && n.type === "contract_expiring"
+          const isCritical = diffDays <= 30;
+          const notifType = "contract_expiring";
+
+          const hasCriticalNotif = notifications.some(
+            (n) => n.targetId === r.id && n.type === notifType && n.urgency === "high"
           );
-          if (!alreadyNotified) {
+          const hasAnyNotif = notifications.some(
+            (n) => n.targetId === r.id && n.type === notifType
+          );
+
+          const shouldNotify = isCritical ? !hasCriticalNotif : !hasAnyNotif;
+
+          if (shouldNotify) {
             contractAlerts++;
             newNotifications.push({
-              id: `notif-contract-${r.id}-${Date.now()}`,
-              type: "contract_expiring",
-              title: `📑 Kira Sözleşmesi Bitiş Alarmı: ${r.propertyTitle}`,
-              message: `${r.tenantName} ile yapılan kira sözleşmesinin bitişine ${
-                diffDays <= 0 ? "SÜRESİ DOLDU!" : `${diffDays} gün kaldı.`
-              } Yenileme koşullarını görüşün.`,
+              id: `notif-contract-${r.id}-${isCritical ? "high" : "med"}-${Date.now()}`,
+              type: notifType,
+              title: isCritical
+                ? `🚨 ACİL: Kira Sözleşmesi Sona Eriyor (30 Gün): ${r.propertyTitle}`
+                : `📑 Kira Sözleşmesi Bilgilendirmesi (60 Gün): ${r.propertyTitle}`,
+              message: isCritical
+                ? `${r.tenantName} ile yapılan kira sözleşmesinin bitişine ${
+                    diffDays <= 0 ? "SÜRESİ DOLDU!" : `yalnızca ${diffDays} gün kaldı!`
+                  } Kiralama masasından 3 aksiyondan birini (Yenile / Aktife Al / Kaldır) uygulayın.`
+                : `${r.tenantName} ile yapılan kira sözleşmesinin bitişine ${diffDays} gün kaldı. Yenileme koşullarını değerlendirin.`,
               targetTab: "rentals",
               targetId: r.id,
               whatsappPhone: r.tenantPhone,
@@ -476,8 +517,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 diffDays <= 0 ? "tamamlanmıştır" : `${diffDays} gün sonra sona erecektir`
               }. Yeni dönem kira sözleşmesi yenileme koşullarını görüşmek üzere sizi ofisimize davet ediyoruz. Teşekkür ederiz.`,
               read: false,
-              createdAt: "Az önce",
-              urgency: diffDays <= 15 ? "high" : "medium",
+              createdAt: isCritical ? "Acil (30 Gün)" : "Bilgilendirme (60 Gün)",
+              urgency: isCritical ? "high" : "medium",
             });
           }
         }
@@ -518,6 +559,226 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    // 6. Günün Ajandası & Randevu Özeti Robotu
+    if (isRuleEnabled("rule-daily-agenda")) {
+      const userTodayTasks = followUps.filter((f) => {
+        if (f.status !== "open") return false;
+        const taskDate = f.dueAt?.split("T")[0];
+        const isAssigned = currentUser.role === "ADMIN" || f.assignedToId === currentUser.id;
+        return taskDate === todayStr && isAssigned;
+      });
+
+      if (userTodayTasks.length > 0) {
+        const todayNotifId = `notif-agenda-today-${todayStr}-${currentUser.id}`;
+        const alreadyNotified = notifications.some((n) => n.id === todayNotifId);
+        if (!alreadyNotified) {
+          agendaAlerts++;
+          const showings = userTodayTasks.filter((t) => t.kind === "showing").length;
+          const calls = userTodayTasks.filter((t) => t.kind === "call").length;
+          const others = userTodayTasks.length - showings - calls;
+          const parts = [
+            showings > 0 ? `${showings} yer gösterme` : null,
+            calls > 0 ? `${calls} telefon araması` : null,
+            others > 0 ? `${others} toplantı / randevu` : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+
+          newNotifications.push({
+            id: todayNotifId,
+            type: "daily_agenda",
+            title: `📅 Günün Ajandası: Bugün ${userTodayTasks.length} Göreviniz Var`,
+            message: `Bugün takviminizde ${parts || `${userTodayTasks.length} randevu/görev`} planlanmıştır. Başarılı bir iş günü dileriz.`,
+            targetTab: "calendar",
+            read: false,
+            createdAt: "Bugün 09:00",
+            urgency: "medium",
+          });
+        }
+      }
+    }
+
+    // 7. Gecikmiş / Tamamlanmamış Randevu Alarmı
+    if (isRuleEnabled("rule-overdue-agenda")) {
+      const overdueTasks = followUps.filter((f) => {
+        if (f.status !== "open") return false;
+        const taskDate = f.dueAt?.split("T")[0];
+        const isAssigned = currentUser.role === "ADMIN" || f.assignedToId === currentUser.id;
+        return taskDate && taskDate < todayStr && isAssigned;
+      });
+
+      overdueTasks.forEach((f) => {
+        const notifId = `notif-overdue-${f.id}`;
+        const alreadyNotified = notifications.some(
+          (n) => n.targetId === f.id && n.type === "overdue_appointment"
+        );
+        if (!alreadyNotified) {
+          overdueAlerts++;
+          newNotifications.push({
+            id: notifId,
+            type: "overdue_appointment",
+            title: `⚠️ Gecikmiş Randevu / Görev: ${f.title}`,
+            message: `${f.customerName ? `${f.customerName} müşterisiyle planlanan ` : ""}${f.title} görevinin vadesi (${f.dueAt?.split("T")[0]}) geçmiş ancak tamamlanmamıştır!`,
+            targetTab: "calendar",
+            targetId: f.id,
+            whatsappPhone: f.customerPhone,
+            whatsappDraft: f.customerPhone
+              ? `Merhaba ${f.customerName || "Sayın Müşterimiz"}, daha önce planladığımız randevumuz hakkında size ulaşmak istedim. Uygun bir zamanınızda görüşebilir miyiz?`
+              : undefined,
+            read: false,
+            createdAt: "Gecikmede",
+            urgency: "high",
+          });
+        }
+      });
+    }
+
+    // 8. İşlem Kapama / Komisyon Tahsilat Vadesi Alarmı
+    if (isRuleEnabled("rule-deal-collection-due")) {
+      deals.forEach((deal) => {
+        if (deal.stage !== "lost" && deal.paymentDue) {
+          const isDue = deal.paymentDue <= todayStr;
+          const balance = (deal.commissionExpected || 0) - (deal.commissionReceived || 0);
+          if (isDue && balance > 0) {
+            const isAssigned =
+              currentUser.role === "ADMIN" ||
+              deal.createdById === currentUser.id ||
+              deal.partnerAdvisorId === currentUser.id;
+            if (isAssigned) {
+              const notifId = `notif-deal-due-${deal.id}`;
+              const alreadyNotified = notifications.some(
+                (n) => n.targetId === deal.id && n.type === "deal_collection_due"
+              );
+              if (!alreadyNotified) {
+                dealCollectionAlerts++;
+                newNotifications.push({
+                  id: notifId,
+                  type: "deal_collection_due",
+                  title: `💰 Komisyon Tahsilat Vadesi: ${deal.title}`,
+                  message: `${deal.dealNumber || "İşlem"} için beklenen ${balance.toLocaleString("tr-TR")} ${deal.currency} bakiye komisyon tahsilatının vadesi (${deal.paymentDue}) dolmuştur!`,
+                  targetTab: "finance",
+                  targetId: deal.id,
+                  whatsappPhone: deal.customerPhone || deal.landlordPhone,
+                  whatsappDraft: deal.customerPhone
+                    ? `Merhaba ${deal.customerName || "Sayın Müşterimiz"}, Trustline Real Estate bünyesinde gerçekleşen ${deal.title} işleminin bakiye hizmet bedeli tahsilat vadesi gelmiştir. Ödeme detayları için iletişime geçebilirsiniz. Teşekkürler.`
+                    : undefined,
+                  read: false,
+                  createdAt: "Vadesi Geldi",
+                  urgency: "high",
+                });
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 9. Broker Onayı Bekleyen İşlem Alarmı (Yönetici Bildirimi)
+    if (isRuleEnabled("rule-broker-pending-approval") && currentUser.role === "ADMIN") {
+      deals.forEach((deal) => {
+        const isPending = !deal.brokerApprovedAt && !deal.brokerApproval;
+        if (isPending) {
+          const notifId = `notif-broker-approval-${deal.id}`;
+          const alreadyNotified = notifications.some(
+            (n) => n.targetId === deal.id && n.type === "pending_broker_approval"
+          );
+          if (!alreadyNotified) {
+            brokerApprovalAlerts++;
+            newNotifications.push({
+              id: notifId,
+              type: "pending_broker_approval",
+              title: `🛡️ Broker Onayı Bekleyen İşlem: ${deal.title}`,
+              message: `${deal.createdByName || "Danışman"} yeni bir işlem kapattı (${deal.agreedPrice?.toLocaleString("tr-TR")} ${deal.currency}). Komisyon bölüşümü ve resmi ofis onayı için denetiminizi bekliyor.`,
+              targetTab: "finance",
+              targetId: deal.id,
+              read: false,
+              createdAt: "Onay Bekliyor",
+              urgency: "high",
+            });
+          }
+        }
+      });
+    }
+
+    // 10. Hareketsiz / Yaşlanan Portföy Alarmı (30+ Gün)
+    if (isRuleEnabled("rule-stale-property")) {
+      properties.forEach((p) => {
+        if (p.status !== "AVAILABLE" || p.deletedAt) return;
+        const isAssigned = currentUser.role === "ADMIN" || p.assignedToId === currentUser.id;
+        if (!isAssigned) return;
+
+        const lastDate = p.updatedAt ? new Date(p.updatedAt) : new Date(p.createdAt);
+        const diffDays = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 3600 * 24));
+        if (diffDays >= 30) {
+          const notifId = `notif-stale-${p.id}`;
+          const alreadyNotified = notifications.some(
+            (n) => n.targetId === p.id && n.type === "stale_property"
+          );
+          if (!alreadyNotified) {
+            staleAlerts++;
+            newNotifications.push({
+              id: notifId,
+              type: "stale_property",
+              title: `⏳ Hareketsiz Portföy (30+ Gün): ${p.title}`,
+              message: `${p.title} portföyü ${diffDays} gündür hareketsizdir. Mal sahibi (${p.ownerName || "Bilinmiyor"}) ile fiyat revizyonu veya yeni tanıtım stratejisi görüşün.`,
+              targetTab: "properties",
+              targetId: p.id,
+              whatsappPhone: p.ownerPhone,
+              whatsappDraft: p.ownerPhone
+                ? `Merhaba ${p.ownerName || "Sayın Mülk Sahibimiz"}, ${p.title} portföyümüzle ilgili piyasa hareketlerini ve müşteri dönüşlerini değerlendirmek üzere kısa bir telefon görüşmesi yapabilir miyiz?`
+                : undefined,
+              read: false,
+              createdAt: "30+ gün hareketsiz",
+              urgency: "medium",
+            });
+          }
+        }
+      });
+    }
+
+    // 11. Tek Yetki Sözleşmesi Eksik Portföy Uyarısı
+    if (isRuleEnabled("rule-missing-mandate")) {
+      properties.forEach((p) => {
+        if (p.status !== "AVAILABLE" || p.deletedAt) return;
+        const isAssigned = currentUser.role === "ADMIN" || p.assignedToId === currentUser.id;
+        if (!isAssigned) return;
+
+        const hasMandate = mandates.some(
+          (m) =>
+            (m.propertyId === p.id ||
+              (m.propertyTitle &&
+                p.title &&
+                m.propertyTitle.trim().toLowerCase() === p.title.trim().toLowerCase())) &&
+            m.status !== "cancelled"
+        );
+
+        if (!hasMandate) {
+          const notifId = `notif-missing-mandate-${p.id}`;
+          const alreadyNotified = notifications.some(
+            (n) => n.targetId === p.id && n.type === "missing_mandate"
+          );
+          if (!alreadyNotified) {
+            missingMandateAlerts++;
+            newNotifications.push({
+              id: notifId,
+              type: "missing_mandate",
+              title: `📑 Tek Yetki Belgesi Eksik: ${p.title}`,
+              message: `${p.title} portföyünüz yayında ancak sisteme Tek Yetki Sözleşmesi eklenmemiştir. Mal sahibi (${p.ownerName || "Bilinmiyor"}) ile tek yetkili aracılık protokolü imzalayın.`,
+              targetTab: "mandates",
+              targetId: p.id,
+              whatsappPhone: p.ownerPhone,
+              whatsappDraft: p.ownerPhone
+                ? `Merhaba ${p.ownerName || "Sayın Mülk Sahibimiz"}, ${p.title} gayrimenkulünüz için ofisimizin kurumsal tek yetkili pazarlama çalışmalarını başlatmak ve yetki belgesini imzalamak üzere görüşebilir miyiz?`
+                : undefined,
+              read: false,
+              createdAt: "Yetki Belgesiz",
+              urgency: "medium",
+            });
+          }
+        }
+      });
+    }
+
     if (newNotifications.length > 0) {
       setNotifications((prev) => [...newNotifications, ...prev]);
     }
@@ -526,7 +787,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((r) => ({ ...r, lastTriggeredAt: "Az önce çalıştırıldı" }))
     );
 
-    return { matchesFound, rentAlerts, decayAlerts, mandateAlerts, contractAlerts, birthdayAlerts };
+    return {
+      matchesFound,
+      rentAlerts,
+      decayAlerts,
+      mandateAlerts,
+      contractAlerts,
+      birthdayAlerts,
+      agendaAlerts,
+      overdueAlerts,
+      dealCollectionAlerts,
+      brokerApprovalAlerts,
+      staleAlerts,
+      missingMandateAlerts,
+    };
   };
 
   // Otomasyon Motoru Güncel Fonksiyon Referansı (Stale Closure Önleyici)

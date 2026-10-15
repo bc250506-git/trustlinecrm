@@ -279,10 +279,33 @@ export interface MandateContract {
 
 export interface WorkflowNotification {
   id: string;
-  type: "match" | "rent_due" | "rent_paid" | "lead_decay" | "mandate_expiring" | "contract_expiring" | "birthday" | "office_event";
+  type:
+    | "match"
+    | "rent_due"
+    | "rent_paid"
+    | "lead_decay"
+    | "mandate_expiring"
+    | "contract_expiring"
+    | "birthday"
+    | "office_event"
+    | "daily_agenda"
+    | "overdue_appointment"
+    | "deal_collection_due"
+    | "pending_broker_approval"
+    | "stale_property"
+    | "missing_mandate";
   title: string;
   message: string;
-  targetTab?: "matchmaker" | "rentals" | "mandates" | "customers" | "properties" | "calendar";
+  targetTab?:
+    | "matchmaker"
+    | "rentals"
+    | "mandates"
+    | "customers"
+    | "properties"
+    | "calendar"
+    | "month_calendar"
+    | "finance"
+    | "dashboard";
   targetId?: string;
   whatsappPhone?: string;
   whatsappDraft?: string;
@@ -296,7 +319,15 @@ export interface AutomationRule {
   name: string;
   description: string;
   enabled: boolean;
-  category: "rental" | "matchmaker" | "lead" | "mandate" | "birthday";
+  category:
+    | "rental"
+    | "matchmaker"
+    | "lead"
+    | "mandate"
+    | "birthday"
+    | "agenda"
+    | "finance"
+    | "property";
   lastTriggeredAt?: string;
 }
 

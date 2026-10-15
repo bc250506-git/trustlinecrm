@@ -21,11 +21,18 @@ export async function GET(request: Request) {
       formattedLocalTime: now.toLocaleString("tr-TR", { timeZone: "Europe/Nicosia" }),
       message: "Periyodik takvim, kira sözleşmesi, yetki ve doğum günü hatırlatma motoru aktif.",
       rulesChecked: [
-        "rule-rent-reminder (Kira vadesi 3 gün kala)",
-        "rule-lead-decay (Sıcak müşteri 10 gün soğuma)",
-        "rule-mandate-renewal (Yetki sözleşmesi 60 gün)",
-        "rule-contract-expiration (Kira sözleşmesi 60 gün)",
+        "rule-rent-reminder (Kira vadesi 3 gün kala veya vadesi geçtiğinde)",
+        "rule-contract-expiration (Kira sözleşmesi 60 gün sarı, 30 gün acil alarm)",
+        "rule-lead-decay (Sıcak/Ilık müşteri 10 gün soğuma)",
+        "rule-mandate-renewal (Yetki sözleşmesi 60 gün sarı, 30 gün acil alarm)",
         "rule-customer-birthday (Müşteri doğum günü kutlama robotu)",
+        "rule-matchmaking-alert (Akıllı Portföy - Alıcı eşleşme bildirimi)",
+        "rule-daily-agenda (Günün Ajandası Sabah Özeti)",
+        "rule-overdue-agenda (Gecikmiş & Yapılmamış Randevu Alarmı)",
+        "rule-deal-collection-due (Komisyon & Bakiye Tahsilat Vadesi Alarmı)",
+        "rule-broker-pending-approval (Broker Onayı Bekleyen İşlem Alarmı)",
+        "rule-stale-property (Hareketsiz / Yaşlanan Portföy Alarmı - 30+ gün)",
+        "rule-missing-mandate (Yetki Belgesiz Aktif Portföy Uyarısı)",
       ],
     });
   } catch (error: any) {

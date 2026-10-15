@@ -146,6 +146,12 @@ export function formatAutomationCategory(category?: string): string {
       return "Yetki Sözleşmesi";
     case "birthday":
       return "Doğum Günü";
+    case "agenda":
+      return "Ajanda & Randevu";
+    case "finance":
+      return "Finans & Komisyon";
+    case "property":
+      return "Portföy Yönetimi";
     default:
       return category;
   }

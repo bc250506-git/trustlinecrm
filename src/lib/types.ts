@@ -41,10 +41,12 @@ export interface User {
   email: string;
   role: UserRole;
   title?: string; // "Asistan", "Yönetici Ortak (Broker)", "Gayrimenkul Danışmanı"
-  password?: string; // Sistem şifresi (varsayılan: 123)
+  // Kriptografik Güvenlik (Düz metin şifre ASLA tutulmaz)
+  passwordHash?: string; // PBKDF2 SHA-256 Kriptolu Hash
+  passwordSalt?: string; // Kullanıcıya özel kriptografik rastgele tuz
   commissionSplitRatio?: number; // 1.0 = %100 komisyon danışmanın (bölüşüm yok), 0.6 = %60 danışman / %40 ofis
   active: boolean;
-  mustChangePassword: boolean;
+  mustChangePassword?: boolean; // İlk girişte kendi şifresini belirleme zorunluluğu
   avatarUrl?: string;
   phone?: string;
   permissions: UserPermissions;

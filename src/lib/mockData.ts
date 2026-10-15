@@ -19,9 +19,8 @@ export const initialUsers: User[] = [
     role: "ADMIN",
     title: "Yönetici Ortak (Broker)",
     commissionSplitRatio: 1.0, // Komisyon bölüşme yok, kiraladığı/sattığı komple kendisinin & tüm yetkilere sahip
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 548 888 00 01",
     avatarUrl: "",
     permissions: {
@@ -44,9 +43,8 @@ export const initialUsers: User[] = [
     role: "ADMIN",
     title: "Ofis Yönetimi & Broker",
     commissionSplitRatio: 0.6,
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 212 287 00 00",
     avatarUrl: "",
     permissions: {
@@ -69,9 +67,8 @@ export const initialUsers: User[] = [
     role: "AGENT",
     title: "Asistan", // Danışmanlarla aynı özelliklere sahip, sadece unvanı asistan
     commissionSplitRatio: 0.6,
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 548 888 11 22",
     avatarUrl: "",
     permissions: {
@@ -94,9 +91,8 @@ export const initialUsers: User[] = [
     role: "AGENT",
     title: "Kıdemli Danışman",
     commissionSplitRatio: 0.6,
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 532 111 22 33",
     avatarUrl: "",
     permissions: {
@@ -119,9 +115,8 @@ export const initialUsers: User[] = [
     role: "AGENT",
     title: "Gayrimenkul Danışmanı",
     commissionSplitRatio: 0.6,
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 533 444 55 66",
     avatarUrl: "",
     permissions: {
@@ -144,9 +139,8 @@ export const initialUsers: User[] = [
     role: "AGENT",
     title: "Gayrimenkul Danışmanı",
     commissionSplitRatio: 0.6,
-    password: "123",
     active: true,
-    mustChangePassword: false,
+    mustChangePassword: true,
     phone: "+90 535 777 88 99",
     avatarUrl: "",
     permissions: {

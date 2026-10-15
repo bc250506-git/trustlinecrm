@@ -13,16 +13,25 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT,
     role TEXT DEFAULT 'AGENT',
     title TEXT,
-    password TEXT DEFAULT '123',
+    "passwordHash" TEXT,
+    "passwordSalt" TEXT,
     "commissionSplitRatio" NUMERIC(4,2) DEFAULT 0.60,
     active BOOLEAN DEFAULT TRUE,
-    "mustChangePassword" BOOLEAN DEFAULT FALSE,
+    "mustChangePassword" BOOLEAN DEFAULT TRUE,
     "avatarUrl" TEXT,
     phone TEXT,
     permissions JSONB DEFAULT '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb,
     "createdAt" TIMESTAMPTZ DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Var olan tablolar için güvenlik yükseltme sütunları (Geriye Dönük Uyumluluk):
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "passwordHash" TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "passwordSalt" TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS "mustChangePassword" BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_salt TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT TRUE;
 
 -- 2. MÜŞTERİLER (customers)
 CREATE TABLE IF NOT EXISTS customers (

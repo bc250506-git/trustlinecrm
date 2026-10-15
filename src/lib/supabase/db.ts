@@ -6,6 +6,7 @@ import {
   Deal,
   RentalContract,
   MandateContract,
+  User,
 } from "../types";
 import {
   initialCustomers,
@@ -14,6 +15,7 @@ import {
   initialDeals,
   initialRentals,
   initialMandates,
+  initialUsers,
 } from "../mockData";
 
 export const supabase = createClient();
@@ -288,6 +290,99 @@ export async function saveMandate(mandate: Partial<MandateContract>): Promise<bo
 export async function deleteMandateFromDb(id: string): Promise<boolean> {
   try {
     const { error } = await supabase.from("mandates").delete().eq("id", id);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+// ==========================================
+// 7. KULLANICILAR & KRİPTOLU KİMLİK DOĞRULAMA (USERS & AUTH)
+// ==========================================
+export async function getUsersFromSupabase(): Promise<User[]> {
+  try {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error || !data || data.length === 0) {
+      return initialUsers;
+    }
+    return data.map((d: any) => ({
+      id: d.id,
+      name: d.name,
+      username: d.username,
+      email: d.email || "",
+      role: d.role || "AGENT",
+      title: d.title || "",
+      active: d.active !== false,
+      mustChangePassword: d.mustChangePassword ?? d.must_change_password ?? true,
+      passwordHash: d.passwordHash || d.password_hash || undefined,
+      passwordSalt: d.passwordSalt || d.password_salt || undefined,
+      phone: d.phone || "",
+      avatarUrl: d.avatarUrl || d.avatar_url || "",
+      commissionSplitRatio: d.commissionSplitRatio || 0.6,
+      permissions: d.permissions || {
+        scope: d.role === "ADMIN" ? "all" : "own",
+        customers: true,
+        properties: true,
+        followups: true,
+        pipeline: true,
+        import: d.role === "ADMIN",
+        finance: d.role === "ADMIN",
+        rentals: d.role === "ADMIN",
+        audit: d.role === "ADMIN",
+      },
+    })) as User[];
+  } catch {
+    return initialUsers;
+  }
+}
+
+export async function saveUserCredentialsToSupabase(
+  userId: string,
+  passwordHash: string,
+  passwordSalt: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Önce camelCase alanlarla dene
+    const { error: err1 } = await supabase
+      .from("users")
+      .update({
+        passwordHash,
+        passwordSalt,
+        mustChangePassword: false,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (err1) {
+      // snake_case kolonlarıyla dene
+      const { error: err2 } = await supabase
+        .from("users")
+        .update({
+          password_hash: passwordHash,
+          password_salt: passwordSalt,
+          must_change_password: false,
+        })
+        .eq("id", userId);
+
+      if (err2) {
+        console.warn("Supabase kullanıcı şifre hash kaydı uyarısı:", err2.message);
+        return { success: false, error: err2.message };
+      }
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.warn("Supabase bağlantı hatası:", err);
+    return { success: false, error: err?.message };
+  }
+}
+
+export async function upsertUserToSupabase(user: User): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("users").upsert(user);
     return !error;
   } catch {
     return false;

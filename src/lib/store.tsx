@@ -33,10 +33,15 @@ import {
   saveRental,
   saveMandate,
   setupRealtimeSync,
+  getUsersFromSupabase,
+  saveUserCredentialsToSupabase,
 } from "./supabase/db";
-
-
-
+import {
+  verifyPassword,
+  hashPasswordWithSalt,
+  generateSalt,
+  validatePasswordStrength,
+} from "./security/authCrypto";
 
 interface StoreContextType {
   currentUser: User;
@@ -103,11 +108,22 @@ interface StoreContextType {
   updateMandateContract: (id: string, updates: Partial<MandateContract>) => boolean;
   deleteMandateContract: (id: string) => boolean;
   isBroker: boolean;
-  // Auth & Settings
+  // Auth & Settings (Kriptografik ve Bulut Senkronizasyonlu)
   isAuthenticated: boolean;
-  login: (usernameOrEmail: string, passwordAttempt: string) => { success: boolean; message?: string };
+  login: (
+    usernameOrEmail: string,
+    passwordAttempt: string
+  ) => Promise<{ success: boolean; mustActivate?: boolean; user?: User; message?: string }>;
+  activateUserPassword: (
+    userId: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
-  updateUserPassword: (userId: string, currentPassword: string, newPassword: string) => { success: boolean; message: string };
+  updateUserPassword: (
+    userId: string,
+    currentPassword: string,
+    newPassword: string
+  ) => Promise<{ success: boolean; message: string }>;
   updateUserProfile: (userId: string, updates: Partial<User>) => void;
 }
 
@@ -158,11 +174,66 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
 
-  // Supabase Realtime Canlı Senkronizasyon (Faz 5)
+  // Supabase Realtime Canlı Senkronizasyon (Faz 5) ve Kullanıcı Kimlikleri
   useEffect(() => {
+    let isMounted = true;
+
+    // 1. Buluttaki en güncel kullanıcı ve kimlik bilgilerini çek
+    getUsersFromSupabase()
+      .then((cloudUsers) => {
+        if (!isMounted || !cloudUsers || cloudUsers.length === 0) return;
+        setUsers((prev) => {
+          const map = new Map(prev.map((u) => [u.id, u]));
+          for (const cu of cloudUsers) {
+            const existing = map.get(cu.id);
+            if (existing) {
+              map.set(cu.id, {
+                ...existing,
+                ...cu,
+                passwordHash: cu.passwordHash || existing.passwordHash,
+                passwordSalt: cu.passwordSalt || existing.passwordSalt,
+                mustChangePassword:
+                  cu.mustChangePassword !== undefined
+                    ? cu.mustChangePassword
+                    : existing.mustChangePassword,
+              });
+            } else {
+              map.set(cu.id, cu);
+            }
+          }
+          const merged = Array.from(map.values());
+          try {
+            localStorage.setItem("trustline_crm_users_v3", JSON.stringify(merged));
+          } catch {}
+          return merged;
+        });
+      })
+      .catch(() => {});
+
+    // 2. Realtime WebSocket Dinleyicisi (Çoklu cihaz anında senkronizasyon)
     const cleanup = setupRealtimeSync(({ table, eventType, newRecord }) => {
       if (eventType === "INSERT" || eventType === "UPDATE") {
-        if (table === "customers" && newRecord) {
+        if (table === "users" && newRecord) {
+          setUsers((prev) => {
+            const updated: User = {
+              ...newRecord,
+              passwordHash: newRecord.passwordHash || newRecord.password_hash,
+              passwordSalt: newRecord.passwordSalt || newRecord.password_salt,
+              mustChangePassword:
+                newRecord.mustChangePassword ??
+                newRecord.must_change_password ??
+                false,
+            };
+            const exists = prev.some((u) => u.id === updated.id);
+            const nextUsers = exists
+              ? prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u))
+              : [...prev, updated];
+            try {
+              localStorage.setItem("trustline_crm_users_v3", JSON.stringify(nextUsers));
+            } catch {}
+            return nextUsers;
+          });
+        } else if (table === "customers" && newRecord) {
           setCustomers((prev) => {
             const exists = prev.some((c) => c.id === newRecord.id);
             return exists
@@ -194,7 +265,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return cleanup;
+    return () => {
+      isMounted = false;
+      cleanup();
+    };
   }, []);
 
   const markNotificationAsRead = (id: string) => {
@@ -462,11 +536,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const savedUser = localStorage.getItem("trustline_active_user");
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        const match = initialUsers.find((u) => u.id === parsed.id);
+        const match = users.find((u) => u.id === parsed.id) || parsed;
         if (match) setCurrentUser(match);
       }
     } catch {}
-  }, []);
+  }, [users]);
 
   const handleSetCurrentUser = (user: User) => {
     setCurrentUser(user);
@@ -476,19 +550,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const login = (usernameOrEmail: string, passwordAttempt: string) => {
+  const login = async (usernameOrEmail: string, passwordAttempt: string) => {
     const clean = usernameOrEmail.trim().toLowerCase();
-    const found = users.find(
+
+    // 1. Güncel kullanıcıyı bul
+    let found = users.find(
       (u) => u.username.toLowerCase() === clean || u.email.toLowerCase() === clean
     );
+
+    // Buluttan taze kontrol yap (başka cihazda şifre değiştiyse anında yakala)
+    try {
+      const cloudUsers = await getUsersFromSupabase();
+      if (cloudUsers && cloudUsers.length > 0) {
+        const freshMatch = cloudUsers.find(
+          (u) => u.username.toLowerCase() === clean || u.email.toLowerCase() === clean
+        );
+        if (freshMatch) {
+          found = { ...(found || {}), ...freshMatch } as User;
+          setUsers((prev) => prev.map((u) => (u.id === freshMatch.id ? { ...u, ...freshMatch } : u)));
+        }
+      }
+    } catch {}
 
     if (!found) {
       return { success: false, message: "Kullanıcı adı veya e-posta adresi bulunamadı!" };
     }
 
-    const currentPass = found.password || "123";
-    if (currentPass !== passwordAttempt) {
-      return { success: false, message: "Girdiğiniz şifre hatalı! Lütfen tekrar deneyin." };
+    // ŞART 4: İlk Giriş Aktivasyon Zorunluluğu
+    // Eğer şifre hash'i henüz yoksa veya mustChangePassword true ise doğrudan aktivasyona yönlendir
+    if (found.mustChangePassword || !found.passwordHash || !found.passwordSalt) {
+      return {
+        success: false,
+        mustActivate: true,
+        user: found,
+        message: "Hesap aktivasyonu gereklidir. Lütfen yeni güçlü şifrenizi belirleyin.",
+      };
+    }
+
+    // ŞART 1 & 3: Kaynak kodda fallback ("123") YOK! Kriptografik Salted Hash Doğrulaması (PBKDF2)
+    const isValid = await verifyPassword(
+      passwordAttempt,
+      found.passwordSalt,
+      found.passwordHash
+    );
+
+    if (!isValid) {
+      return { success: false, message: "Girdiğiniz şifre hatalı! Lütfen tekrar kontrol edin." };
     }
 
     handleSetCurrentUser(found);
@@ -499,6 +606,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  const activateUserPassword = async (userId: string, newPassword: string) => {
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      return { success: false, message: strength.message || "Geçersiz şifre!" };
+    }
+
+    const targetUser = users.find((u) => u.id === userId);
+    if (!targetUser) {
+      return { success: false, message: "Kullanıcı bulunamadı!" };
+    }
+
+    // Kriptografik Rastgele Salt ve PBKDF2 Hash Üretimi (Bulut & Çoklu Cihaz)
+    const salt = generateSalt(16);
+    const hash = await hashPasswordWithSalt(newPassword, salt);
+
+    const updatedUser: User = {
+      ...targetUser,
+      passwordHash: hash,
+      passwordSalt: salt,
+      mustChangePassword: false,
+    };
+
+    // 1. Bulut Senkronizasyonu (Supabase - Laptop/Mobil/Tablet anında geçerli)
+    try {
+      await saveUserCredentialsToSupabase(userId, hash, salt);
+    } catch (err) {
+      console.warn("Supabase credentials save error:", err);
+    }
+
+    // 2. Lokal State & Storage Güncelleme
+    const updatedUsers = users.map((u) => (u.id === userId ? updatedUser : u));
+    setUsers(updatedUsers);
+    try {
+      localStorage.setItem("trustline_crm_users_v3", JSON.stringify(updatedUsers));
+    } catch {}
+
+    // Kullanıcı oturumunu hemen aç
+    handleSetCurrentUser(updatedUser);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem("trustline_crm_auth_v3", "true");
+    } catch {}
+
+    return {
+      success: true,
+      message: "Şifreniz başarıyla kaydedildi ve hesabınız aktive edildi! Hoş geldiniz.",
+    };
+  };
+
   const logout = () => {
     setIsAuthenticated(false);
     try {
@@ -506,31 +662,55 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const updateUserPassword = (userId: string, currentPassword: string, newPassword: string) => {
+  const updateUserPassword = async (userId: string, currentPassword: string, newPassword: string) => {
     const user = users.find((u) => u.id === userId);
     if (!user) {
       return { success: false, message: "Kullanıcı bulunamadı!" };
     }
 
-    const activePass = user.password || "123";
-    if (activePass !== currentPassword) {
-      return { success: false, message: "Mevcut şifreniz hatalı! Eski şifrenizi doğru girdiğinizden emin olun." };
+    // Mevcut şifreyi kriptografik olarak kontrol et
+    if (user.passwordSalt && user.passwordHash) {
+      const isCurrentValid = await verifyPassword(
+        currentPassword,
+        user.passwordSalt,
+        user.passwordHash
+      );
+      if (!isCurrentValid) {
+        return { success: false, message: "Mevcut şifreniz hatalı! Eski şifrenizi doğru girdiğinizden emin olun." };
+      }
     }
 
-    if (!newPassword || newPassword.trim().length < 3) {
-      return { success: false, message: "Yeni şifre en az 3 karakterden oluşmalıdır." };
+    const strength = validatePasswordStrength(newPassword);
+    if (!strength.valid) {
+      return { success: false, message: strength.message || "Yeni şifre en az 6 karakterden oluşmalıdır." };
     }
 
-    const updatedUsers = users.map((u) =>
-      u.id === userId ? { ...u, password: newPassword } : u
-    );
+    // Yeni Rastgele Salt ve Yeni Hash
+    const newSalt = generateSalt(16);
+    const newHash = await hashPasswordWithSalt(newPassword, newSalt);
+
+    const updatedUser: User = {
+      ...user,
+      passwordHash: newHash,
+      passwordSalt: newSalt,
+      mustChangePassword: false,
+    };
+
+    // Bulut Senkronizasyonu (Supabase)
+    try {
+      await saveUserCredentialsToSupabase(userId, newHash, newSalt);
+    } catch (err) {
+      console.warn("Supabase credentials save error:", err);
+    }
+
+    // Lokal State Güncelleme
+    const updatedUsers = users.map((u) => (u.id === userId ? updatedUser : u));
     setUsers(updatedUsers);
     try {
       localStorage.setItem("trustline_crm_users_v3", JSON.stringify(updatedUsers));
     } catch {}
 
     if (currentUser.id === userId) {
-      const updatedUser = { ...currentUser, password: newPassword };
       handleSetCurrentUser(updatedUser);
     }
 
@@ -1246,6 +1426,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         isBroker,
         isAuthenticated,
         login,
+        activateUserPassword,
         logout,
         updateUserPassword,
         updateUserProfile,

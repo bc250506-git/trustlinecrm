@@ -42,6 +42,7 @@ export function SettingsView() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+  const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
 
   // Profil Form State
   const [profileName, setProfileName] = useState(currentUser.name);
@@ -57,8 +58,8 @@ export function SettingsView() {
   const [soundEffects, setSoundEffects] = useState(true);
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
 
-  // Şifre Değiştirme Aksiyonu
-  const handlePasswordChange = (e: React.FormEvent) => {
+  // Şifre Değiştirme Aksiyonu (Bulut Kriptolu)
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordMsg(null);
 
@@ -66,8 +67,8 @@ export function SettingsView() {
       setPasswordMsg({ type: "error", text: "Lütfen mevcut şifrenizi girin." });
       return;
     }
-    if (!newPassword || newPassword.length < 3) {
-      setPasswordMsg({ type: "error", text: "Yeni şifreniz en az 3 karakter olmalıdır." });
+    if (!newPassword || newPassword.length < 6) {
+      setPasswordMsg({ type: "error", text: "Yeni şifreniz en az 6 karakter olmalıdır." });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -75,14 +76,21 @@ export function SettingsView() {
       return;
     }
 
-    const res = updateUserPassword(currentUser.id, currentPassword, newPassword);
-    if (res.success) {
-      setPasswordMsg({ type: "success", text: res.message });
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } else {
-      setPasswordMsg({ type: "error", text: res.message });
+    setIsSubmittingPassword(true);
+    try {
+      const res = await updateUserPassword(currentUser.id, currentPassword, newPassword);
+      if (res.success) {
+        setPasswordMsg({ type: "success", text: res.message });
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setPasswordMsg({ type: "error", text: res.message });
+      }
+    } catch {
+      setPasswordMsg({ type: "error", text: "Şifre güncellenirken beklenmedik bir hata oluştu." });
+    } finally {
+      setIsSubmittingPassword(false);
     }
   };
 
@@ -276,22 +284,28 @@ export function SettingsView() {
               <div className="p-3 bg-slate-50 border border-slate-200 text-[11px] font-mono text-slate-600 space-y-1">
                 <div className="font-bold text-[#1d2566] flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-[#00adb5]" />
-                  Güvenlik Kuralı:
+                  Kurumsal Güvenlik Protokolü:
                 </div>
                 <ul className="list-disc pl-4 text-slate-500 space-y-0.5 text-[10px]">
-                  <li>Şifreniz en az 3 karakterden oluşmalıdır.</li>
-                  <li>Yeni şifre kaydedildiği andan itibaren eski şifre tamamen devre dışı kalır.</li>
-                  <li>Şifrenizi hiçbir çalışanla veya üçüncü şahısla paylaşmayınız.</li>
+                  <li>Şifreniz en az 6 karakterden oluşmalıdır.</li>
+                  <li>Şifreniz PBKDF2 SHA-256 ile tuzlanarak (salt) tek yönlü kriptolanır; veritabanında dahi açık tutulmaz.</li>
+                  <li>Yeni şifre kaydedildiği an eski şifre sonsuza dek geçersiz kalır.</li>
+                  <li>Bulut senkronizasyonu sayesinde yeni şifreniz laptop, telefon ve tablet tüm cihazlarınızda anında geçerli olur.</li>
                 </ul>
               </div>
 
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-[#00adb5] hover:bg-[#00969d] text-white font-mono font-bold text-xs tracking-wider uppercase transition cursor-pointer flex items-center gap-2 shadow-xs"
+                  disabled={isSubmittingPassword}
+                  className="px-5 py-2.5 bg-[#00adb5] hover:bg-[#00969d] text-white font-mono font-bold text-xs tracking-wider uppercase transition cursor-pointer flex items-center gap-2 shadow-xs disabled:opacity-50"
                 >
                   <Key className="w-4 h-4" />
-                  <span>Şifreyi Güncelle & Eskisini Devre Dışı Bırak</span>
+                  <span>
+                    {isSubmittingPassword
+                      ? "Bulutta Kriptolanıyor..."
+                      : "Şifreyi Güncelle & Eskisini Devre Dışı Bırak"}
+                  </span>
                 </button>
               </div>
             </form>

@@ -7,41 +7,81 @@ import {
   Trash2,
   GitMerge,
   FileSpreadsheet,
-  RotateCcw,
   CheckCircle2,
-  AlertTriangle,
   Upload,
-  Database,
-  Cloud,
-  RefreshCw,
-  Copy,
-  ExternalLink,
-  Check,
-  Zap,
-  Server,
+  Download,
+  HardDrive,
 } from "lucide-react";
-import {
-  checkSupabaseHealth,
-  seedAllDataToSupabase,
-  SupabaseHealthStatus,
-} from "@/lib/supabase/db";
-
 
 export function SecurityView() {
-  const { isBroker, customers, properties, deals, rentals, mandates } = useStore();
-  const [activeTab, setActiveTab] = useState<"trash" | "merge" | "csv" | "supabase">("supabase");
+  const {
+    isBroker,
+    customers,
+    myCustomers,
+    properties,
+    myProperties,
+    deals,
+    rentals,
+    mandates,
+    followUps,
+    currentUser,
+  } = useStore();
+
+  const [activeTab, setActiveTab] = useState<"trash" | "merge" | "csv" | "backup">("csv");
 
   const [mergeSourceId, setMergeSourceId] = useState(customers[0]?.id || "");
   const [mergeTargetId, setMergeTargetId] = useState(customers[1]?.id || "");
   const [mergeSuccess, setMergeSuccess] = useState(false);
 
-  // Supabase State
-  const [healthStatus, setHealthStatus] = useState<SupabaseHealthStatus | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-  const [isSeeding, setIsSeeding] = useState(false);
-  const [seedResult, setSeedResult] = useState<string | null>(null);
-  const [sqlCopied, setSqlCopied] = useState(false);
+  // Veritabanı Yedeği Kapsamı (Broker tam ofis veritabanı, Danışman zimmetli veritabanı)
+  const exportCustomers = isBroker ? customers : myCustomers;
+  const exportProperties = isBroker ? properties : myProperties;
+  const exportDeals = isBroker ? deals : deals.filter((d) => d.createdById === currentUser.id);
+  const exportRentals = isBroker ? rentals : rentals.filter((r) => r.assignedToId === currentUser.id);
+  const exportMandates = isBroker ? mandates : mandates.filter((m) => m.assignedToId === currentUser.id);
+  const exportFollowUps = isBroker ? followUps : followUps.filter((f) => f.assignedToId === currentUser.id);
 
+  const handleExportBackup = () => {
+    const backupData = {
+      exportedAt: new Date().toISOString(),
+      system: "Trustline CRM",
+      exportScope: isBroker ? "OFFICE_FULL_DATABASE" : "ADVISOR_PERSONAL_DATA_ONLY",
+      authorizedUser: {
+        id: currentUser.id,
+        name: currentUser.name,
+        username: currentUser.username,
+        role: currentUser.role,
+        title: currentUser.title,
+      },
+      stats: {
+        customersCount: exportCustomers.length,
+        propertiesCount: exportProperties.length,
+        dealsCount: exportDeals.length,
+        rentalsCount: exportRentals.length,
+        mandatesCount: exportMandates.length,
+        followUpsCount: exportFollowUps.length,
+      },
+      customers: exportCustomers,
+      properties: exportProperties,
+      deals: exportDeals,
+      rentals: exportRentals,
+      mandates: exportMandates,
+      followUps: exportFollowUps,
+    };
+
+    const fileName = isBroker
+      ? `trustline_crm_OFIS_YEDEGI_${new Date().toISOString().split("T")[0]}.json`
+      : `trustline_crm_${currentUser.username}_kisisel_yedek_${new Date().toISOString().split("T")[0]}.json`;
+
+    const dataStr =
+      "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", fileName);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
 
   if (!isBroker) {
     return (
@@ -51,7 +91,7 @@ export function SecurityView() {
           Erişim Yetkisi Kısıtlandı
         </h2>
         <p className="text-xs text-slate-600 leading-relaxed">
-          Veri Kurtarma, Çöp Kutusu ve Müşteri Birleştirme araçlarına sadece{" "}
+          Veri Kurtarma, Çöp Kutusu, Müşteri Birleştirme ve Yedekleme araçlarına sadece{" "}
           <strong className="text-emerald-600">Broker / Yönetici</strong> yetkisiyle
           erişilebilir.
         </p>
@@ -87,13 +127,12 @@ export function SecurityView() {
             Veri Koruma ve Denetim Araçları
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Geri Dönüşüm Kutusu (Soft Delete), mükerrer müşteri birleştirme ve CSV
-            veri aktarım denetimi.
+            Geri Dönüşüm Kutusu, mükerrer müşteri birleştirme, CSV içe aktarma ve sistem veritabanı yedeği.
           </p>
         </div>
 
         {/* Tablar */}
-        <div className="flex items-center bg-white border border-slate-200 p-1 shadow-sm">
+        <div className="flex items-center bg-white border border-slate-200 p-1 shadow-xs">
           <button
             onClick={() => setActiveTab("trash")}
             className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
@@ -125,23 +164,14 @@ export function SecurityView() {
             <FileSpreadsheet className="w-3.5 h-3.5" /> CSV İçe Aktarma
           </button>
           <button
-            onClick={() => {
-              setActiveTab("supabase");
-              if (!healthStatus) {
-                setIsCheckingHealth(true);
-                checkSupabaseHealth().then((res) => {
-                  setHealthStatus(res);
-                  setIsCheckingHealth(false);
-                });
-              }
-            }}
+            onClick={() => setActiveTab("backup")}
             className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "supabase"
-                ? "bg-[#00adb5] text-white font-bold"
-                : "text-slate-600 hover:text-[#00adb5]"
+              activeTab === "backup"
+                ? "bg-[#1d2566] text-white font-semibold"
+                : "text-slate-600 hover:text-[#1d2566]"
             }`}
           >
-            <Database className="w-3.5 h-3.5" /> Supabase Canlı DB (Faz 5)
+            <Download className="w-3.5 h-3.5" /> Dışa Aktarma (Yedek)
           </button>
         </div>
       </div>
@@ -263,218 +293,85 @@ export function SecurityView() {
         </div>
       )}
 
-      {/* TAB 4: SUPABASE CANLI VERİTABANI & REALTIME SYNC (FAZ 5) */}
-      {activeTab === "supabase" && (
-        <div className="space-y-6">
-          {/* Bağlantı Sağlık Kartı */}
-          <div className="sharp-card p-6 bg-white border border-slate-200">
+      {/* TAB 4: VERİTABANI YEDEĞİ & DIŞA AKTARMA (JSON EXPORT) */}
+      {activeTab === "backup" && (
+        <div className="space-y-6 max-w-3xl">
+          <div className="sharp-card p-6 bg-white border border-slate-200 space-y-4 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-[#1d2566] text-white flex items-center justify-center">
-                  <Database className="w-5 h-5 text-[#00adb5]" />
+                  <HardDrive className="w-5 h-5 text-[#00adb5]" />
                 </div>
                 <div>
                   <div className="text-[10px] font-mono uppercase text-[#00adb5] font-bold">
-                    BULUT POSTGRESQL & REALTIME SENKRONİZASYON (FAZ 5)
+                    OFFLINE JSON VERİTABANI ARŞİVİ
                   </div>
                   <h3 className="text-sm font-bold text-[#1d2566] flex items-center gap-2">
-                    Supabase Veritabanı Teşhis ve Kontrol Paneli
+                    CRM Veritabanı Yedeği (Dışa Aktarma)
                   </h3>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={isCheckingHealth}
-                  onClick={async () => {
-                    setIsCheckingHealth(true);
-                    const res = await checkSupabaseHealth();
-                    setHealthStatus(res);
-                    setIsCheckingHealth(false);
-                  }}
-                  className="sharp-btn-primary px-3.5 py-2 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingHealth ? "animate-spin" : ""}`} />
-                  <span>{isCheckingHealth ? "Test Ediliyor..." : "Bağlantıyı Test Et"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Durum Göstergeleri */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                  Supabase Endpoint
-                </div>
-                <div className="text-xs font-bold text-[#1d2566] truncate">
-                  qlfuwodxlfxirfvarczd.supabase.co
-                </div>
-                <div className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  API Uç Noktası Erişilebilir
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                  Ağ Gecikmesi (Latency)
-                </div>
-                <div className="text-base font-bold text-[#1d2566]">
-                  {healthStatus?.latencyMs ? `${healthStatus.latencyMs} ms` : "Ölçülüyor..."}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  HTTPS REST + WebSocket Katmanı
-                </div>
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
-                <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">
-                  Şema Tablo Durumu
-                </div>
-                <div className="text-xs font-bold text-[#1d2566]">
-                  {healthStatus?.tables
-                    ? Object.values(healthStatus.tables).filter(Boolean).length === 5
-                      ? "Tüm Tablolar Aktif (5/5)"
-                      : `${Object.values(healthStatus.tables).filter(Boolean).length}/5 Tablo Bulundu`
-                    : "Kontrol Bekleniyor"}
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  customers, properties, deals, rentals, mandates
-                </div>
-              </div>
-            </div>
-
-            {/* Tablo Detay Rozetleri */}
-            {healthStatus?.tables && (
-              <div className="mt-4 pt-4 border-t border-slate-100">
-                <div className="text-[10px] font-mono uppercase text-slate-400 font-bold mb-2">
-                  Veritabanı Tablo Denetimi (PostgreSQL Public Schema):
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs font-mono">
-                  {Object.entries(healthStatus.tables).map(([tbl, isReady]) => (
-                    <span
-                      key={tbl}
-                      className={`px-2.5 py-1 border flex items-center gap-1.5 font-bold ${
-                        isReady
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                          : "bg-amber-50 text-amber-800 border-amber-300"
-                      }`}
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full ${
-                          isReady ? "bg-emerald-500" : "bg-amber-500"
-                        }`}
-                      ></span>
-                      {tbl} : {isReady ? "Canlı & Hazır" : "Şema Bekleniyor"}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* SQL Şema Kurulum Rehberi & Hızlı Kopyalama */}
-          <div className="sharp-card p-6 bg-gradient-to-br from-white to-slate-50 border border-slate-200">
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div>
-                <h4 className="text-xs font-bold text-[#1d2566] font-mono uppercase flex items-center gap-2">
-                  <Server className="w-4 h-4 text-[#00adb5]" />
-                  Supabase SQL Şeması Kurulum Rehberi
-                </h4>
-                <p className="text-xs text-slate-600 mt-1">
-                  Bulut veritabanınızda tabloları 1 dakikada kurmak için aşağıdaki şema dosyasını Supabase SQL Editor&apos;e yapıştırıp &apos;Run&apos; butonuna basmanız yeterlidir.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch("/supabase_schema.sql").then((r) => r.text()).catch(() => "");
-                      await navigator.clipboard.writeText(res || "supabase_schema.sql kök dizinde mevcuttur.");
-                      setSqlCopied(true);
-                      setTimeout(() => setSqlCopied(false), 3000);
-                    } catch {
-                      setSqlCopied(true);
-                      setTimeout(() => setSqlCopied(false), 3000);
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer"
-                >
-                  {sqlCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{sqlCopied ? "Kopyalandı!" : "Şemayı Kopyala"}</span>
-                </button>
-
-                <a
-                  href="https://supabase.com/dashboard/project/qlfuwodxlfxirfvarczd/sql"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="sharp-btn-navy px-3.5 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 shadow-2xs"
-                >
-                  <span>SQL Editor&apos;ü Aç</span>
-                  <ExternalLink className="w-3.5 h-3.5 text-[#00adb5]" />
-                </a>
-              </div>
-            </div>
-
-            <div className="space-y-2 mt-4 text-xs font-mono bg-white p-4 border border-slate-200">
-              <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                <span className="w-5 h-5 bg-[#1d2566] text-white flex items-center justify-center text-[10px]">1</span>
-                <span>Proje kök dizinindeki <strong>supabase_schema.sql</strong> dosyasını açın veya yukarıdaki &apos;Şemayı Kopyala&apos; butonuna basın.</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                <span className="w-5 h-5 bg-[#1d2566] text-white flex items-center justify-center text-[10px]">2</span>
-                <span>Supabase Dashboard &gt; SQL Editor alanına yapıştırın ve <strong>Run</strong> butonuna tıklayın.</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-700 font-semibold">
-                <span className="w-5 h-5 bg-[#00adb5] text-white flex items-center justify-center text-[10px]">3</span>
-                <span>Aşağıdaki &apos;Verileri Buluta Aktar&apos; butonuna basarak mevcut tüm müşteri ve portföy havuzunu canlı buluta senkronize edin.</span>
-              </div>
-            </div>
-
-            {/* Verileri Şimdi Buluta Aktar (Seed) */}
-            <div className="mt-4 pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <div className="text-xs font-bold text-[#1d2566]">
-                  Mevcut Yerel Verileri Bulut PostgreSQL&apos;e Aktar
-                </div>
-                <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                  {customers.length} Müşteri • {properties.length} Portföy • {deals.length} Finans Anlaşması • {rentals.length} Kira • {mandates.length} Yetki
                 </div>
               </div>
 
               <button
                 type="button"
-                disabled={isSeeding}
-                onClick={async () => {
-                  setIsSeeding(true);
-                  setSeedResult(null);
-                  const res = await seedAllDataToSupabase({
-                    customers,
-                    properties,
-                    deals,
-                    rentals,
-                    mandates,
-                  });
-                  setIsSeeding(false);
-                  setSeedResult(res.message);
-                  setTimeout(() => setSeedResult(null), 7000);
-                }}
-                className="sharp-btn-primary px-4 py-2 text-xs font-mono font-bold flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
+                onClick={handleExportBackup}
+                className="sharp-btn-primary px-4 py-2 text-xs font-mono font-bold flex items-center gap-2 cursor-pointer shadow-xs"
               >
-                <Cloud className={`w-4 h-4 ${isSeeding ? "animate-pulse" : ""}`} />
-                <span>{isSeeding ? "Buluta Aktarılıyor..." : "Verileri Buluta Eşitle (Sync)"}</span>
+                <Download className="w-4 h-4" />
+                <span>Veritabanı Yedeğini İndir (.json)</span>
               </button>
             </div>
 
-            {seedResult && (
-              <div className="mt-3 p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-mono font-semibold flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{seedResult}</span>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Tüm müşteri havuzunuzu, portföy envanterinizi, finans ve komisyon anlaşmalarınızı, kira takip matrislerinizi ve tek yetki sözleşmelerinizi tek tıkla standart UTF-8 JSON formatında bilgisayarınıza yedekleyin.
+            </p>
+
+            {/* Yedek Kapsamı Canlı İstatistikleri */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Müşteri Havuzu</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportCustomers.length} <span className="text-[10px] font-normal text-slate-500">Kayıt</span>
+                </div>
               </div>
-            )}
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Portföy Envanteri</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportProperties.length} <span className="text-[10px] font-normal text-slate-500">Portföy</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">İşlem & Finans Kaydı</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportDeals.length} <span className="text-[10px] font-normal text-slate-500">Anlaşma</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Kira Sözleşmesi</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportRentals.length} <span className="text-[10px] font-normal text-slate-500">Kontrat</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Yetki Sözleşmesi</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportMandates.length} <span className="text-[10px] font-normal text-slate-500">Yetki Belgesi</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 font-mono">
+                <div className="text-[10px] text-slate-500 uppercase font-bold">Ajanda & Takip</div>
+                <div className="text-base font-bold text-[#1d2566] mt-1">
+                  {exportFollowUps.length} <span className="text-[10px] font-normal text-slate-500">Aktivite</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 text-[11px] font-mono text-amber-900 flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <strong>Güvenlik Notu:</strong> Dışa aktarılan dosya (JSON), ofisinizin tüm ticari kayıtlarını ve müşteri iletişim numaralarını içerir. Bu dosyayı yalnızca güvenli ofis arşivlerinde ve şifreli harici disklerde saklayınız.
+              </div>
+            </div>
           </div>
         </div>
       )}

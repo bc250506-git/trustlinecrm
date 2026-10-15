@@ -8,20 +8,18 @@ import {
   User,
   Shield,
   Bell,
-  HardDrive,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
   LogOut,
   Save,
-  Download,
   Smartphone,
   Key,
   ShieldCheck,
 } from "lucide-react";
 
-type SettingsTab = "security" | "profile" | "notifications" | "system";
+type SettingsTab = "security" | "profile" | "notifications";
 
 export function SettingsView() {
   const {
@@ -30,14 +28,6 @@ export function SettingsView() {
     logout,
     updateUserPassword,
     updateUserProfile,
-    customers,
-    myCustomers,
-    properties,
-    myProperties,
-    deals,
-    rentals,
-    mandates,
-    followUps,
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>("security");
@@ -107,75 +97,6 @@ export function SettingsView() {
     });
     setProfileSaved(true);
     setTimeout(() => setProfileSaved(false), 3000);
-  };
-
-  // Veritabanı / Kişisel Veri JSON Dışa Aktarma (Yetki Kısıtlamalı)
-  const handleExportBackup = () => {
-    // Danışman İzolasyonu:
-    // Broker ise tüm ofis veritabanı; normal danışman ise YALNIZCA kendisine zimmetli veriler dışa aktarılır.
-    const exportCustomers = isBroker
-      ? customers
-      : myCustomers;
-
-    const exportProperties = isBroker
-      ? properties
-      : myProperties;
-
-    const exportDeals = isBroker
-      ? deals
-      : deals.filter((d) => d.createdById === currentUser.id);
-
-    const exportRentals = isBroker
-      ? rentals
-      : rentals.filter((r) => r.assignedToId === currentUser.id);
-
-    const exportMandates = isBroker
-      ? mandates
-      : mandates.filter((m) => m.assignedToId === currentUser.id);
-
-    const exportFollowUps = isBroker
-      ? followUps
-      : followUps.filter((f) => f.assignedToId === currentUser.id);
-
-    const backupData = {
-      exportedAt: new Date().toISOString(),
-      system: "Trustline CRM",
-      exportScope: isBroker ? "OFFICE_FULL_DATABASE" : "ADVISOR_PERSONAL_DATA_ONLY",
-      authorizedUser: {
-        id: currentUser.id,
-        name: currentUser.name,
-        username: currentUser.username,
-        role: currentUser.role,
-        title: currentUser.title,
-      },
-      stats: {
-        customersCount: exportCustomers.length,
-        propertiesCount: exportProperties.length,
-        dealsCount: exportDeals.length,
-        rentalsCount: exportRentals.length,
-        mandatesCount: exportMandates.length,
-        followUpsCount: exportFollowUps.length,
-      },
-      customers: exportCustomers,
-      properties: exportProperties,
-      deals: exportDeals,
-      rentals: exportRentals,
-      mandates: exportMandates,
-      followUps: exportFollowUps,
-    };
-
-    const fileName = isBroker
-      ? `trustline_crm_OFIS_YEDEGI_${new Date().toISOString().split("T")[0]}.json`
-      : `trustline_crm_${currentUser.username}_kisisel_yedek_${new Date().toISOString().split("T")[0]}.json`;
-
-    const dataStr =
-      "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", fileName);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
   };
 
   return (
@@ -251,19 +172,6 @@ export function SettingsView() {
         >
           <Bell className="w-3.5 h-3.5 text-[#00adb5]" />
           <span>Otomasyon & Alarmlar</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("system")}
-          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${
-            activeTab === "system"
-              ? "bg-[#1d2566] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-          }`}
-        >
-          <HardDrive className="w-3.5 h-3.5 text-[#00adb5]" />
-          <span>Veritabanı Yedeği</span>
         </button>
       </div>
 
@@ -638,32 +546,6 @@ export function SettingsView() {
                 <div className="w-5 h-5 bg-white shadow-xs"></div>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 4. VERİTABANI YEDEĞİ SEKMESİ */}
-      {activeTab === "system" && (
-        <div className="space-y-6 max-w-xl">
-          <div className="sharp-card p-5 bg-white border border-slate-200">
-            <div className="flex items-center gap-2 mb-2">
-              <Download className="w-4 h-4 text-[#00adb5]" />
-              <h3 className="text-sm font-bold text-[#1d2566] font-mono">
-                CRM Veritabanı Yedeği İndir (JSON Export)
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-              Müşteri havuzu, portföyler, sözleşmeler ve ajanda kayıtlarınızı tek tıkla JSON formatında cihazınıza indirebilirsiniz.
-            </p>
-
-            <button
-              type="button"
-              onClick={handleExportBackup}
-              className="px-4 py-2 bg-[#1d2566] hover:bg-[#151c4f] text-white font-mono font-bold text-xs tracking-wider uppercase flex items-center gap-2 cursor-pointer shadow-xs"
-            >
-              <Download className="w-4 h-4 text-[#00adb5]" />
-              <span>Veritabanını Dışa Aktar (.json)</span>
-            </button>
           </div>
         </div>
       )}

@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
@@ -46,7 +47,12 @@ export function RentalsView() {
     canManageRental,
     addProperty,
     addCustomer,
+    renewRentalContract,
+    relistRentalProperty,
+    loseRentalProperty,
   } = useStore();
+
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeReceiptModal, setActiveReceiptModal] = useState<{
@@ -658,6 +664,16 @@ export function RentalsView() {
     setCustSubIsShared(false);
   };
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const expiredRentals = rentals.filter((r) => {
+    if (r.active === false) return false;
+    if (!r.contractEnd) return false;
+    return r.contractEnd <= todayStr;
+  });
+  const visibleExpiredRentals = isBroker
+    ? expiredRentals
+    : expiredRentals.filter((r) => r.assignedToId === currentUser.id);
+
   return (
     <div className="space-y-6">
       {/* Üst Bilgi Başlığı */}
@@ -726,6 +742,136 @@ export function RentalsView() {
           </button>
         </div>
       </div>
+
+      {actionFeedback && (
+        <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-mono font-bold flex items-center justify-between animate-in fade-in">
+          <span>{actionFeedback}</span>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            className="text-emerald-700 hover:text-emerald-950 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ⚠️ KİRA SÜRESİ BİTEN KİRALIKLAR UYARI MASASI */}
+      {visibleExpiredRentals.length > 0 && (
+        <div className="space-y-3">
+          <div className="p-4 bg-amber-500/10 border-2 border-amber-500/30 rounded-none shadow-xs">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="p-1.5 bg-amber-500 text-white shadow-xs">
+                <AlertTriangle className="w-4 h-4" />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-amber-950 font-mono tracking-tight">
+                  KİRA SÖZLEŞMESİ BİTEN KİRALIKLAR UYARI MASASI ({visibleExpiredRentals.length})
+                </h3>
+                <p className="text-[11px] text-amber-800 font-mono">
+                  Sözleşme süresi dolmuş aktif kiralıklar için aksiyon alınması bekleniyor.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5">
+              {visibleExpiredRentals.map((r) => (
+                <div
+                  key={r.id}
+                  className="p-3.5 bg-white border border-amber-300 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 flex-wrap">
+                      <span className="text-amber-600 font-mono font-bold">⚠️</span>
+                      <span className="text-[#1d2566] font-bold">[{r.propertyTitle}]</span>
+                      <span className="text-slate-700">kiralığınızın</span>
+                      <span className="text-emerald-700 font-bold">[{r.tenantName}]</span>
+                      <span className="text-slate-700">ile olan kira sözleşmesi bitmiştir</span>
+                      <span className="font-mono text-rose-700 font-bold bg-rose-50 px-2 py-0.5 border border-rose-200">
+                        ({r.contractEnd})
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] font-mono text-slate-500 flex items-center gap-3">
+                      <span>Mülk Sahibi: {r.landlordName || "Bilinmiyor"}</span>
+                      <span>•</span>
+                      <span>Aylık Kira: {r.monthlyRent} {r.currency}</span>
+                      <span>•</span>
+                      <span>Danışman: {users.find((u) => u.id === r.assignedToId)?.name || "Atanmadı"}</span>
+                    </div>
+                  </div>
+
+                  {/* 3 Net Aksiyon Butonu */}
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    {/* Aksiyon 1: Sözleşmeyi Yenile (+1 Yıl) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ok = renewRentalContract(r.id);
+                        if (ok) {
+                          setActionFeedback(
+                            `✓ [${r.propertyTitle}] için sözleşme +1 yıl uzatıldı ve ödeme matrisi yeni döneme aktarıldı.`
+                          );
+                          setTimeout(() => setActionFeedback(null), 5000);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      title="Sözleşme başlangıç ve bitişine +1 yıl ekler, matrise 12 yeni ay ekler"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Sözleşmeyi Yenile (+1 Yıl)</span>
+                    </button>
+
+                    {/* Aksiyon 2: Yeniden Yayınla (Aktife Al) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ok = relistRentalProperty(r.id);
+                        if (ok) {
+                          setActionFeedback(
+                            `✓ [${r.propertyTitle}] kira takibinden düşürüldü ve portföy 'AVAILABLE' (Aktif) yapılarak canlı ilan havuzuna çekildi.`
+                          );
+                          setTimeout(() => setActionFeedback(null), 5000);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-[#00adb5] hover:bg-[#00939a] text-white font-mono font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      title="Kiracı ayrıldı/tahliye edildi. Portföyü AVAILABLE yaparak canlı ilan havuzuna ve eşleşme motoruna geri yükler."
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Yeniden Yayınla (Aktife Al)</span>
+                    </button>
+
+                    {/* Aksiyon 3: Portföy Kaybedildi (Sistemden Kaldır) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `[${r.propertyTitle}] mülk sahibi tarafından geri çekildi veya kaybedildi olarak sistemden tamamen kaldırılsın mı?`
+                          )
+                        ) {
+                          const ok = loseRentalProperty(r.id);
+                          if (ok) {
+                            setActionFeedback(
+                              `✓ [${r.propertyTitle}] ve bağlı kira kaydı sistemden tamamen kaldırıldı.`
+                            );
+                            setTimeout(() => setActionFeedback(null), 5000);
+                          }
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-mono font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                      title="Mal sahibi portföyü geri çekti veya başka firmaya verdi. Portföyü ve kira kaydını sistemden tamamen kaldırır."
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Portföy Kaybedildi (Sistemden Kaldır)</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KESİNTİSİZ ZAMAN ÇİZELGESİ SLIDERI (SADE VE MODERN TASARIM) */}
       {rentals.length > 0 && (

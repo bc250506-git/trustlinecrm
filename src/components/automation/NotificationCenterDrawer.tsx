@@ -24,6 +24,8 @@ import {
   Send,
   Zap,
   Cake,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 
 interface NotificationCenterDrawerProps {
@@ -40,11 +42,15 @@ export function NotificationCenterDrawer({
   const {
     notifications,
     automationRules,
+    rentals,
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
     toggleAutomationRule,
     triggerAutomationEngine,
+    renewRentalContract,
+    relistRentalProperty,
+    loseRentalProperty,
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<"notifications" | "rules">("notifications");
@@ -282,6 +288,63 @@ export function NotificationCenterDrawer({
                     <p className="text-[11px] text-slate-600 leading-relaxed mb-3">
                       {notif.message}
                     </p>
+
+                    {/* Kira Sözleşmesi Bitenler İçin 3 Net Hızlı Aksiyon */}
+                    {notif.type === "contract_expiring" && (() => {
+                      const linkedRental = notif.targetId ? rentals.find((r) => r.id === notif.targetId) : undefined;
+                      if (!linkedRental) return null;
+                      return (
+                        <div className="p-2.5 bg-amber-50 border border-amber-300 space-y-2 mb-2">
+                          <div className="text-[11px] font-bold text-amber-950 font-mono">
+                            ⚠️ [{linkedRental.propertyTitle}] kiralığınızın [{linkedRental.tenantName}] ile olan kira sözleşmesi bitmiştir ({linkedRental.contractEnd}).
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                renewRentalContract(linkedRental.id);
+                                markNotificationAsRead(notif.id);
+                              }}
+                              className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-mono font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Sözleşmeyi 1 yıl uzatır"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Sözleşmeyi Yenile (+1 Yıl)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                relistRentalProperty(linkedRental.id);
+                                markNotificationAsRead(notif.id);
+                              }}
+                              className="px-2 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white font-mono font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Portföyü aktife alıp yeniden yayınlar"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Yeniden Yayınla (Aktife Al)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (
+                                  confirm(
+                                    `[${linkedRental.propertyTitle}] portföyü kaybedildi olarak sistemden tamamen silinsin mi?`
+                                  )
+                                ) {
+                                  loseRentalProperty(linkedRental.id);
+                                  markNotificationAsRead(notif.id);
+                                }
+                              }}
+                              className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white font-mono font-bold text-[10px] flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Portföyü kaybedildi olarak siler"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Portföy Kaybedildi</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* WhatsApp Şablon Önizlemesi & Aksiyon Butonları */}
                     <div className="space-y-2 pt-2 border-t border-slate-100">

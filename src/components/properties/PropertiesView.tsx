@@ -38,9 +38,12 @@ import {
   Archive,
   Edit3,
   Award,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { AddDealModal } from "../modals/AddDealModal";
 
 interface PropertiesViewProps {
   onFindMatches: (property: Property) => void;
@@ -63,6 +66,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     currentUser,
     users,
     mandates,
+    reactivateProperty,
   } = useStore();
 
   // İlgili portföyün Tek Yetki Sözleşmesi kontrolü
@@ -128,6 +132,10 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
 
   // Silme Onay Modalı State
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
+
+  // İşlem Kapama Modalı State
+  const [dealCloseProperty, setDealCloseProperty] = useState<Property | null>(null);
+  const [isDealCloseModalOpen, setIsDealCloseModalOpen] = useState(false);
 
   // Portföy Düzenleme Modalı State
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
@@ -266,7 +274,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       isAddSellerSubModalOpen ||
       activePropertyDetail !== null ||
       propertyToDelete !== null ||
-      editingProperty !== null;
+      editingProperty !== null ||
+      isDealCloseModalOpen;
     if (hasOpenModal) {
       document.body.style.overflow = "hidden";
     } else {
@@ -281,6 +290,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     activePropertyDetail,
     propertyToDelete,
     editingProperty,
+    isDealCloseModalOpen,
   ]);
 
   // Click outside to close owner dropdown
@@ -407,9 +417,21 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     });
   };
 
-  const filteredMyProperties = filterList(myProperties);
-  const filteredSharedProperties = filterList(sharedProperties);
-  const filteredAllProperties = filterList(properties);
+  const isActive = (p: Property) =>
+    p.status !== "SOLD" && p.status !== "RENTED" && p.status !== "ARCHIVED" && !p.deletedAt;
+  const isPassive = (p: Property) =>
+    (p.status === "SOLD" || p.status === "RENTED") && !p.deletedAt;
+
+  const filteredMyProperties = filterList(myProperties.filter(isActive));
+  const filteredSharedProperties = filterList(sharedProperties.filter(isActive));
+  const filteredAllProperties = filterList(properties.filter(isActive));
+
+  const passivePool = isBroker
+    ? properties.filter(isPassive)
+    : properties.filter(
+        (p) => isPassive(p) && (p.assignedToId === currentUser.id || p.isShared)
+      );
+  const filteredPassiveProperties = filterList(passivePool);
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
@@ -534,6 +556,15 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                         <ActionMenu
                           onEdit={() => handleOpenEditModal(p)}
                           onDelete={() => setPropertyToDelete(p)}
+                          onCloseDeal={() => {
+                            setDealCloseProperty(p);
+                            setIsDealCloseModalOpen(true);
+                          }}
+                          closeDealLabel={
+                            p.listingType === "sale"
+                              ? "Portföy Satıldı (İşlem Kapat)"
+                              : "Portföy Kiralandı (İşlem Kapat)"
+                          }
                           canEdit={canManageProperty(p)}
                           canDelete={canManageProperty(p)}
                         />
@@ -654,6 +685,33 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   </a>
                 )}
 
+                {canManageProperty(p) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDealCloseProperty(p);
+                      setIsDealCloseModalOpen(true);
+                    }}
+                    className={`flex-1 py-1.5 px-1 border text-xs font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer shadow-2xs text-center ${
+                      p.listingType === "sale"
+                        ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 hover:border-amber-400"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300 hover:border-blue-400"
+                    }`}
+                    title={
+                      p.listingType === "sale"
+                        ? "Portföy Satıldı (İşlem Kapat)"
+                        : "Portföy Kiralandı (İşlem Kapat)"
+                    }
+                  >
+                    <CheckCircle2
+                      className={`w-3 h-3 shrink-0 ${
+                        p.listingType === "sale" ? "text-amber-600" : "text-blue-600"
+                      }`}
+                    />
+                    <span>{p.listingType === "sale" ? "Satıldı" : "Kiralandı"}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleOpenEditModal(p)}
@@ -683,6 +741,166 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                   <Sparkles className="w-3 h-3 text-white shrink-0" />
                   <span>Müşteri Bul</span>
                 </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Render Pasif Kart Izgarası (Satılan & Kiralanan Portföyler)
+  const renderPassivePropertyGrid = (items: Property[]) => {
+    if (items.length === 0) {
+      return (
+        <div className="sharp-card p-8 text-center text-slate-400 font-mono text-xs border border-dashed border-slate-300 bg-slate-50/50">
+          Henüz satılmış veya kiralanmış pasif portföy kaydı bulunmuyor.
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {items.map((p) => {
+          const isSold = p.status === "SOLD";
+          const isRented = p.status === "RENTED";
+
+          return (
+            <div
+              key={p.id}
+              className="sharp-card border border-slate-300 bg-slate-100/75 hover:bg-white transition-all flex flex-col justify-between overflow-hidden shadow-xs hover:shadow-md opacity-85 hover:opacity-100 grayscale-[30%] hover:grayscale-0 group"
+            >
+              <div>
+                {/* Portföy Kartı Üst Bölümü */}
+                <div className="p-3.5 border-b border-slate-200 bg-slate-100/90">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Belirgin Pasif Rozeti */}
+                      {isSold ? (
+                        <span className="text-[10px] font-mono uppercase px-2.5 py-0.5 font-extrabold bg-rose-600 text-white shadow-xs tracking-wider flex items-center gap-1">
+                          [ SATILDI ]
+                        </span>
+                      ) : isRented ? (
+                        <span className="text-[10px] font-mono uppercase px-2.5 py-0.5 font-extrabold bg-blue-600 text-white shadow-xs tracking-wider flex items-center gap-1">
+                          [ KİRALANDI ]
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-mono uppercase px-2.5 py-0.5 font-extrabold bg-slate-600 text-white shadow-xs tracking-wider flex items-center gap-1">
+                          [ PASİF ]
+                        </span>
+                      )}
+
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-white text-slate-700 font-bold border border-slate-300">
+                        {p.propertyType}
+                      </span>
+
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-slate-200 text-slate-600 font-semibold">
+                        {p.listingType === "sale" ? "Satılık" : "Kiralık"}
+                      </span>
+                    </div>
+
+                    {canManageProperty(p) && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <ActionMenu
+                          onEdit={() => handleOpenEditModal(p)}
+                          onDelete={() => setPropertyToDelete(p)}
+                          canEdit={canManageProperty(p)}
+                          canDelete={canManageProperty(p)}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-baseline justify-between gap-2 pt-1">
+                    <div className="text-xl font-mono font-extrabold text-slate-700 tracking-tight">
+                      {p.price.toLocaleString("tr-TR")}{" "}
+                      <span className="text-sm font-bold text-slate-500">{p.currency}</span>
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-500 font-semibold">
+                      {p.area} m² • {p.rooms}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detay Bilgileri */}
+                <div className="p-4 space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between gap-1 text-[11px] font-mono mb-1">
+                      <span className="text-slate-600 font-bold flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-slate-400" /> {p.region}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        Danışman: {p.assignedToName || "Atanmadı"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActivePropertyDetail(p)}
+                      className="text-left font-bold text-slate-700 hover:text-[#1d2566] transition line-clamp-2 leading-snug cursor-pointer block"
+                    >
+                      {p.title}
+                    </button>
+                  </div>
+
+                  {/* Ofis İçi Mal Sahibi Bilgisi */}
+                  <div className="p-2.5 bg-white/70 border border-slate-200 text-[10px] font-mono space-y-1">
+                    <div className="flex items-center justify-between text-slate-600">
+                      <span className="flex items-center gap-1">
+                        <User className="w-2.5 h-2.5 text-slate-400" /> Mal Sahibi:
+                      </span>
+                      <span className="text-slate-800 font-bold">
+                        {p.ownerName || "Bilinmiyor"}
+                      </span>
+                    </div>
+                    {p.ownerPhone && (
+                      <div className="flex items-center justify-between text-slate-600">
+                        <span>Telefon:</span>
+                        <span className="text-slate-700 font-mono">{p.ownerPhone}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Aksiyon Alt Çubuğu: Aktife Al (Yeniden Yayınla) */}
+              <div className="p-2.5 bg-slate-100 border-t border-slate-200 flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `"${p.title}" portföyünü yeniden aktife almak ve canlı ilana çekmek istiyor musunuz?`
+                      )
+                    ) {
+                      reactivateProperty(p.id);
+                    }
+                  }}
+                  className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-mono font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Portföyü tek tıkla canlı ilan havuzuna geri döndür"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Aktife Al (Yeniden Yayınla)</span>
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(p)}
+                    className="flex-1 py-1 px-1 bg-white border border-slate-300 hover:border-slate-500 text-slate-700 text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer shadow-2xs"
+                  >
+                    <Edit3 className="w-3 h-3 text-slate-500" />
+                    <span>Düzenle</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setBrochureProperty(p)}
+                    className="flex-1 py-1 px-1 bg-white border border-slate-300 hover:border-slate-500 text-slate-700 text-[11px] font-mono font-bold flex items-center justify-center gap-1 transition cursor-pointer shadow-2xs"
+                  >
+                    <Share2 className="w-3 h-3 text-slate-500" />
+                    <span>Broşür</span>
+                  </button>
+                </div>
               </div>
             </div>
           );
@@ -857,6 +1075,22 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
           </div>
         </div>
       )}
+
+      {/* 3. Satılan & Kiralanan (Pasif) Portföyler */}
+      <div className="space-y-3 pt-6 border-t-2 border-dashed border-slate-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 pb-2">
+          <div className="flex items-center gap-2">
+            <Archive className="w-4 h-4 text-slate-600" />
+            <h2 className="text-sm font-bold text-slate-700 uppercase font-mono tracking-wide">
+              Satılan & Kiralanan (Pasif) Portföyler ({filteredPassiveProperties.length})
+            </h2>
+          </div>
+          <span className="text-[11px] font-mono text-slate-500">
+            Sözleşmesi ve satışı kapanmış mülkler • Arşivde bekletilir, tek tıkla aktife alınabilir
+          </span>
+        </div>
+        {renderPassivePropertyGrid(filteredPassiveProperties)}
+      </div>
 
       {/* Portföy Kartı Detayı Pop-up Modal */}
       {activePropertyDetail && (
@@ -1101,6 +1335,35 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                 )}
 
                 <div className="flex items-center gap-2">
+                  {canManageProperty(activePropertyDetail) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const p = activePropertyDetail;
+                        setActivePropertyDetail(null);
+                        setDealCloseProperty(p);
+                        setIsDealCloseModalOpen(true);
+                      }}
+                      className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-white ${
+                        activePropertyDetail.listingType === "sale"
+                          ? "bg-amber-600 hover:bg-amber-700"
+                          : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                      title={
+                        activePropertyDetail.listingType === "sale"
+                          ? "Portföy Satıldı (İşlem Kapat)"
+                          : "Portföy Kiralandı (İşlem Kapat)"
+                      }
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>
+                        {activePropertyDetail.listingType === "sale"
+                          ? "Portföy Satıldı (İşlem Kapat)"
+                          : "Portföy Kiralandı (İşlem Kapat)"}
+                      </span>
+                    </button>
+                  )}
+
                   {canManageProperty(activePropertyDetail) && (
                     <button
                       type="button"
@@ -2221,21 +2484,54 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               </div>
 
               {/* Aksiyon Butonları */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setEditingProperty(null)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+                  onClick={() => {
+                    const p = editingProperty;
+                    setEditingProperty(null);
+                    setDealCloseProperty(p);
+                    setIsDealCloseModalOpen(true);
+                  }}
+                  className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 border shadow-2xs cursor-pointer ${
+                    editingProperty.listingType === "sale"
+                      ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
+                      : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
+                  }`}
+                  title={
+                    editingProperty.listingType === "sale"
+                      ? "Portföy Satıldı (İşlem Kapat)"
+                      : "Portföy Kiralandı (İşlem Kapat)"
+                  }
                 >
-                  İptal
+                  <CheckCircle2
+                    className={`w-3.5 h-3.5 ${
+                      editingProperty.listingType === "sale" ? "text-amber-600" : "text-blue-600"
+                    }`}
+                  />
+                  <span>
+                    {editingProperty.listingType === "sale"
+                      ? "Portföy Satıldı (İşlem Kapat)"
+                      : "Portföy Kiralandı (İşlem Kapat)"}
+                  </span>
                 </button>
-                <button
-                  type="submit"
-                  className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer flex items-center gap-1.5"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Değişiklikleri Kaydet</span>
-                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProperty(null)}
+                    className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    type="submit"
+                    className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Değişiklikleri Kaydet</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -2258,6 +2554,20 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
           }
         }}
         onCancel={() => setPropertyToDelete(null)}
+      />
+
+      {/* İŞLEM KAPAMA (İŞLEM SONRASI OFİS RAPORU) MODALI */}
+      <AddDealModal
+        isOpen={isDealCloseModalOpen}
+        initialPropertyId={dealCloseProperty?.id}
+        onClose={() => {
+          setIsDealCloseModalOpen(false);
+          setDealCloseProperty(null);
+        }}
+        onSuccess={() => {
+          setIsDealCloseModalOpen(false);
+          setDealCloseProperty(null);
+        }}
       />
     </div>
   );

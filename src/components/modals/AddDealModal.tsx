@@ -25,6 +25,7 @@ interface AddDealModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  initialPropertyId?: string;
 }
 
 const LEAD_CHANNELS = [
@@ -44,7 +45,12 @@ const LEAD_CHANNELS = [
 
 const PROPERTY_TYPES = ["Daire", "Villa", "Ofis", "Apartman", "Arsa", "Dükkan"];
 
-export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) {
+export function AddDealModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialPropertyId,
+}: AddDealModalProps) {
   const {
     currentUser,
     isBroker,
@@ -52,6 +58,7 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
     properties,
     users,
     addDeal,
+    updateProperty,
   } = useStore();
 
   const getTodayStr = () => {
@@ -114,6 +121,9 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
   // Broker Onayı
   const [formBrokerApproval, setFormBrokerApproval] = useState(isBroker);
 
+  // Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
+  const [keepActiveForNewOwner, setKeepActiveForNewOwner] = useState(false);
+
   // Sub-Modallar
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
@@ -162,8 +172,18 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       const otherAdvisors = users.filter((u) => u.id !== currentUser.id);
       setFormPartnerAdvisorId(otherAdvisors[0]?.id || "");
       setFormBrokerApproval(isBroker);
+      setKeepActiveForNewOwner(false);
+
+      if (initialPropertyId) {
+        handleSelectProperty(initialPropertyId);
+        const targetProp = properties.find((p) => p.id === initialPropertyId);
+        if (targetProp && targetProp.listingType === "rent") {
+          setFormDealType("rent");
+          setFormCommissionRate(100);
+        }
+      }
     }
-  }, [isOpen, currentUser.id, isBroker, users]);
+  }, [isOpen, initialPropertyId, currentUser.id, isBroker, users, properties]);
 
   // Portföy Seçimi Yapıldığında Otomatik Doldurma
   const handleSelectProperty = (pid: string) => {
@@ -416,6 +436,28 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
       notes: formNotes || "İşlem kapama formu üzerinden kaydedildi.",
     });
 
+    // Portföy Durumu ve Mal Sahibi Güncellemesi
+    if (formPropertyId) {
+      if (formDealType === "sale") {
+        if (keepActiveForNewOwner) {
+          updateProperty(formPropertyId, {
+            ownerCustomerId: formCustomerId || undefined,
+            ownerName: formCustomerName || undefined,
+            ownerPhone: formCustomerPhone || undefined,
+            status: "AVAILABLE",
+          });
+        } else {
+          updateProperty(formPropertyId, {
+            status: "SOLD",
+          });
+        }
+      } else if (formDealType === "rent") {
+        updateProperty(formPropertyId, {
+          status: "RENTED",
+        });
+      }
+    }
+
     onClose();
     if (onSuccess) onSuccess();
   };
@@ -560,6 +602,27 @@ export function AddDealModal({ isOpen, onClose, onSuccess }: AddDealModalProps) 
                   <span>Kiralama</span>
                 </button>
               </div>
+
+              {/* Satıldı Ancak Yeni Mal Sahibi de Satıyor (Özel Satış Opsiyonu) */}
+              {formDealType === "sale" && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5 mt-2">
+                  <input
+                    type="checkbox"
+                    id="keepActiveForNewOwner"
+                    checked={keepActiveForNewOwner}
+                    onChange={(e) => setKeepActiveForNewOwner(e.target.checked)}
+                    className="accent-[#00adb5] w-4 h-4 mt-0.5 cursor-pointer"
+                  />
+                  <label htmlFor="keepActiveForNewOwner" className="cursor-pointer select-none">
+                    <span className="font-bold text-xs font-mono text-amber-950 block">
+                      Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
+                    </span>
+                    <span className="text-[10px] text-amber-800 font-mono block mt-0.5">
+                      İşaretlenirse satış ve komisyon finans defterine işlenir; ancak portföy pasife düşürülmez. Alıcı ({formCustomerName || "Alıcı Müşteri"}) yeni mal sahibi olarak atanır ve ilan canlı kalır.
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Portföy Seçimi veya Elle Giriş */}

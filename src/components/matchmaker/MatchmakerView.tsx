@@ -39,16 +39,26 @@ export function MatchmakerView({
 }: MatchmakerViewProps) {
   const { customers, properties } = useStore();
 
+  // Yalnızca AVAILABLE (Aktif) ve silinmemiş portföyler eşleşme motorunda yer alabilir
+  const activeProperties = properties.filter(
+    (p) => p.status === "AVAILABLE" && !p.deletedAt
+  );
+  const activeCustomers = customers.filter((c) => !c.deletedAt);
+
   const [mode, setMode] = useState<"customer_to_property" | "property_to_customer">(
-    initialProperty ? "property_to_customer" : "customer_to_property"
+    initialProperty && initialProperty.status === "AVAILABLE" && !initialProperty.deletedAt
+      ? "property_to_customer"
+      : "customer_to_property"
   );
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    initialCustomer?.id || customers[0]?.id || ""
+    initialCustomer?.id || activeCustomers[0]?.id || ""
   );
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(
-    initialProperty?.id || properties[0]?.id || ""
+    initialProperty && initialProperty.status === "AVAILABLE" && !initialProperty.deletedAt
+      ? initialProperty.id
+      : activeProperties[0]?.id || ""
   );
 
   useEffect(() => {
@@ -59,16 +69,16 @@ export function MatchmakerView({
     return () => clearInterval(interval);
   }, []);
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
-  const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+  const selectedCustomer = activeCustomers.find((c) => c.id === selectedCustomerId);
+  const selectedProperty = activeProperties.find((p) => p.id === selectedPropertyId);
 
-  // Eşleştirme Sonuçları
+  // Eşleştirme Sonuçları (Sadece aktif portföylerle çalışır)
   const matchesForCustomer = selectedCustomer
-    ? findMatchesForCustomer(selectedCustomer, properties)
+    ? findMatchesForCustomer(selectedCustomer, activeProperties)
     : [];
 
   const matchesForProperty = selectedProperty
-    ? findMatchesForProperty(selectedProperty, customers)
+    ? findMatchesForProperty(selectedProperty, activeCustomers)
     : [];
 
   return (
@@ -140,12 +150,16 @@ export function MatchmakerView({
                 onChange={(e) => setSelectedPropertyId(e.target.value)}
                 className="sharp-input w-full p-2.5 text-xs font-mono bg-white mb-4"
               >
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title} ({p.listingType === "sale" ? "Satılık" : "Kiralık"} -{" "}
-                    {p.price.toLocaleString("tr-TR")} {p.currency})
-                  </option>
-                ))}
+                {activeProperties.length === 0 ? (
+                  <option value="">Aktif portföy bulunmuyor</option>
+                ) : (
+                  activeProperties.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.title} ({p.listingType === "sale" ? "Satılık" : "Kiralık"} -{" "}
+                      {p.price.toLocaleString("tr-TR")} {p.currency})
+                    </option>
+                  ))
+                )}
               </select>
             )}
 

@@ -109,6 +109,10 @@ interface StoreContextType {
   deleteRentalContract: (id: string) => boolean;
   toggleRentalPayment: (rentalId: string, monthOrPeriodKey: number | string, isPaid: boolean, dueDate?: string) => void;
   uploadRentalReceipt: (rentalId: string, monthOrPeriodKey: number | string, fileName: string, dueDate?: string) => void;
+  renewRentalContract: (rentalId: string) => boolean;
+  relistRentalProperty: (rentalId: string) => boolean;
+  loseRentalProperty: (rentalId: string) => boolean;
+  reactivateProperty: (propertyId: string) => boolean;
   // Permissions & Role
   canManageCustomer: (customer: Customer) => boolean;
   canManageProperty: (property: Property) => boolean;
@@ -1336,6 +1340,125 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const renewRentalContract = (rentalId: string): boolean => {
+    const rental = rentals.find((r) => r.id === rentalId);
+    if (!rental) return false;
+    if (!canManageRental(rental)) {
+      alert("Bu kira sözleşmesini yenileme yetkiniz bulunmuyor.");
+      return false;
+    }
+
+    const currentEnd = new Date(rental.contractEnd || new Date().toISOString().split("T")[0]);
+    const newEnd = new Date(currentEnd);
+    newEnd.setFullYear(newEnd.getFullYear() + 1);
+
+    const newEndStr = newEnd.toISOString().split("T")[0];
+
+    const extendedPayments = generateRentalPayments(
+      rental.contractStart,
+      newEndStr,
+      rental.dueDay,
+      rental.monthlyRent,
+      rental.currency,
+      rental.payments
+    );
+
+    const updated: RentalContract = {
+      ...rental,
+      contractEnd: newEndStr,
+      active: true,
+      payments: extendedPayments,
+    };
+
+    setRentals((prev) => prev.map((r) => (r.id === rentalId ? updated : r)));
+    saveRental(updated).catch(() => {});
+    return true;
+  };
+
+  const relistRentalProperty = (rentalId: string): boolean => {
+    const rental = rentals.find((r) => r.id === rentalId);
+    if (!rental) return false;
+    if (!canManageRental(rental)) {
+      alert("Bu işlem için yetkiniz bulunmuyor.");
+      return false;
+    }
+
+    // Kira sözleşmesini pasife al (kira takibinden düşür)
+    const updatedRental: RentalContract = {
+      ...rental,
+      active: false,
+    };
+    setRentals((prev) => prev.map((r) => (r.id === rentalId ? updatedRental : r)));
+    saveRental(updatedRental).catch(() => {});
+
+    // Bağlı portföyü bul ve durumunu AVAILABLE yap
+    const prop = properties.find(
+      (p) =>
+        p.id === rental.propertyId ||
+        p.title.toLowerCase().trim() === rental.propertyTitle.toLowerCase().trim()
+    );
+    if (prop) {
+      const updatedProp: Property = {
+        ...prop,
+        status: "AVAILABLE",
+        deletedAt: null,
+      };
+      setProperties((prev) => prev.map((p) => (p.id === prop.id ? updatedProp : p)));
+      saveProperty(updatedProp).catch(() => {});
+    }
+
+    return true;
+  };
+
+  const loseRentalProperty = (rentalId: string): boolean => {
+    const rental = rentals.find((r) => r.id === rentalId);
+    if (!rental) return false;
+    if (!canManageRental(rental)) {
+      alert("Bu işlem için yetkiniz bulunmuyor.");
+      return false;
+    }
+
+    // Kira sözleşmesini sistemden kaldır
+    setRentals((prev) => prev.filter((r) => r.id !== rentalId));
+
+    // Bağlı portföyü sistemden tamamen kaldır
+    const prop = properties.find(
+      (p) =>
+        p.id === rental.propertyId ||
+        p.title.toLowerCase().trim() === rental.propertyTitle.toLowerCase().trim()
+    );
+    if (prop) {
+      const updatedProp: Property = {
+        ...prop,
+        status: "ARCHIVED",
+        deletedAt: new Date().toISOString(),
+      };
+      setProperties((prev) => prev.filter((p) => p.id !== prop.id));
+      saveProperty(updatedProp).catch(() => {});
+    }
+
+    return true;
+  };
+
+  const reactivateProperty = (propertyId: string): boolean => {
+    const prop = properties.find((p) => p.id === propertyId);
+    if (!prop) return false;
+    if (!canManageProperty(prop)) {
+      alert("Bu portföyü aktifleştirme yetkiniz bulunmuyor.");
+      return false;
+    }
+
+    const updatedProp: Property = {
+      ...prop,
+      status: "AVAILABLE",
+      deletedAt: null,
+    };
+
+    setProperties((prev) => prev.map((p) => (p.id === propertyId ? updatedProp : p)));
+    saveProperty(updatedProp).catch(() => {});
+    return true;
+  };
+
   const visibleRentals = isBroker
     ? rentals
     : rentals.filter((r) => r.assignedToId === currentUser.id);
@@ -1569,6 +1692,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deleteRentalContract,
         toggleRentalPayment,
         uploadRentalReceipt,
+        renewRentalContract,
+        relistRentalProperty,
+        loseRentalProperty,
+        reactivateProperty,
         canManageCustomer,
         canManageProperty,
         canManageFollowUp,

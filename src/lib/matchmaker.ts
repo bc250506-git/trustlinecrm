@@ -22,6 +22,26 @@ export function matchCustomerAndProperty(
   const missingCriteria: string[] = [];
   let score = 0;
 
+  // 0. AKTİF PORTFÖY KONTROLÜ (SERT ELEME - HARD FILTER)
+  // Pasife düşen (SOLD, RENTED, ARCHIVED) veya silinmiş portföyler eşleşme motoruna asla sunulmaz!
+  if (property.status !== "AVAILABLE" || property.deletedAt) {
+    return {
+      score: 0,
+      isEligible: false,
+      matchedCriteria: [],
+      missingCriteria: [
+        property.status === "SOLD"
+          ? "Portföy Satıldı (Pasif)"
+          : property.status === "RENTED"
+          ? "Portföy Kiralandı (Pasif)"
+          : property.status === "ARCHIVED"
+          ? "Portföy Arşivde (Pasif)"
+          : "Portföy Aktif Değil",
+      ],
+      isStrictMatch: false,
+    };
+  }
+
   // 1. İŞLEM VE NİYET UYUMU (SERT ELEME - HARD FILTER)
   // Satılık arayan birine kiralık, kiralık arayana satılık ASLA önerilmez!
   const isIntentMatch =

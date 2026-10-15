@@ -35,6 +35,7 @@ import {
   setupRealtimeSync,
   getUsersFromSupabase,
   saveUserCredentialsToSupabase,
+  seedAllDataToSupabase,
 } from "./supabase/db";
 import {
   verifyPassword,
@@ -42,6 +43,17 @@ import {
   generateSalt,
   validatePasswordStrength,
 } from "./security/authCrypto";
+import {
+  NormalizedBackupData,
+  mergeEntityList,
+} from "./backup/restoreEngine";
+import {
+  SnapshotItem,
+  getLocalSnapshots,
+  saveSnapshot,
+  deleteSnapshot,
+  checkAndCreateDailySnapshot,
+} from "./backup/snapshotEngine";
 
 interface StoreContextType {
   currentUser: User;
@@ -125,6 +137,26 @@ interface StoreContextType {
     newPassword: string
   ) => Promise<{ success: boolean; message: string }>;
   updateUserProfile: (userId: string, updates: Partial<User>) => void;
+  // Yedekleme & Geri Yükleme Motoru (Granular Restore & Snapshots)
+  restoreBackup: (
+    data: NormalizedBackupData,
+    mode: "merge" | "clean"
+  ) => Promise<{
+    success: boolean;
+    message: string;
+    stats: {
+      customers: number;
+      properties: number;
+      deals: number;
+      rentals: number;
+      mandates: number;
+      followUps: number;
+    };
+  }>;
+  snapshots: SnapshotItem[];
+  createManualSnapshot: (name: string, description: string) => void;
+  restoreSnapshot: (snapshotId: string) => Promise<{ success: boolean; message: string }>;
+  removeSnapshot: (snapshotId: string) => void;
 }
 
 
@@ -1375,6 +1407,129 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ? mandates
     : mandates.filter((m) => m.assignedToId === currentUser.id);
 
+  // Güvenlik Kasası (Snapshots) State
+  const [snapshots, setSnapshots] = useState<SnapshotItem[]>(() => getLocalSnapshots());
+
+  // Günlük otomatik snapshot alıcı
+  useEffect(() => {
+    checkAndCreateDailySnapshot({
+      customers,
+      properties,
+      deals,
+      rentals,
+      mandates,
+      followUps,
+    });
+    setSnapshots(getLocalSnapshots());
+  }, []);
+
+  const createManualSnapshot = (name: string, description: string) => {
+    saveSnapshot(name, description, "manual", {
+      customers,
+      properties,
+      deals,
+      rentals,
+      mandates,
+      followUps,
+    });
+    setSnapshots(getLocalSnapshots());
+  };
+
+  const removeSnapshot = (snapshotId: string) => {
+    deleteSnapshot(snapshotId);
+    setSnapshots(getLocalSnapshots());
+  };
+
+  const restoreBackup = async (
+    data: NormalizedBackupData,
+    mode: "merge" | "clean"
+  ) => {
+    // 1. Önce kurtarma noktası snapshot'ı al (Güvenlik Protokolü)
+    saveSnapshot(
+      `Geri Yükleme Öncesi Kurtarma Noktası (${new Date().toLocaleTimeString("tr-TR")})`,
+      `${mode === "merge" ? "Eksikleri Tamamla" : "Tam Temiz Geri Yükleme"} işlemi öncesi otomatik sistem yedeği`,
+      "auto_pre_restore",
+      {
+        customers,
+        properties,
+        deals,
+        rentals,
+        mandates,
+        followUps,
+      }
+    );
+    setSnapshots(getLocalSnapshots());
+
+    let finalCustomers: Customer[];
+    let finalProperties: Property[];
+    let finalDeals: Deal[];
+    let finalRentals: RentalContract[];
+    let finalMandates: MandateContract[];
+    let finalFollowUps: FollowUp[];
+
+    if (mode === "merge") {
+      finalCustomers = mergeEntityList(customers, data.customers).merged;
+      finalProperties = mergeEntityList(properties, data.properties).merged;
+      finalDeals = mergeEntityList(deals, data.deals).merged;
+      finalRentals = mergeEntityList(rentals, data.rentals).merged;
+      finalMandates = mergeEntityList(mandates, data.mandates).merged;
+      finalFollowUps = mergeEntityList(followUps, data.followUps).merged;
+    } else {
+      // Clean restore
+      finalCustomers = data.customers;
+      finalProperties = data.properties;
+      finalDeals = data.deals;
+      finalRentals = data.rentals;
+      finalMandates = data.mandates;
+      finalFollowUps = data.followUps;
+    }
+
+    // State'leri güncelle
+    setCustomers(finalCustomers);
+    setProperties(finalProperties);
+    setDeals(finalDeals);
+    setRentals(finalRentals);
+    setMandates(finalMandates);
+    setFollowUps(finalFollowUps);
+
+    // Supabase Buluta Sessizce Eşitle
+    try {
+      await seedAllDataToSupabase({
+        customers: finalCustomers,
+        properties: finalProperties,
+        deals: finalDeals,
+        rentals: finalRentals,
+        mandates: finalMandates,
+      });
+    } catch (err) {
+      console.warn("Supabase backup sync error:", err);
+    }
+
+    return {
+      success: true,
+      message:
+        mode === "merge"
+          ? "Eksik veriler mevcut kayıtlarla başarıyla harmanlandı ve geri yüklendi!"
+          : "Sistem, seçilen yedeğin alındığı ana kusursuz olarak geri döndürüldü!",
+      stats: {
+        customers: finalCustomers.length,
+        properties: finalProperties.length,
+        deals: finalDeals.length,
+        rentals: finalRentals.length,
+        mandates: finalMandates.length,
+        followUps: finalFollowUps.length,
+      },
+    };
+  };
+
+  const restoreSnapshot = async (snapshotId: string) => {
+    const snap = snapshots.find((s) => s.id === snapshotId);
+    if (!snap) return { success: false, message: "Snapshot bulunamadı!" };
+
+    const res = await restoreBackup(snap.data, "clean");
+    return { success: res.success, message: res.message };
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -1437,6 +1592,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deleteNotification,
         toggleAutomationRule,
         triggerAutomationEngine,
+        restoreBackup,
+        snapshots,
+        createManualSnapshot,
+        restoreSnapshot,
+        removeSnapshot,
       }}
     >
 

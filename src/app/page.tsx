@@ -18,6 +18,7 @@ import { SecurityView } from "@/components/security/SecurityView";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { LoginView } from "@/components/auth/LoginView";
 import { BrochureModal } from "@/components/brochure/BrochureModal";
+import { WeeklyBackupModal } from "@/components/backup/WeeklyBackupModal";
 import { Customer, Property } from "@/lib/types";
 import { useStore } from "@/lib/store";
 
@@ -122,6 +123,9 @@ function MainApp() {
           onClose={() => setBrochureProperty(null)}
         />
       )}
+
+      {/* Haftalık Otomatik Güvenlik ve Yedekleme Hatırlatıcısı Modalı */}
+      <WeeklyBackupModal />
     </div>
   );
 }

@@ -23,6 +23,9 @@ import {
   Trash2,
   Edit3,
   MessageCircle,
+  ChevronLeft,
+  ChevronRight,
+  SlidersHorizontal,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
@@ -49,8 +52,11 @@ export function RentalsView() {
   const [activeReceiptModal, setActiveReceiptModal] = useState<{
     rentalId: string;
     month: number;
+    year?: number;
+    periodKey?: string;
     monthName: string;
     contract: RentalContract;
+    dueDate?: string;
   } | null>(null);
 
   const [simulatedFileName, setSimulatedFileName] = useState("");
@@ -107,20 +113,126 @@ export function RentalsView() {
     notes: "",
   });
 
-  const months = [
-    { num: 1, name: "Oca" },
-    { num: 2, name: "Şub" },
-    { num: 3, name: "Mar" },
-    { num: 4, name: "Nis" },
-    { num: 5, name: "May" },
-    { num: 6, name: "Haz" },
-    { num: 7, name: "Tem" },
-    { num: 8, name: "Ağu" },
-    { num: 9, name: "Eyl" },
-    { num: 10, name: "Eki" },
-    { num: 11, name: "Kas" },
-    { num: 12, name: "Ara" },
+  // Sözleşme süresi hesaplama yardımcıları
+  const addMonthsToDate = (startDateStr: string, monthsToAdd: number): string => {
+    if (!startDateStr) return "";
+    const [y, m, d] = startDateStr.split("-").map(Number);
+    const date = new Date(y, m - 1, d || 1);
+    date.setMonth(date.getMonth() + monthsToAdd);
+    date.setDate(date.getDate() - 1);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDurationInMonths = (startStr?: string, endStr?: string): number => {
+    if (!startStr || !endStr) return 0;
+    const [y1, m1] = startStr.split("-").map(Number);
+    const [y2, m2] = endStr.split("-").map(Number);
+    if (!y1 || !m1 || !y2 || !m2) return 0;
+    const count = (y2 - y1) * 12 + (m2 - m1) + 1;
+    return Math.max(count, 0);
+  };
+
+  const formatPeriodRange = (startStr?: string, endStr?: string): string => {
+    if (!startStr || !endStr) return "";
+    const [y1, m1] = startStr.split("-").map(Number);
+    const [y2, m2] = endStr.split("-").map(Number);
+    if (!y1 || !m1 || !y2 || !m2) return "";
+    const mNames = ["", "Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+    const duration = (y2 - y1) * 12 + (m2 - m1) + 1;
+    return `${duration} Ay (${mNames[m1]} '${String(y1).slice(-2)} - ${mNames[m2]} '${String(y2).slice(-2)})`;
+  };
+
+  const TURKISH_MONTHS = [
+    { num: 1, name: "Oca", full: "Ocak" },
+    { num: 2, name: "Şub", full: "Şubat" },
+    { num: 3, name: "Mar", full: "Mart" },
+    { num: 4, name: "Nis", full: "Nisan" },
+    { num: 5, name: "May", full: "Mayıs" },
+    { num: 6, name: "Haz", full: "Haziran" },
+    { num: 7, name: "Tem", full: "Temmuz" },
+    { num: 8, name: "Ağu", full: "Ağustos" },
+    { num: 9, name: "Eyl", full: "Eylül" },
+    { num: 10, name: "Eki", full: "Ekim" },
+    { num: 11, name: "Kas", full: "Kasım" },
+    { num: 12, name: "Ara", full: "Aralık" },
   ];
+
+  // Min ve Max yılları sözleşmelerden dinamik tespit et (en az 2025-2027 kapsar)
+  const timelineYears = React.useMemo(() => {
+    let minYear = 2025;
+    let maxYear = 2027;
+
+    rentals.forEach((r) => {
+      if (r.contractStart) {
+        const startY = parseInt(r.contractStart.slice(0, 4), 10);
+        if (!isNaN(startY) && startY < minYear) minYear = startY;
+      }
+      if (r.contractEnd) {
+        const endY = parseInt(r.contractEnd.slice(0, 4), 10);
+        if (!isNaN(endY) && endY > maxYear) maxYear = endY;
+      }
+    });
+
+    const years: number[] = [];
+    for (let y = minYear; y <= maxYear; y++) {
+      years.push(y);
+    }
+    return years;
+  }, [rentals]);
+
+  // Zaman çizelgesindeki tüm aylar
+  const allTimelineMonths = React.useMemo(() => {
+    const list: Array<{
+      key: string;
+      year: number;
+      month: number;
+      shortName: string;
+      fullName: string;
+      label: string;
+    }> = [];
+
+    timelineYears.forEach((year) => {
+      TURKISH_MONTHS.forEach((m) => {
+        const key = `${year}-${String(m.num).padStart(2, "0")}`;
+        list.push({
+          key,
+          year,
+          month: m.num,
+          shortName: m.name,
+          fullName: m.full,
+          label: `${m.name} '${String(year).slice(-2)}`,
+        });
+      });
+    });
+
+    return list;
+  }, [timelineYears]);
+
+  const WINDOW_SIZE = 12;
+  const maxStartIndex = Math.max(0, allTimelineMonths.length - WINDOW_SIZE);
+
+  // Başlangıç ayı varsayılanı (2026 Ocak)
+  const defaultTimelineIndex = React.useMemo(() => {
+    const idx = allTimelineMonths.findIndex(
+      (m) => m.year === 2026 && m.month === 1
+    );
+    return idx >= 0 ? Math.min(idx, maxStartIndex) : 0;
+  }, [allTimelineMonths, maxStartIndex]);
+
+  const [timelineStartIndex, setTimelineStartIndex] = useState<number>(defaultTimelineIndex);
+  const [showAllMonths, setShowAllMonths] = useState<boolean>(false);
+
+  // Default timeline sync
+  useEffect(() => {
+    setTimelineStartIndex(defaultTimelineIndex);
+  }, [defaultTimelineIndex]);
+
+  const displayedMonths = showAllMonths
+    ? allTimelineMonths
+    : allTimelineMonths.slice(timelineStartIndex, timelineStartIndex + WINDOW_SIZE);
 
   // Silme Onay Modalı State
   const [rentalToDelete, setRentalToDelete] = useState<RentalContract | null>(null);
@@ -165,21 +277,6 @@ export function RentalsView() {
     const newCurrency = editRentalForm.currency;
     const newDueDay = Number(editRentalForm.dueDay) || editingRental.dueDay;
 
-    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-
-    const updatedPayments = editingRental.payments.map((p) => {
-      const maxDay = daysInMonths[p.month - 1];
-      const adjDay = Math.min(newDueDay, maxDay);
-      const mStr = p.month < 10 ? `0${p.month}` : `${p.month}`;
-      const dStr = adjDay < 10 ? `0${adjDay}` : `${adjDay}`;
-      const updatedDueDate = `2026-${mStr}-${dStr}`;
-
-      if (p.status === "unpaid") {
-        return { ...p, amount: newRent, currency: newCurrency, dueDate: updatedDueDate };
-      }
-      return { ...p, dueDate: updatedDueDate };
-    });
-
     updateRentalContract(editingRental.id, {
       monthlyRent: newRent,
       currency: newCurrency,
@@ -192,7 +289,6 @@ export function RentalsView() {
       contractEnd: editRentalForm.contractEnd,
       depositAmount: Number(editRentalForm.depositAmount) || 0,
       notes: editRentalForm.notes,
-      payments: updatedPayments,
     });
     setEditingRental(null);
   };
@@ -223,57 +319,54 @@ export function RentalsView() {
     editingRental,
   ]);
 
-  // Vade Günü Hesaplayıcı (28, 29, 30, 31 ay sonuna kaydırma)
-  const calculateDueDateForMonth = (dueDay: number, monthIndex: number) => {
-    const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    const maxDay = daysInMonths[monthIndex - 1];
-    const adjustedDay = Math.min(dueDay, maxDay);
-    return `${adjustedDay} ${months[monthIndex - 1].name}`;
-  };
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
 
   // Yalnızca kira tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
   const getRentalReminderStatus = (r: RentalContract) => {
     const now = currentDate || new Date();
     const currentMonthNum = now.getMonth() + 1; // 1-12
+    const currentYearNum = now.getFullYear();
+    const currentPeriodKey = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}`;
     const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Bu aya ait ödemeyi kontrol et
-    const currentMonthPayment = r.payments?.find((p) => p.month === currentMonthNum);
+    // Bu aya ait aktif ödemeyi bul
+    const currentPayment = r.payments?.find(
+      (p) =>
+        p.periodKey === currentPeriodKey ||
+        (p.dueDate && p.dueDate.startsWith(currentPeriodKey)) ||
+        (p.month === currentMonthNum && (!p.year || p.year === currentYearNum))
+    );
 
-    // Bu ayın ödemesi zaten yapıldıysa hatırlatma gerekmez
-    if (currentMonthPayment?.status === "paid") {
+    // Bu ay ödemesi yapıldıysa veya bu ayda taksit yoksa hatırlatma gerekmez
+    if (!currentPayment || currentPayment.status === "paid") {
       return null;
     }
 
-    // Vade tarihini hesapla
-    let dueDateStr = currentMonthPayment?.dueDate;
+    let dueDateStr = currentPayment.dueDate;
     if (!dueDateStr) {
-      const daysInCurrentMonth = new Date(now.getFullYear(), currentMonthNum, 0).getDate();
+      const daysInCurrentMonth = new Date(currentYearNum, currentMonthNum, 0).getDate();
       const adjustedDay = Math.min(r.dueDay, daysInCurrentMonth);
-      dueDateStr = `${now.getFullYear()}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+      dueDateStr = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
     }
 
     const [y, m, d] = dueDateStr.split("-").map(Number);
     const dueDate = new Date(y, m - 1, d);
     const diffDays = Math.ceil((dueDate.getTime() - todayDateOnly.getTime()) / (1000 * 3600 * 24));
 
-    // Kural: Yalnızca kira tarihine 3 gün veya daha az kala belirsin (diffDays <= 3)
     if (diffDays <= 3) {
       return {
         diffDays,
-        isOverdue: diffDays < 0,
+        isOverdue: diffDays < 0 || currentPayment.status === "overdue",
         dueDateStr,
       };
     }
 
     return null;
   };
-
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setCurrentDate(new Date());
-  }, []);
 
   // Mülk seçildiğinde alanları doldur
   const handleSelectProperty = (propId: string) => {
@@ -584,7 +677,125 @@ export function RentalsView() {
         </div>
       </div>
 
-      {/* 12 Aylık Yıllık Matris Tablosu VEYA Boş Durum */}
+      {/* ZAMAN ÇİZELGESİ & YATAY SLİDER KONTROL PANELİ */}
+      {rentals.length > 0 && (
+        <div className="sharp-card p-3 bg-white border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs shadow-2xs">
+          {/* Sol: Gösterilen Dönem & Hızlı Ay Atlama */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 font-mono text-[11px] font-bold text-[#1d2566]">
+              <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+              <span>
+                {showAllMonths
+                  ? `Tüm Zamanlar (${allTimelineMonths.length} Ay — ${timelineYears[0]} - ${timelineYears[timelineYears.length - 1]})`
+                  : displayedMonths.length > 0
+                  ? `${displayedMonths[0].fullName} ${displayedMonths[0].year} — ${displayedMonths[displayedMonths.length - 1].fullName} ${displayedMonths[displayedMonths.length - 1].year} (12 Ay)`
+                  : ""}
+              </span>
+            </div>
+
+            {/* Önceki / Sonraki Ay Butonları */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                disabled={showAllMonths || timelineStartIndex <= 0}
+                onClick={() => setTimelineStartIndex((prev) => Math.max(0, prev - 1))}
+                className="px-2 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition"
+                title="1 Ay Geri Kaydır"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Önceki</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={showAllMonths || timelineStartIndex >= maxStartIndex}
+                onClick={() => setTimelineStartIndex((prev) => Math.min(maxStartIndex, prev + 1))}
+                className="px-2 py-1 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:hover:bg-white border border-slate-300 text-slate-700 font-mono text-[11px] font-bold flex items-center gap-0.5 cursor-pointer transition"
+                title="1 Ay İleri Kaydır"
+              >
+                <span>Sonraki</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Orta: Zaman Çizelgesi Slider Barı */}
+          {!showAllMonths && maxStartIndex > 0 && (
+            <div className="flex items-center gap-2 flex-1 w-full max-w-xs md:mx-4">
+              <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">
+                {allTimelineMonths[0]?.shortName} {`'${String(allTimelineMonths[0]?.year).slice(-2)}`}
+              </span>
+              <div className="flex-1 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#00adb5] shrink-0" />
+                <input
+                  type="range"
+                  min={0}
+                  max={maxStartIndex}
+                  value={timelineStartIndex}
+                  onChange={(e) => {
+                    setShowAllMonths(false);
+                    setTimelineStartIndex(Number(e.target.value));
+                  }}
+                  className="w-full accent-[#00adb5] h-1.5 bg-slate-200 rounded-none cursor-pointer"
+                  title="Zaman Çizelgesini Aylara Göre İleri/Geri Kaydır"
+                />
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 font-bold shrink-0">
+                {allTimelineMonths[allTimelineMonths.length - 1]?.shortName} {`'${String(allTimelineMonths[allTimelineMonths.length - 1]?.year).slice(-2)}`}
+              </span>
+            </div>
+          )}
+
+          {/* Sağ: Yıl Atlama Butonları & Tümünü Göster */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-mono text-slate-400 font-bold hidden sm:inline">
+              Hızlı Yıl:
+            </span>
+            {timelineYears.map((year) => {
+              const isYearActive =
+                !showAllMonths &&
+                displayedMonths.some((m) => m.year === year && m.month === 6);
+              return (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => {
+                    setShowAllMonths(false);
+                    const idx = allTimelineMonths.findIndex(
+                      (m) => m.year === year && m.month === 1
+                    );
+                    if (idx >= 0) {
+                      setTimelineStartIndex(Math.min(idx, maxStartIndex));
+                    }
+                  }}
+                  className={`px-2 py-0.5 text-[11px] font-mono font-bold border transition cursor-pointer ${
+                    isYearActive
+                      ? "bg-[#1d2566] text-white border-[#1d2566]"
+                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
+                  }`}
+                >
+                  {year}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setShowAllMonths(!showAllMonths)}
+              className={`px-2 py-0.5 text-[11px] font-mono font-bold border transition cursor-pointer ${
+                showAllMonths
+                  ? "bg-[#00adb5] text-white border-[#00adb5]"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300"
+              }`}
+              title="Tüm ayları tek ekranda görmek için tıkla"
+            >
+              {showAllMonths ? "12 Aylık Slider" : "Tümünü Göster"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Yıllık Matris Tablosu VEYA Boş Durum */}
       {rentals.length === 0 ? (
         <div className="sharp-card p-12 text-center border border-dashed border-slate-300 bg-slate-50/50 space-y-3">
           <KeyRound className="w-10 h-10 text-slate-400 mx-auto" />
@@ -604,27 +815,51 @@ export function RentalsView() {
           </button>
         </div>
       ) : (
-        <div className="sharp-card overflow-x-auto">
+        <div className="sharp-card overflow-x-auto relative">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                <th className="py-3 px-4 min-w-[240px]">Mülk & Kiracı / Vade Günü</th>
-                <th className="py-3 px-3 text-right">Aylık Kira</th>
-                {months.map((m) => (
-                  <th key={m.num} className="py-3 px-2 text-center min-w-[70px]">
-                    {m.name}
-                  </th>
-                ))}
-                <th className="py-3 px-2 text-center min-w-[50px]">İşlem</th>
+                <th className="py-3 px-4 min-w-[270px] sticky left-0 bg-slate-50 z-20 shadow-[1px_0_0_0_#e2e8f0]">
+                  Mülk & Kiracı / Vade Günü
+                </th>
+                <th className="py-3 px-3 text-right sticky left-[270px] bg-slate-50 z-20 shadow-[1px_0_0_0_#e2e8f0] min-w-[95px]">
+                  Aylık Kira
+                </th>
+                {displayedMonths.map((m) => {
+                  const isCurrentRealMonth =
+                    currentDate &&
+                    currentDate.getFullYear() === m.year &&
+                    currentDate.getMonth() + 1 === m.month;
+
+                  return (
+                    <th
+                      key={m.key}
+                      className={`py-2 px-1 text-center min-w-[72px] transition ${
+                        isCurrentRealMonth
+                          ? "bg-cyan-50/80 text-[#00adb5] border-b-2 border-[#00adb5]"
+                          : ""
+                      }`}
+                    >
+                      <div className="text-[11px] leading-tight font-bold">{m.shortName}</div>
+                      <div className="text-[9px] font-mono opacity-60">{`'${String(m.year).slice(-2)}`}</div>
+                    </th>
+                  );
+                })}
+                <th className="py-3 px-2 text-center min-w-[50px] sticky right-0 bg-slate-50 z-20 shadow-[-1px_0_0_0_#e2e8f0]">
+                  İşlem
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rentals.map((r) => {
                 const reminderStatus = getRentalReminderStatus(r);
+                const startPeriodKey = r.contractStart ? r.contractStart.slice(0, 7) : "";
+                const endPeriodKey = r.contractEnd ? r.contractEnd.slice(0, 7) : "";
+
                 return (
-                  <tr key={r.id} className="hover:bg-slate-50/80 transition">
-                    {/* Mülk & Kiracı Bilgisi */}
-                    <td className="py-3 px-4">
+                  <tr key={r.id} className="group hover:bg-slate-50/80 transition">
+                    {/* Mülk & Kiracı Bilgisi (Sticky Sol) */}
+                    <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[1px_0_0_0_#f1f5f9]">
                       <div className="font-bold text-[#1d2566] flex items-center gap-2 flex-wrap">
                         <span>{r.propertyTitle}</span>
                         {isBroker && r.assignedToName && (
@@ -642,10 +877,14 @@ export function RentalsView() {
                           📅 Her ayın {r.dueDay}. günü
                         </span>
                         <span>•</span>
-                        <span className="text-slate-400 font-mono text-[10px]">
-                          Ev Sahibi: {r.landlordName}
+                        <span className="px-1.5 py-0.2 bg-slate-100 text-slate-700 font-mono text-[10px] font-bold border border-slate-200" title="Sözleşme Süresi">
+                          {formatPeriodRange(r.contractStart, r.contractEnd)}
                         </span>
                       </div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        Ev Sahibi: {r.landlordName} {r.landlordPhone && r.landlordPhone !== "-" ? `(${r.landlordPhone})` : ""}
+                      </div>
+
                       {reminderStatus ? (
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <button
@@ -685,31 +924,59 @@ export function RentalsView() {
                       )}
                     </td>
 
-
-                    {/* Aylık Kira Tutarı */}
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap">
+                    {/* Aylık Kira Tutarı (Sticky Sol 2) */}
+                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[270px] bg-white group-hover:bg-slate-50/90 z-10 shadow-[1px_0_0_0_#f1f5f9]">
                       {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
                     </td>
 
-                    {/* 12 Ay Hücreleri */}
-                    {months.map((m) => {
-                      const payment = r.payments.find((p) => p.month === m.num);
+                    {/* Dinamik Zaman Çizelgesi Hücreleri (Sözleşme süresine sadık kutular) */}
+                    {displayedMonths.map((m) => {
+                      const isContractMonth =
+                        Boolean(startPeriodKey && endPeriodKey) &&
+                        m.key >= startPeriodKey &&
+                        m.key <= endPeriodKey;
+
+                      // Sözleşme dışındaki aylar için boş pasif kutu (—)
+                      if (!isContractMonth) {
+                        return (
+                          <td key={m.key} className="py-2 px-1 text-center bg-slate-50/30">
+                            <div
+                              className="h-10 flex items-center justify-center text-slate-300 font-mono text-sm select-none border border-transparent"
+                              title={`${r.propertyTitle} — Bu ay (${m.fullName} ${m.year}) sözleşme kapsamında değil`}
+                            >
+                              —
+                            </div>
+                          </td>
+                        );
+                      }
+
+                      // Sözleşme kapsamındaki aktif ay
+                      const payment = r.payments?.find(
+                        (p) =>
+                          p.periodKey === m.key ||
+                          (p.dueDate && p.dueDate.startsWith(m.key)) ||
+                          (p.month === m.month && (p.year ? p.year === m.year : m.year === 2026))
+                      );
+
                       const isPaid = payment?.status === "paid";
                       const isOverdue = payment?.status === "overdue";
+                      const daysInMonth = new Date(m.year, m.month, 0).getDate();
+                      const adjustedDay = Math.min(r.dueDay, daysInMonth);
+                      const dueDayLabel = `${adjustedDay} ${m.shortName}`;
 
                       return (
-                        <td key={m.num} className="py-2 px-1 text-center">
+                        <td key={m.key} className="py-2 px-1 text-center">
                           <div
                             className={`p-1 border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                               isPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
                                 : isOverdue
-                                ? "bg-rose-50 border-rose-300 text-rose-800 font-semibold"
-                                : "bg-slate-50 border-slate-200 text-slate-400"
+                                ? "bg-rose-50 border-rose-300 text-rose-800 font-semibold shadow-xs"
+                                : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                             }`}
                           >
                             <div className="text-[10px] font-mono leading-none">
-                              {calculateDueDateForMonth(r.dueDay, m.num)}
+                              {dueDayLabel}
                             </div>
 
                             {/* Ödeme Durumu & Buton */}
@@ -720,32 +987,37 @@ export function RentalsView() {
                                 onChange={(e) => {
                                   toggleRentalPayment(
                                     r.id,
-                                    m.num,
-                                    e.target.checked
+                                    m.key,
+                                    e.target.checked,
+                                    payment?.dueDate
                                   );
                                 }}
                                 title={
                                   isPaid
-                                    ? "Ödendi olarak işaretli"
-                                    : "Ödendi olarak işaretle"
+                                    ? `${m.fullName} ${m.year}: Ödendi olarak işaretli (Tıkla ve kaldır)`
+                                    : `${m.fullName} ${m.year}: Ödendi olarak işaretle`
                                 }
                                 className="w-3.5 h-3.5 accent-emerald-600 rounded-none cursor-pointer"
                               />
 
                               {/* Dekont Butonu */}
                               <button
+                                type="button"
                                 onClick={() =>
                                   setActiveReceiptModal({
                                     rentalId: r.id,
-                                    month: m.num,
-                                    monthName: m.name,
+                                    month: m.month,
+                                    year: m.year,
+                                    periodKey: m.key,
+                                    monthName: `${m.fullName} ${m.year}`,
                                     contract: r,
+                                    dueDate: payment?.dueDate,
                                   })
                                 }
                                 title={
                                   payment?.receiptName
                                     ? `Dekont: ${payment.receiptName}`
-                                    : "Dekont Yükle"
+                                    : `${m.fullName} ${m.year} Dekontu Yükle`
                                 }
                                 className={`p-0.5 cursor-pointer hover:text-[#1d2566] transition ${
                                   payment?.receiptName
@@ -761,8 +1033,8 @@ export function RentalsView() {
                       );
                     })}
 
-                    {/* İşlem Aksiyonları (Düzenle & Sil) */}
-                    <td className="py-2 px-2 text-center">
+                    {/* İşlem Aksiyonları (Düzenle & Sil) (Sticky Sağ) */}
+                    <td className="py-2 px-2 text-center sticky right-0 bg-white group-hover:bg-slate-50/90 z-10 shadow-[-1px_0_0_0_#f1f5f9]">
                       <ActionMenu
                         onEdit={() => handleOpenEditRental(r)}
                         onDelete={() => setRentalToDelete(r)}
@@ -1096,10 +1368,37 @@ export function RentalsView() {
 
               {/* 4. SÖZLEŞME GEÇERLİLİK DÖNEMİ VE DANIŞMAN */}
               <div className="space-y-2 pb-3 border-b border-slate-100">
-                <div className="text-[11px] font-mono uppercase font-bold text-[#1d2566] flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
-                  <span>4. Sözleşme Süresi (Yıllık Dönem) & Danışman</span>
+                <div className="text-[11px] font-mono uppercase font-bold text-[#1d2566] flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
+                    <span>4. Sözleşme Süresi (Yıllık Dönem) & Danışman</span>
+                  </div>
+                  {/* Hızlı Süre Önayarları */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold">Hızlı Süre:</span>
+                    {[
+                      { label: "+3 Ay", months: 3 },
+                      { label: "+6 Ay", months: 6 },
+                      { label: "+1 Yıl", months: 12 },
+                      { label: "+2 Yıl", months: 24 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.months}
+                        type="button"
+                        onClick={() => {
+                          const start = formData.contractStart || "2026-01-01";
+                          const newEnd = addMonthsToDate(start, preset.months);
+                          setFormData((prev) => ({ ...prev, contractEnd: newEnd }));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 hover:bg-[#00adb5] hover:text-white border border-slate-300 transition cursor-pointer"
+                        title={`${preset.months} aylık süre uygula`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1129,32 +1428,45 @@ export function RentalsView() {
                     />
                   </div>
 
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Sorumlu Danışman
-                  </label>
-                  {isBroker ? (
-                    <select
-                      value={formData.assignedToId}
-                      onChange={(e) =>
-                        setFormData({ ...formData, assignedToId: e.target.value })
-                      }
-                      className="sharp-input w-full p-2 text-xs bg-white font-medium"
-                    >
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({u.role === "ADMIN" ? "Ofis" : "Danışman"})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="p-2 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
-                      {currentUser.name} (Şahsi Portföy)
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Sorumlu Danışman
+                    </label>
+                    {isBroker ? (
+                      <select
+                        value={formData.assignedToId}
+                        onChange={(e) =>
+                          setFormData({ ...formData, assignedToId: e.target.value })
+                        }
+                        className="sharp-input w-full p-2 text-xs bg-white font-medium"
+                      >
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.role === "ADMIN" ? "Ofis" : "Danışman"})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="p-2 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
+                        {currentUser.name} (Şahsi Portföy)
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Dinamik Süre ve Matris Kutu Bilgisi */}
+                {formData.contractStart && formData.contractEnd && (
+                  <div className="text-[11px] font-mono text-[#00adb5] font-bold flex items-center gap-1.5 bg-cyan-50/70 p-2 border border-cyan-200">
+                    <span>⏱️ Seçilen Sözleşme Süresi:</span>
+                    <span className="px-1.5 py-0.2 bg-white border border-cyan-300 text-[#1d2566] font-bold">
+                      {getDurationInMonths(formData.contractStart, formData.contractEnd)} Ay ({getDurationInMonths(formData.contractStart, formData.contractEnd)} Taksit Matrise Yerleşecek)
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      ({formData.contractStart} — {formData.contractEnd})
+                    </span>
+                  </div>
+                )}
               </div>
-            </div>
 
               {/* 5. NOTLAR */}
               <div>
@@ -1579,12 +1891,13 @@ export function RentalsView() {
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#00adb5]" />
                 <h3 className="text-xs font-bold text-[#1d2566]">
-                  Kira Dekont Defteri — {activeReceiptModal.monthName} 2026
+                  Kira Dekont Defteri — {activeReceiptModal.monthName}
                 </h3>
               </div>
               <button
+                type="button"
                 onClick={() => setActiveReceiptModal(null)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1599,11 +1912,19 @@ export function RentalsView() {
                   {activeReceiptModal.contract.monthlyRent.toLocaleString("tr-TR")}{" "}
                   {activeReceiptModal.contract.currency}
                 </div>
+                {activeReceiptModal.dueDate && (
+                  <div className="text-slate-500 text-[10px]">
+                    Vade Tarihi: {activeReceiptModal.dueDate}
+                  </div>
+                )}
               </div>
 
               {/* Yüklü Dekont Durumu */}
               {activeReceiptModal.contract.payments.find(
-                (p) => p.month === activeReceiptModal.month
+                (p) =>
+                  p.periodKey === activeReceiptModal.periodKey ||
+                  (activeReceiptModal.dueDate && p.dueDate === activeReceiptModal.dueDate) ||
+                  (p.month === activeReceiptModal.month && (!p.year || p.year === activeReceiptModal.year))
               )?.receiptName ? (
                 <div className="p-3 bg-emerald-50 border border-emerald-300 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1612,7 +1933,10 @@ export function RentalsView() {
                       <div className="font-mono text-emerald-950 font-bold">
                         {
                           activeReceiptModal.contract.payments.find(
-                            (p) => p.month === activeReceiptModal.month
+                            (p) =>
+                              p.periodKey === activeReceiptModal.periodKey ||
+                              (activeReceiptModal.dueDate && p.dueDate === activeReceiptModal.dueDate) ||
+                              (p.month === activeReceiptModal.month && (!p.year || p.year === activeReceiptModal.year))
                           )?.receiptName
                         }
                       </div>
@@ -1647,24 +1971,27 @@ export function RentalsView() {
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
+                  type="button"
                   onClick={() => setActiveReceiptModal(null)}
-                  className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900"
+                  className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
                 >
                   Kapat
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
-                    if (simulatedFileName) {
+                    if (simulatedFileName && activeReceiptModal) {
                       uploadRentalReceipt(
                         activeReceiptModal.rentalId,
-                        activeReceiptModal.month,
-                        simulatedFileName
+                        activeReceiptModal.periodKey || activeReceiptModal.month,
+                        simulatedFileName,
+                        activeReceiptModal.dueDate
                       );
                       setSimulatedFileName("");
                       setActiveReceiptModal(null);
                     }
                   }}
-                  className="sharp-btn-primary px-3.5 py-1.5 flex items-center gap-1.5 shadow-2xs"
+                  className="sharp-btn-primary px-3.5 py-1.5 flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Upload className="w-3 h-3" /> Dekontu Kaydet
                 </button>
@@ -1827,47 +2154,92 @@ export function RentalsView() {
               </div>
 
               {/* Sözleşme Geçerlilik Süresi ve Depozito */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Sözleşme Başlangıç Tarihi
-                  </label>
-                  <input
-                    type="date"
-                    value={editRentalForm.contractStart}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, contractStart: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2 font-mono"
-                  />
+              <div className="space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[11px] font-mono text-slate-700 font-bold">
+                    Sözleşme Süresi & Depozito
+                  </span>
+                  {/* Hızlı Süre Önayarları */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-mono text-slate-400 font-semibold">Hızlı Süre:</span>
+                    {[
+                      { label: "+3 Ay", months: 3 },
+                      { label: "+6 Ay", months: 6 },
+                      { label: "+1 Yıl", months: 12 },
+                      { label: "+2 Yıl", months: 24 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.months}
+                        type="button"
+                        onClick={() => {
+                          const start = editRentalForm.contractStart || "2026-01-01";
+                          const newEnd = addMonthsToDate(start, preset.months);
+                          setEditRentalForm((prev) => ({ ...prev, contractEnd: newEnd }));
+                        }}
+                        className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 hover:bg-[#00adb5] hover:text-white border border-slate-300 transition cursor-pointer"
+                        title={`${preset.months} aylık süre uygula`}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Sözleşme Bitiş Tarihi (Alarm)
-                  </label>
-                  <input
-                    type="date"
-                    value={editRentalForm.contractEnd}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, contractEnd: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2 font-mono"
-                  />
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
+                      Sözleşme Başlangıç Tarihi
+                    </label>
+                    <input
+                      type="date"
+                      value={editRentalForm.contractStart}
+                      onChange={(e) =>
+                        setEditRentalForm((prev) => ({ ...prev, contractStart: e.target.value }))
+                      }
+                      className="sharp-input w-full p-2 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
+                      Sözleşme Bitiş Tarihi (Alarm)
+                    </label>
+                    <input
+                      type="date"
+                      value={editRentalForm.contractEnd}
+                      onChange={(e) =>
+                        setEditRentalForm((prev) => ({ ...prev, contractEnd: e.target.value }))
+                      }
+                      className="sharp-input w-full p-2 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
+                      Depozito Tutarı
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editRentalForm.depositAmount}
+                      onChange={(e) =>
+                        setEditRentalForm((prev) => ({ ...prev, depositAmount: e.target.value }))
+                      }
+                      className="sharp-input w-full p-2 font-mono"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Depozito Tutarı
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={editRentalForm.depositAmount}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, depositAmount: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2 font-mono"
-                  />
-                </div>
+
+                {/* Dinamik Süre ve Matris Kutu Bilgisi */}
+                {editRentalForm.contractStart && editRentalForm.contractEnd && (
+                  <div className="text-[11px] font-mono text-[#00adb5] font-bold flex items-center gap-1.5 bg-cyan-50/70 p-2 border border-cyan-200">
+                    <span>⏱️ Seçilen Sözleşme Süresi:</span>
+                    <span className="px-1.5 py-0.2 bg-white border border-cyan-300 text-[#1d2566] font-bold">
+                      {getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Ay ({getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Taksit Matrise Yerleşecek)
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      ({editRentalForm.contractStart} — {editRentalForm.contractEnd})
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Notlar */}

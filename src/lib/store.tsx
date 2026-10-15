@@ -13,6 +13,7 @@ import {
   WorkflowNotification,
   AutomationRule,
   MandateContract,
+  Currency,
 } from "./types";
 import {
   initialUsers,
@@ -89,8 +90,8 @@ interface StoreContextType {
   addRentalContract: (contract: Omit<RentalContract, "id" | "createdAt" | "payments"> & { payments?: RentalMonthPayment[] }) => RentalContract;
   updateRentalContract: (id: string, updates: Partial<RentalContract>) => boolean;
   deleteRentalContract: (id: string) => boolean;
-  toggleRentalPayment: (rentalId: string, month: number, isPaid: boolean) => void;
-  uploadRentalReceipt: (rentalId: string, month: number, fileName: string) => void;
+  toggleRentalPayment: (rentalId: string, monthOrPeriodKey: number | string, isPaid: boolean, dueDate?: string) => void;
+  uploadRentalReceipt: (rentalId: string, monthOrPeriodKey: number | string, fileName: string, dueDate?: string) => void;
   // Permissions & Role
   canManageCustomer: (customer: Customer) => boolean;
   canManageProperty: (property: Property) => boolean;
@@ -878,7 +879,87 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  // Rentals
+  /**
+   * Sözleşme başlangıç ve bitiş tarihlerine tam sadık kalarak
+   * ilgili aylar için ödeme taksitleri üretir (3 ay ise 3, 6 ay ise 6 taksit).
+   */
+  const generateRentalPayments = (
+    contractStart: string,
+    contractEnd: string,
+    dueDay: number,
+    monthlyRent: number,
+    currency: Currency,
+    existingPayments?: RentalMonthPayment[]
+  ): RentalMonthPayment[] => {
+    const startDate = new Date(contractStart || "2026-01-01");
+    const endDate = new Date(contractEnd || "2026-12-31");
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const payments: RentalMonthPayment[] = [];
+
+    let currentYear = startDate.getFullYear();
+    let currentMonth = startDate.getMonth() + 1; // 1-12
+
+    const endYear = endDate.getFullYear();
+    const endMonth = endDate.getMonth() + 1; // 1-12
+
+    while (
+      currentYear < endYear ||
+      (currentYear === endYear && currentMonth <= endMonth)
+    ) {
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const adjDay = Math.min(Math.max(dueDay, 1), daysInMonth);
+      const mStr = String(currentMonth).padStart(2, "0");
+      const dStr = String(adjDay).padStart(2, "0");
+      const dueDate = `${currentYear}-${mStr}-${dStr}`;
+      const periodKey = `${currentYear}-${mStr}`;
+
+      const existing = existingPayments?.find(
+        (p) =>
+          p.periodKey === periodKey ||
+          p.dueDate === dueDate ||
+          (p.dueDate && p.dueDate.startsWith(periodKey)) ||
+          (existingPayments && existingPayments.length <= 12 && p.month === currentMonth && !p.year && String(currentYear) === "2026")
+      );
+
+      if (existing) {
+        payments.push({
+          ...existing,
+          month: currentMonth,
+          year: currentYear,
+          periodKey,
+          amount: existing.amount || monthlyRent,
+          currency: existing.currency || currency,
+          dueDate,
+        });
+      } else {
+        const isOverdue = dueDate < todayStr;
+        payments.push({
+          month: currentMonth,
+          year: currentYear,
+          periodKey,
+          amount: monthlyRent,
+          currency,
+          dueDate,
+          status: isOverdue ? "overdue" : "unpaid",
+          paidAmount: 0,
+        });
+      }
+
+      currentMonth++;
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+
+      if (payments.length > 120) break;
+    }
+
+    return payments;
+  };
+
+  // Rentals & Dinamik Taksit Motoru
   const addRentalContract = (
     contractData: Omit<RentalContract, "id" | "createdAt" | "payments"> & { payments?: RentalMonthPayment[] }
   ): RentalContract => {
@@ -889,21 +970,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const finalAssignedToId = isBroker ? (contractData.assignedToId || currentUser.id) : currentUser.id;
     const finalAssignedToName = isBroker ? (assignedUser.name || currentUser.name) : currentUser.name;
 
-    const payments: RentalMonthPayment[] = contractData.payments || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => {
-      const daysInMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-      const maxDay = daysInMonths[m - 1];
-      const adjDay = Math.min(contractData.dueDay || 5, maxDay);
-      const mStr = m < 10 ? `0${m}` : `${m}`;
-      const dStr = adjDay < 10 ? `0${adjDay}` : `${adjDay}`;
-      return {
-        month: m,
-        amount: contractData.monthlyRent,
-        currency: contractData.currency,
-        dueDate: `2026-${mStr}-${dStr}`,
-        status: "unpaid" as const,
-        paidAmount: 0,
-      };
-    });
+    const payments: RentalMonthPayment[] =
+      contractData.payments && contractData.payments.length > 0
+        ? contractData.payments
+        : generateRentalPayments(
+            contractData.contractStart || "2026-01-01",
+            contractData.contractEnd || "2026-12-31",
+            contractData.dueDay || 5,
+            contractData.monthlyRent,
+            contractData.currency
+          );
 
     const newContract: RentalContract = {
       ...contractData,
@@ -925,8 +1001,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu kira sözleşmesi size ait değildir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+
+    const updatedContractStart = updates.contractStart ?? rental.contractStart;
+    const updatedContractEnd = updates.contractEnd ?? rental.contractEnd;
+    const updatedDueDay = updates.dueDay ?? rental.dueDay;
+    const updatedMonthlyRent = updates.monthlyRent ?? rental.monthlyRent;
+    const updatedCurrency = updates.currency ?? rental.currency;
+
+    const shouldRegenerate =
+      updates.contractStart !== undefined ||
+      updates.contractEnd !== undefined ||
+      updates.dueDay !== undefined ||
+      updates.monthlyRent !== undefined ||
+      updates.currency !== undefined;
+
+    const newPayments =
+      shouldRegenerate && !updates.payments
+        ? generateRentalPayments(
+            updatedContractStart,
+            updatedContractEnd,
+            updatedDueDay,
+            updatedMonthlyRent,
+            updatedCurrency,
+            rental.payments
+          )
+        : (updates.payments ?? rental.payments);
+
     setRentals((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...updates } : r))
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              ...updates,
+              payments: newPayments,
+            }
+          : r
+      )
     );
     return true;
   };
@@ -944,8 +1054,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const toggleRentalPayment = (
     rentalId: string,
-    month: number,
-    isPaid: boolean
+    monthOrPeriodKey: number | string,
+    isPaid: boolean,
+    dueDate?: string
   ) => {
     setRentals((prev) =>
       prev.map((r) => {
@@ -954,7 +1065,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return {
           ...r,
           payments: r.payments.map((p) => {
-            if (p.month !== month) return p;
+            const matches =
+              typeof monthOrPeriodKey === "string"
+                ? p.periodKey === monthOrPeriodKey || p.dueDate === monthOrPeriodKey || (p.dueDate && p.dueDate.startsWith(monthOrPeriodKey))
+                : dueDate
+                ? p.dueDate === dueDate || p.month === monthOrPeriodKey
+                : p.month === monthOrPeriodKey;
+
+            if (!matches) return p;
             if (isPaid) {
               return {
                 ...p,
@@ -977,8 +1095,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const uploadRentalReceipt = (
     rentalId: string,
-    month: number,
-    fileName: string
+    monthOrPeriodKey: number | string,
+    fileName: string,
+    dueDate?: string
   ) => {
     setRentals((prev) =>
       prev.map((r) => {
@@ -986,15 +1105,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (!isBroker && r.assignedToId !== currentUser.id) return r;
         return {
           ...r,
-          payments: r.payments.map((p) =>
-            p.month === month
-              ? {
-                  ...p,
-                  receiptName: fileName,
-                  receiptUrl: `https://fake-supabase-storage.co/receipts/${fileName}`,
-                }
-              : p
-          ),
+          payments: r.payments.map((p) => {
+            const matches =
+              typeof monthOrPeriodKey === "string"
+                ? p.periodKey === monthOrPeriodKey || p.dueDate === monthOrPeriodKey || (p.dueDate && p.dueDate.startsWith(monthOrPeriodKey))
+                : dueDate
+                ? p.dueDate === dueDate || p.month === monthOrPeriodKey
+                : p.month === monthOrPeriodKey;
+            if (!matches) return p;
+            return {
+              ...p,
+              receiptName: fileName,
+              receiptUrl: `https://fake-supabase-storage.co/receipts/${fileName}`,
+            };
+          }),
         };
       })
     );

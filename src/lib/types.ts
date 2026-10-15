@@ -182,6 +182,8 @@ export interface Deal {
 
 export interface RentalMonthPayment {
   month: number; // 1-12
+  year?: number; // Yıl (örn: 2026, 2027)
+  periodKey?: string; // YYYY-MM
   amount: number;
   currency: Currency;
   dueDate: string; // YYYY-MM-DD

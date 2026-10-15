@@ -7,7 +7,6 @@ import {
   Users,
   Building,
   Sparkles,
-  Kanban,
   CalendarDays,
   Calendar,
   KeyRound,
@@ -29,7 +28,6 @@ export type NavTab =
   | "customers"
   | "properties"
   | "matchmaker"
-  | "pipeline"
   | "rentals"
   | "mandates"
   | "finance"
@@ -93,14 +91,6 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       label: "Yetki Takip",
       icon: FileCheck,
       badge: mandates.length,
-      brokerOnly: false,
-    },
-
-    {
-      id: "pipeline" as NavTab,
-      label: "Satış Süreci",
-      icon: Kanban,
-      badge: deals.length,
       brokerOnly: false,
     },
     {

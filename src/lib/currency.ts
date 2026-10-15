@@ -58,7 +58,7 @@ export async function updateLiveExchangeRates(): Promise<ExchangeRates> {
       if (cached) {
         try {
           currentRates = JSON.parse(cached);
-        } catch {}
+        } catch { }
       }
     }
   }
@@ -82,7 +82,7 @@ export function getCurrentExchangeRates(): {
       try {
         currentRates = JSON.parse(cached);
         if (cachedTime) lastFetchTime = Number(cachedTime);
-      } catch {}
+      } catch { }
     }
   }
 

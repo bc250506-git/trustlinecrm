@@ -105,9 +105,9 @@ export function MandatesView() {
   const filteredMandates = useMemo(() => {
     return mandates.filter((m) => {
       const days = calculateDaysRemaining(m.endDate);
-      const isExpiring = days > 0 && days <= 30;
+      const isExpiring = days > 0 && days <= 60;
       const isExpired = days <= 0;
-      const isActive = days > 30;
+      const isActive = days > 60;
 
       if (filterStatus === "active" && !isActive) return false;
       if (filterStatus === "expiring" && !isExpiring) return false;
@@ -133,7 +133,7 @@ export function MandatesView() {
   const exclusiveCount = mandates.filter((m) => m.mandateType === "exclusive").length;
   const expiringCount = mandates.filter((m) => {
     const days = calculateDaysRemaining(m.endDate);
-    return days > 0 && days <= 30;
+    return days > 0 && days <= 60;
   }).length;
   const expiredCount = mandates.filter((m) => calculateDaysRemaining(m.endDate) <= 0).length;
 
@@ -250,7 +250,7 @@ export function MandatesView() {
 
     const days = calculateDaysRemaining(formEndDate);
     const status: MandateContract["status"] =
-      days <= 0 ? "expired" : days <= 30 ? "expiring_soon" : "active";
+      days <= 0 ? "expired" : days <= 60 ? "expiring_soon" : "active";
 
     if (editingMandate) {
       updateMandateContract(editingMandate.id, {
@@ -398,7 +398,7 @@ export function MandatesView() {
         <div className="sharp-card p-4 border-t-3 border-t-amber-500">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-amber-900 px-2 py-0.5 bg-amber-50 border border-amber-200 uppercase">
-              Yenileme Yaklaşan (≤ 30 Gün)
+              Yenileme Yaklaşan (≤ 60 Gün)
             </span>
             <Clock className="w-4 h-4 text-amber-600" />
           </div>
@@ -524,7 +524,7 @@ export function MandatesView() {
             {filteredMandates.map((m) => {
               const daysRemaining = calculateDaysRemaining(m.endDate);
               const isExpired = daysRemaining <= 0;
-              const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
+              const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 60;
 
               return (
                 <tr key={m.id} className="hover:bg-slate-50/80 transition">

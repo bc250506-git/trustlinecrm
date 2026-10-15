@@ -144,6 +144,8 @@ export function formatAutomationCategory(category?: string): string {
       return "Müşteri / Aday Takibi";
     case "mandate":
       return "Yetki Sözleşmesi";
+    case "birthday":
+      return "Doğum Günü";
     default:
       return category;
   }

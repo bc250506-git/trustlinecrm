@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Plus,
   MapPin,
+  Cake,
 } from "lucide-react";
 
 interface AddCustomerModalProps {
@@ -34,6 +35,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
   const [formWhatsapp, setFormWhatsapp] = useState("");
   const [formInstagram, setFormInstagram] = useState("");
   const [formEmail, setFormEmail] = useState("");
+  const [formBirthDate, setFormBirthDate] = useState("");
   const [formCategory, setFormCategory] = useState<CustomerCategory>("BUYER");
   const [formTemperature, setFormTemperature] = useState<"hot" | "warm" | "cold">("warm");
   const [customerDistrict, setCustomerDistrict] = useState(KKTC_DISTRICTS[0]);
@@ -58,6 +60,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setFormWhatsapp("");
       setFormInstagram("");
       setFormEmail("");
+      setFormBirthDate("");
       setFormCategory("BUYER");
       setFormTemperature("warm");
       setCustomerDistrict(KKTC_DISTRICTS[0]);
@@ -146,6 +149,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       whatsapp: formWhatsapp || formPhone,
       instagramHandle: formInstagram || undefined,
       email: formEmail,
+      birthDate: formBirthDate || undefined,
       source: "manual",
       category: formCategory,
       temperature: formTemperature,
@@ -227,7 +231,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-slate-600 font-mono text-[11px] mb-1">
                 WhatsApp
@@ -236,7 +240,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
                 type="text"
                 value={formWhatsapp}
                 onChange={(e) => setFormWhatsapp(e.target.value)}
-                placeholder="Boşsa telefon alınır"
+                placeholder="Boşsa telefon"
                 className="sharp-input w-full p-2 font-mono"
               />
             </div>
@@ -264,6 +268,19 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
                 onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="ad@soyad.com"
                 className="sharp-input w-full p-2 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-mono text-[11px] mb-1 flex items-center gap-1 font-semibold text-[#1d2566]">
+                <Cake className="w-3 h-3 text-pink-500" />
+                <span>Doğum Tarihi (Ops.)</span>
+              </label>
+              <input
+                type="date"
+                value={formBirthDate}
+                onChange={(e) => setFormBirthDate(e.target.value)}
+                className="sharp-input w-full p-2 font-mono bg-white"
               />
             </div>
           </div>

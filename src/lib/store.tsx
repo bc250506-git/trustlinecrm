@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import {
   User,
   Customer,
@@ -65,6 +65,8 @@ interface StoreContextType {
     rentAlerts: number;
     decayAlerts: number;
     mandateAlerts: number;
+    contractAlerts?: number;
+    birthdayAlerts?: number;
   };
   // Actions
   addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "updatedAt">) => Customer;
@@ -230,6 +232,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let rentAlerts = 0;
     let decayAlerts = 0;
     let mandateAlerts = 0;
+    let contractAlerts = 0;
+    let birthdayAlerts = 0;
     const newNotifications: WorkflowNotification[] = [];
 
     const isRuleEnabled = (id: string) =>
@@ -302,13 +306,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 3. Portföy Yetki Sözleşmesi Yenileme Alarmı (Yetki Takip Masası)
+    // 3. Portföy Yetki Sözleşmesi Yenileme Alarmı (Yetki Takip Masası - 60 Gün Kuralı)
     if (isRuleEnabled("rule-mandate-renewal")) {
       mandates.forEach((m) => {
         if (m.endDate && m.status !== "cancelled") {
           const endDate = new Date(m.endDate);
           const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-          if (diffDays <= 15) {
+          if (diffDays <= 60) {
             const alreadyNotified = notifications.some(
               (n) => n.targetId === m.id && n.type === "mandate_expiring"
             );
@@ -327,7 +331,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 whatsappDraft: `Merhaba ${m.ownerName}, ${m.propertyTitle} mülkünüzün satış yetki sözleşmesi ${diffDays <= 0 ? "süresi dolmuştur" : `${diffDays} gün sonra tamamlanacaktır`}. Satış çalışmalarına hız kesmeden devam etmek ve yetki süresini uzatmak üzere görüşebilir miyiz?`,
                 read: false,
                 createdAt: "Az önce",
-                urgency: diffDays <= 5 ? "high" : "medium",
+                urgency: diffDays <= 10 ? "high" : "medium",
               });
             }
           }
@@ -335,6 +339,73 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    // 4. Kira Sözleşmesi Bitiş Alarmı (60 Gün Kuralı)
+    if (isRuleEnabled("rule-contract-expiration")) {
+      rentals.forEach((r) => {
+        if (!r.active || !r.contractEnd) return;
+        const end = new Date(r.contractEnd);
+        const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
+        if (diffDays <= 60) {
+          const alreadyNotified = notifications.some(
+            (n) => n.targetId === r.id && n.type === "contract_expiring"
+          );
+          if (!alreadyNotified) {
+            contractAlerts++;
+            newNotifications.push({
+              id: `notif-contract-${r.id}-${Date.now()}`,
+              type: "contract_expiring",
+              title: `📑 Kira Sözleşmesi Bitiş Alarmı: ${r.propertyTitle}`,
+              message: `${r.tenantName} ile yapılan kira sözleşmesinin bitişine ${
+                diffDays <= 0 ? "SÜRESİ DOLDU!" : `${diffDays} gün kaldı.`
+              } Yenileme koşullarını görüşün.`,
+              targetTab: "rentals",
+              targetId: r.id,
+              whatsappPhone: r.tenantPhone,
+              whatsappDraft: `Merhaba ${r.tenantName}, ${r.propertyTitle} mülkünüzün kira sözleşmesi ${
+                diffDays <= 0 ? "tamamlanmıştır" : `${diffDays} gün sonra sona erecektir`
+              }. Yeni dönem kira sözleşmesi yenileme koşullarını görüşmek üzere sizi ofisimize davet ediyoruz. Teşekkür ederiz.`,
+              read: false,
+              createdAt: "Az önce",
+              urgency: diffDays <= 15 ? "high" : "medium",
+            });
+          }
+        }
+      });
+    }
+
+    // 5. Müşteri Doğum Günü Kutlama Robotu
+    if (isRuleEnabled("rule-customer-birthday")) {
+      customers.forEach((c) => {
+        if (!c.birthDate) return;
+        const parts = c.birthDate.split("-");
+        if (parts.length >= 3) {
+          const bMonth = parseInt(parts[1], 10);
+          const bDay = parseInt(parts[2], 10);
+          if (now.getMonth() + 1 === bMonth && now.getDate() === bDay) {
+            const yearKey = now.getFullYear();
+            const alreadyNotified = notifications.some(
+              (n) => n.targetId === c.id && n.type === "birthday" && n.id.includes(`bday-${c.id}-${yearKey}`)
+            );
+            if (!alreadyNotified) {
+              birthdayAlerts++;
+              newNotifications.push({
+                id: `notif-bday-${c.id}-${yearKey}`,
+                type: "birthday",
+                title: `🎂 Doğum Günü: ${c.fullName}`,
+                message: `Bugün ${c.fullName} müşterinizin doğum günü! Müşteri ilişkilerini güçlendirmek için kutlama mesajı iletin.`,
+                targetTab: "customers",
+                targetId: c.id,
+                whatsappPhone: c.whatsapp || c.phone,
+                whatsappDraft: `Sayın ${c.fullName}, Trustline Gayrimenkul ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bol kazanç dolu nice mutlu yıllar dileriz. 🎂🎉`,
+                read: false,
+                createdAt: "Bugün",
+                urgency: "high",
+              });
+            }
+          }
+        }
+      });
+    }
 
     if (newNotifications.length > 0) {
       setNotifications((prev) => [...newNotifications, ...prev]);
@@ -344,8 +415,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((r) => ({ ...r, lastTriggeredAt: "Az önce çalıştırıldı" }))
     );
 
-    return { matchesFound, rentAlerts, decayAlerts, mandateAlerts };
+    return { matchesFound, rentAlerts, decayAlerts, mandateAlerts, contractAlerts, birthdayAlerts };
   };
+
+  // Otomasyon Motoru Güncel Fonksiyon Referansı (Stale Closure Önleyici)
+  const triggerRef = useRef(triggerAutomationEngine);
+  useEffect(() => {
+    triggerRef.current = triggerAutomationEngine;
+  });
+
+  // Periyodik Canlı Otomasyon ve Zaman Uyarı Robotu (Item 5)
+  // 1. Sayfa yüklendiğinde otomatik ilk tarama
+  // 2. Her 60 saniyede bir periyodik canlı re-sync
+  // 3. Sekme odaklandığında / sekme görünür olduğunda otomatik tetikleme
+  useEffect(() => {
+    const initialTimer = setTimeout(() => {
+      if (triggerRef.current) triggerRef.current();
+    }, 1200);
+
+    const intervalTimer = setInterval(() => {
+      if (triggerRef.current) triggerRef.current();
+    }, 60000);
+
+    const handleRecheck = () => {
+      if (document.visibilityState === "visible" && triggerRef.current) {
+        triggerRef.current();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleRecheck);
+    window.addEventListener("focus", handleRecheck);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+      document.removeEventListener("visibilitychange", handleRecheck);
+      window.removeEventListener("focus", handleRecheck);
+    };
+  }, []);
 
 
   // Load from localStorage if present in browser

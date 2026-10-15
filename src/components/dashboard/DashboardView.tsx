@@ -128,12 +128,12 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
       return diffDays >= 14;
     });
 
-    // Sözleşme Bitiş Alarmı (Bitişine 30 gün veya daha az kalanlar)
+    // Sözleşme Bitiş Alarmı (Bitişine 60 gün veya daha az kalanlar)
     const expiring = userRentals.filter((r) => {
       if (!r.active || !r.contractEnd) return false;
       const end = new Date(r.contractEnd);
       const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
-      return diff <= 30;
+      return diff <= 60;
     });
 
     // Kira Tahsilat / Ödeme Alarmı (Vadesi Geçenler veya Vadesine 3 Gün veya Daha Az Kalanlar)
@@ -939,7 +939,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
             </div>
           )}
 
-          {/* 2. KİRA SÖZLEŞMESİ BİTİŞ ALARMI (30 Gün Kuralı) */}
+          {/* 2. KİRA SÖZLEŞMESİ BİTİŞ ALARMI (60 Gün Kuralı) */}
           {expiringRentals.length > 0 && (
             <div className="sharp-card border-t-3 border-t-rose-500">
               <div className="p-4 border-b border-slate-200 bg-rose-50/20">
@@ -955,7 +955,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
-                  Bitişine 30 gün veya daha az kalan kira sözleşmeleri. Mülk sahibi ve kiracıyla yenileme koşullarını netleştirin.
+                  Bitişine 60 gün veya daha az kalan kira sözleşmeleri. Mülk sahibi ve kiracıyla yenileme koşullarını netleştirin.
                 </p>
               </div>
 

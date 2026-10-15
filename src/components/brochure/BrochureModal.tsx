@@ -14,6 +14,8 @@ import {
   Check,
   Copy,
   Printer,
+  FileDown,
+  MessageCircle,
   ExternalLink,
   Award,
 } from "lucide-react";
@@ -47,6 +49,32 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleShareWhatsApp = () => {
+    const brochureLink = `${window.location.origin}/brosur/${property.id}`;
+    const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım:* ${property.area} m² (${property.rooms || ""})\n\n📄 *Broşür Detayları ve Fotoğraflar için:* ${brochureLink}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+
+  const handleNativeShare = async () => {
+    const brochureLink = `${window.location.origin}/brosur/${property.id}`;
+    const shareData = {
+      title: `${property.title} - Trustline Portföy Broşürü`,
+      text: `${property.title} | ${property.price.toLocaleString("tr-TR")} ${property.currency} | ${property.region}`,
+      url: brochureLink,
+    };
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {}
+    }
+    handleCopyLink();
+  };
+
+  const handleDownloadPdf = () => {
+    window.print();
+  };
+
   React.useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -55,12 +83,12 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="sharp-card w-full max-w-3xl bg-white border border-slate-200 shadow-2xl my-8">
         {/* Güvenlik & İşlem Başlığı (Ofis Tarafı) */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+        <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <div className="flex flex-col">
               <span className="text-xs font-bold text-[#1d2566] tracking-wide">
                 Müşteri Paylaşım Broşürü (Güvenli Görünüm)
@@ -71,10 +99,51 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
+            {/* WhatsApp ile Paylaş Butonu */}
+            <button
+              onClick={handleShareWhatsApp}
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="WhatsApp ile Müşteriye Gönder"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>WhatsApp</span>
+            </button>
+
+            {/* PDF İndir / Kaydet Butonu */}
+            <button
+              onClick={handleDownloadPdf}
+              className="px-2.5 py-1 bg-[#1d2566] hover:bg-[#151b4d] text-white text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Broşürü PDF olarak bilgisayara / telefona kaydet"
+            >
+              <FileDown className="w-3.5 h-3.5 text-[#00adb5]" />
+              <span>PDF İndir</span>
+            </button>
+
+            {/* Doğrudan Yazdır Butonu */}
+            <button
+              onClick={() => window.print()}
+              className="px-2 py-1 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-mono flex items-center gap-1 transition cursor-pointer"
+              title="Yazdır"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden sm:inline">Yazdır</span>
+            </button>
+
+            {/* Cihaz Paylaşım Menüsü (Mobil / Web Share API) */}
+            <button
+              onClick={handleNativeShare}
+              className="p-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 transition cursor-pointer"
+              title="Cihaz Paylaşımı (Paylaş Menüsü)"
+            >
+              <Share2 className="w-3.5 h-3.5 text-[#00adb5]" />
+            </button>
+
+            {/* Link Kopyala */}
             <button
               onClick={handleCopyLink}
               className="px-2.5 py-1 bg-white border border-slate-300 hover:border-[#00adb5] text-xs font-mono text-slate-700 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Müşteri Broşür Bağlantısını Kopyala"
             >
               {copied ? (
                 <>
@@ -82,20 +151,15 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
                 </>
               ) : (
                 <>
-                  <Copy className="w-3.5 h-3.5" /> Broşür Linkini Kopyala
+                  <Copy className="w-3.5 h-3.5" /> Link
                 </>
               )}
             </button>
-            <button
-              onClick={() => window.print()}
-              className="p-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-600 transition"
-              title="Yazdır / PDF Kaydet"
-            >
-              <Printer className="w-3.5 h-3.5" />
-            </button>
+
             <button
               onClick={onClose}
-              className="p-1.5 bg-white border border-slate-300 hover:border-rose-400 hover:text-rose-600 text-slate-500 transition ml-2"
+              className="p-1.5 bg-white border border-slate-300 hover:border-rose-400 hover:text-rose-600 text-slate-500 transition ml-1 cursor-pointer"
+              title="Kapat"
             >
               <X className="w-4 h-4" />
             </button>
@@ -103,7 +167,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
         </div>
 
         {/* Müşterinin Göreceği Profesyonel Broşür Alanı (Ferah Beyaz) */}
-        <div className="p-8 space-y-6 text-slate-800 bg-white">
+        <div className="printable-brochure p-8 space-y-6 text-slate-800 bg-white">
           {/* Broşür Üst Başlığı & Orijinal Logo */}
           <div className="flex items-center justify-between border-b border-slate-200 pb-5">
             <div>

@@ -57,6 +57,7 @@ export interface Customer {
   whatsapp: string;
   instagramHandle?: string;
   email?: string;
+  birthDate?: string; // YYYY-MM-DD (Opsiyonel Doğum Tarihi)
   source: string; // manual, csv, meta, ycloud
   category: CustomerCategory;
   temperature: "hot" | "warm" | "cold";
@@ -241,7 +242,7 @@ export interface MandateContract {
 
 export interface WorkflowNotification {
   id: string;
-  type: "match" | "rent_due" | "rent_paid" | "lead_decay" | "mandate_expiring" | "office_event";
+  type: "match" | "rent_due" | "rent_paid" | "lead_decay" | "mandate_expiring" | "contract_expiring" | "birthday" | "office_event";
   title: string;
   message: string;
   targetTab?: "matchmaker" | "rentals" | "mandates" | "customers" | "properties" | "calendar";
@@ -258,7 +259,7 @@ export interface AutomationRule {
   name: string;
   description: string;
   enabled: boolean;
-  category: "rental" | "matchmaker" | "lead" | "mandate";
+  category: "rental" | "matchmaker" | "lead" | "mandate" | "birthday";
   lastTriggeredAt?: string;
 }
 

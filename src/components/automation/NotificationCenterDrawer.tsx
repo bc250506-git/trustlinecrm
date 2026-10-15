@@ -23,6 +23,7 @@ import {
   FileText,
   Send,
   Zap,
+  Cake,
 } from "lucide-react";
 
 interface NotificationCenterDrawerProps {
@@ -64,7 +65,13 @@ export function NotificationCenterDrawer({
     setTimeout(() => {
       const res = triggerAutomationEngine();
       setIsRunningScan(false);
-      const totalNew = res.matchesFound + res.rentAlerts + res.decayAlerts + res.mandateAlerts;
+      const totalNew =
+        res.matchesFound +
+        res.rentAlerts +
+        res.decayAlerts +
+        res.mandateAlerts +
+        (res.contractAlerts || 0) +
+        (res.birthdayAlerts || 0);
       setScanResult(
         totalNew > 0
           ? `✓ Tarama tamamlandı: ${totalNew} yeni otomasyon bildirimi oluşturuldu.`
@@ -93,6 +100,10 @@ export function NotificationCenterDrawer({
         return <Flame className="w-4 h-4 text-rose-500" />;
       case "mandate_expiring":
         return <FileText className="w-4 h-4 text-purple-600" />;
+      case "contract_expiring":
+        return <KeyRound className="w-4 h-4 text-amber-600" />;
+      case "birthday":
+        return <Cake className="w-4 h-4 text-pink-500" />;
       default:
         return <Bell className="w-4 h-4 text-slate-500" />;
     }
@@ -109,7 +120,11 @@ export function NotificationCenterDrawer({
       case "lead_decay":
         return <span className="bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 text-[10px] font-mono font-bold">SOĞUMA ALARMI</span>;
       case "mandate_expiring":
-        return <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 text-[10px] font-mono font-bold">YETKİ YENİLEME</span>;
+        return <span className="bg-purple-50 text-purple-800 border border-purple-200 px-2 py-0.5 text-[10px] font-mono font-bold">YETKİ YENİLEME (60 GÜN)</span>;
+      case "contract_expiring":
+        return <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-mono font-bold">KİRA BİTİŞİ (60 GÜN)</span>;
+      case "birthday":
+        return <span className="bg-pink-50 text-pink-700 border border-pink-200 px-2 py-0.5 text-[10px] font-mono font-bold">🎂 DOĞUM GÜNÜ</span>;
       default:
         return <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 text-[10px] font-mono font-bold">BİLDİRİM</span>;
     }
@@ -152,6 +167,15 @@ export function NotificationCenterDrawer({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Canlı Otomasyon Bildirim Rozeti */}
+        <div className="px-4 py-1.5 bg-emerald-50/80 border-b border-emerald-100 flex items-center justify-between text-[11px] font-mono text-emerald-800">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Otonom Canlı Takip: <strong>Aktif</strong> (Her 60 sn & Sekme Odağında)</span>
+          </div>
+          <span className="text-[10px] text-emerald-600 font-bold">Oto-Senkron</span>
         </div>
 
         {/* Sekme Değiştirici */}

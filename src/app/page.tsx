@@ -8,7 +8,6 @@ import { DashboardView } from "@/components/dashboard/DashboardView";
 import { CustomersView } from "@/components/customers/CustomersView";
 import { PropertiesView } from "@/components/properties/PropertiesView";
 import { MatchmakerView } from "@/components/matchmaker/MatchmakerView";
-import { PipelineView } from "@/components/pipeline/PipelineView";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { MonthCalendarView } from "@/components/calendar/MonthCalendarView";
 import { RentalsView } from "@/components/rentals/RentalsView";
@@ -94,8 +93,6 @@ function MainApp() {
                 onOpenBrochure={(prop) => setBrochureProperty(prop)}
               />
             )}
-
-            {activeTab === "pipeline" && <PipelineView />}
 
             {activeTab === "month_calendar" && (
               <MonthCalendarView onNavigate={setActiveTab} />

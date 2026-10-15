@@ -25,6 +25,8 @@ import {
   MapPin,
   Trash2,
   Lock,
+  Cake,
+  MessageCircle,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
@@ -164,15 +166,43 @@ export function CustomersView({
 
                 {/* Adı & İletişim */}
                 <td className="py-3 px-4">
-                  <button
-                    onClick={() => setActiveCustomerDetail(c)}
-                    className="text-left font-bold text-[#1d2566] hover:text-[#00adb5] transition block text-xs cursor-pointer"
-                  >
-                    {c.fullName}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setActiveCustomerDetail(c)}
+                      className="text-left font-bold text-[#1d2566] hover:text-[#00adb5] transition block text-xs cursor-pointer"
+                    >
+                      {c.fullName}
+                    </button>
+                    {(() => {
+                      if (!c.birthDate) return null;
+                      const parts = c.birthDate.split("-");
+                      if (parts.length < 3) return null;
+                      const now = new Date();
+                      const isToday =
+                        now.getMonth() + 1 === Number(parts[1]) &&
+                        now.getDate() === Number(parts[2]);
+                      if (isToday) {
+                        return (
+                          <span
+                            title="Bugün doğum günü! Tebrik mesajı iletin."
+                            className="inline-flex items-center gap-1 text-[10px] font-mono font-bold bg-pink-100 text-pink-700 border border-pink-300 px-1.5 py-0.2 animate-pulse"
+                          >
+                            <Cake className="w-3 h-3 text-pink-600" />
+                            Bugün Doğum Günü!
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 font-mono">
                     <span>{c.phone || "Telefon yok"}</span>
                     {c.email && <span>• {c.email}</span>}
+                    {c.birthDate && (
+                      <span className="text-slate-400">
+                        • 🎂 {c.birthDate.split("-").reverse().join(".")}
+                      </span>
+                    )}
                   </div>
                 </td>
 
@@ -527,7 +557,53 @@ export function CustomersView({
                     {activeCustomerDetail.rooms && activeCustomerDetail.rooms !== "Farketmez / Tümü" && ` (${activeCustomerDetail.rooms})`}
                   </span>
                 </div>
+                <div className="col-span-2 border-t border-slate-200 pt-2 flex items-center justify-between">
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">DOĞUM TARİHİ:</span>
+                    <span className="text-slate-800 font-semibold flex items-center gap-1.5">
+                      <Cake className="w-3.5 h-3.5 text-pink-500" />
+                      {activeCustomerDetail.birthDate
+                        ? activeCustomerDetail.birthDate.split("-").reverse().join(".")
+                        : "Belirtilmedi"}
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              {/* Doğum Günü Kutlama Kartı (Eğer Bugün Doğum Günü İse) */}
+              {(() => {
+                if (!activeCustomerDetail.birthDate) return null;
+                const parts = activeCustomerDetail.birthDate.split("-");
+                if (parts.length < 3) return null;
+                const now = new Date();
+                const isToday =
+                  now.getMonth() + 1 === Number(parts[1]) &&
+                  now.getDate() === Number(parts[2]);
+                if (!isToday) return null;
+
+                const phone = activeCustomerDetail.whatsapp || activeCustomerDetail.phone || "";
+                const cleanPhone = phone.replace(/[^0-9]/g, "");
+                const greeting = `Sayın ${activeCustomerDetail.fullName}, Trustline Gayrimenkul ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bereketli bir yıl dileriz. 🎂🎉`;
+                const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(greeting)}`;
+
+                return (
+                  <div className="p-3 bg-pink-50 border border-pink-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <Cake className="w-4 h-4 text-pink-600 shrink-0" />
+                      <div className="text-xs text-pink-900">
+                        <strong>Bugün Doğum Günü!</strong> Müşterinize kutlama mesajı iletin.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(url, "_blank")}
+                      className="px-2.5 py-1 bg-pink-600 hover:bg-pink-700 text-white text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer transition shadow-2xs shrink-0"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Kutlama
+                    </button>
+                  </div>
+                );
+              })()}
 
               <div>
                 <span className="text-[11px] font-mono text-slate-500 font-bold block mb-1">

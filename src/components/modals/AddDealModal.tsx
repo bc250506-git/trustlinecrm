@@ -602,27 +602,6 @@ export function AddDealModal({
                   <span>Kiralama</span>
                 </button>
               </div>
-
-              {/* Satıldı Ancak Yeni Mal Sahibi de Satıyor (Özel Satış Opsiyonu) */}
-              {formDealType === "sale" && (
-                <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5 mt-2">
-                  <input
-                    type="checkbox"
-                    id="keepActiveForNewOwner"
-                    checked={keepActiveForNewOwner}
-                    onChange={(e) => setKeepActiveForNewOwner(e.target.checked)}
-                    className="accent-[#00adb5] w-4 h-4 mt-0.5 cursor-pointer"
-                  />
-                  <label htmlFor="keepActiveForNewOwner" className="cursor-pointer select-none">
-                    <span className="font-bold text-xs font-mono text-amber-950 block">
-                      Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
-                    </span>
-                    <span className="text-[10px] text-amber-800 font-mono block mt-0.5">
-                      İşaretlenirse satış ve komisyon finans defterine işlenir; ancak portföy pasife düşürülmez. Alıcı ({formCustomerName || "Alıcı Müşteri"}) yeni mal sahibi olarak atanır ve ilan canlı kalır.
-                    </span>
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* Portföy Seçimi veya Elle Giriş */}
@@ -768,9 +747,9 @@ export function AddDealModal({
             {/* Mülk Sahibi & Yetki Tarihi */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60 p-3 border border-slate-200">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold">
-                    MÜLK SAHİBİ (HAVUZDAN SEÇ)
+                <div className="flex items-center justify-between mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold">
+                    MÜLK SAHİBİ
                   </label>
                   <button
                     type="button"
@@ -803,10 +782,12 @@ export function AddDealModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-[#00adb5]" />
-                  <span>TELEFON</span>
-                </label>
+                <div className="flex items-center mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-[#00adb5]" />
+                    <span>TELEFON</span>
+                  </label>
+                </div>
                 <input
                   type="text"
                   value={formLandlordPhone}
@@ -817,9 +798,11 @@ export function AddDealModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                  YETKİ BELGESİ ALINAN TARİH
-                </label>
+                <div className="flex items-center mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold">
+                    YETKİ BELGESİ ALINAN TARİH
+                  </label>
+                </div>
                 <input
                   type="date"
                   value={formMandateDate}
@@ -832,9 +815,10 @@ export function AddDealModal({
             {/* Alıcı / Kiracı & Depozito Tarihi */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50/60 p-3 border border-slate-200">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold">
-                    ALICI / KİRACI (HAVUZDAN SEÇ) *
+                <div className="flex items-center justify-between mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1">
+                    <span>ALICI / KİRACI</span>
+                    <span className="text-rose-500">*</span>
                   </label>
                   <button
                     type="button"
@@ -863,10 +847,12 @@ export function AddDealModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-[#00adb5]" />
-                  <span>TELEFON</span>
-                </label>
+                <div className="flex items-center mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-[#00adb5]" />
+                    <span>TELEFON</span>
+                  </label>
+                </div>
                 <input
                   type="text"
                   value={formCustomerPhone}
@@ -877,9 +863,11 @@ export function AddDealModal({
               </div>
 
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                  DEPOZİTO TARİHİ
-                </label>
+                <div className="flex items-center mb-1 h-5">
+                  <label className="text-slate-700 font-mono text-[11px] font-bold">
+                    DEPOZİTO TARİHİ
+                  </label>
+                </div>
                 <input
                   type="date"
                   value={formDepositDate}
@@ -1412,6 +1400,27 @@ export function AddDealModal({
                 </label>
               </div>
             </div>
+
+            {/* Satıldı Ancak Yeni Mal Sahibi de Satıyor (Özel Satış Opsiyonu - Formun En Sonunda) */}
+            {formDealType === "sale" && (
+              <div className="p-3 bg-amber-50/90 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-2xs">
+                <input
+                  type="checkbox"
+                  id="keepActiveForNewOwner"
+                  checked={keepActiveForNewOwner}
+                  onChange={(e) => setKeepActiveForNewOwner(e.target.checked)}
+                  className="accent-[#00adb5] w-4 h-4 mt-0.5 cursor-pointer shrink-0"
+                />
+                <label htmlFor="keepActiveForNewOwner" className="cursor-pointer select-none">
+                  <span className="font-bold text-xs font-mono text-amber-950 block">
+                    Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
+                  </span>
+                  <span className="text-[11px] text-amber-800 font-mono block mt-0.5 leading-relaxed">
+                    İşaretlenirse satış ve komisyon finans defterine işlenir; ancak portföy pasife düşürülmez. Alıcı ({formCustomerName || "Alıcı Müşteri"}) yeni mal sahibi olarak atanır ve ilan canlı kalır.
+                  </span>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* İPTAL VE KAYIT BUTONLARI */}

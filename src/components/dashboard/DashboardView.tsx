@@ -443,7 +443,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
             type="button"
             onClick={() => setIsAddDealModalOpen(true)}
             className="p-3 bg-slate-50/70 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-400 text-left transition-all cursor-pointer group flex flex-col justify-between shadow-2xs hover:shadow-xs hover:-translate-y-0.5"
-            title="Yeni Satış / Komisyon Anlaşması Ekle"
+            title="İşlem Kapama (İşlem Sonrası Ofis Raporu)"
           >
             <div className="flex items-center justify-between mb-2">
               <div className="w-8 h-8 bg-emerald-100/60 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
@@ -456,7 +456,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                 İşlem Kapama
               </div>
               <div className="text-[10px] text-slate-500 font-mono mt-0.5 leading-tight">
-                Satış & Komisyon
+                Satış & Kiralama Raporu
               </div>
             </div>
           </button>

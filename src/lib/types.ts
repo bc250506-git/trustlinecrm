@@ -155,22 +155,55 @@ export interface FollowUp {
   createdAt: string;
 }
 
+export type DealSharingType = "none" | "external" | "internal";
+
 export interface Deal {
   id: string;
   title: string;
+  dealNumber?: string; // İşlem / Portföy No
+  dealType?: "sale" | "rent"; // Satış / Kiralama
   customerId: string;
   customerName?: string;
+  customerPhone?: string;
   propertyId: string;
   propertyTitle?: string;
+  address?: string;
+  propertyType?: string; // Ofis, Daire, Villa, Apartman, Arsa, Dükkan
+  area?: number; // Arazi / Net m²
+  landType?: "commercial" | "residential"; // Ticari / Villalık
+  landlordName?: string;
+  landlordPhone?: string;
+  mandateDate?: string; // Yetki belgesi alınan tarih
+  depositDate?: string; // Depozito tarihi
+  durationText?: string; // Satış/kiralama süresi (örn: "45 Gün", "2 Ay")
+  leadChannel?: string; // Alıcının ulaştığı kanal (Branda, Telefon, Tavsiye, Web, Sosyal Medya, Saha Çalışması, YouTube, Yüz Yüze Sunum, Etkinlik, İlan Siteleri, Portföy Videosu, Reklam Alanları)
   currency: Currency;
   stage: "offer" | "won" | "lost";
   askingPrice: number;
   offeredPrice: number;
   agreedPrice: number;
   deposit: number;
+  commissionRate?: number; // % komisyon oranı
   commissionExpected: number;
   commissionReceived: number;
-  portfolioOrigin: "advisor" | "office"; // advisor: 60/40, office: 50/50
+  paymentMethod?: string; // Nakit, Havale/EFT, Çek
+  collectionDate?: string; // Tahsilat tarihi
+  portfolioOrigin: "advisor" | "office"; // Danışman Kendi Portföyü / Ofis Portföyü
+  sharingType?: DealSharingType; // none (Tek Danışman), external (Dış Ofis ile), internal (Şirket içi Danışman ile)
+  partnerName?: string; // Ortak Danışman / Ofis Adı
+  partnerPhone?: string;
+  partnerCompany?: string; // Dış Ofis Adı
+  partnerAdvisorId?: string; // Şirket içi ortak danışman ID
+  partnerAdvisorName?: string;
+  partnerShareRate?: number; // Ortak pay oranı %
+  partnerShareAmount?: number; // Ortak pay tutarı
+  advisorShareRate?: number; // Satış GD pay oranı %
+  advisorShareAmount?: number; // Satış GD pay tutarı
+  officeShareRate?: number; // Trustline Ofis pay oranı %
+  officeShareAmount?: number; // Trustline Ofis pay tutarı
+  brokerApproval?: boolean; // Broker Onayı
+  brokerApprovedAt?: string;
+  brokerApprovedBy?: string;
   paymentDue?: string;
   closingDate?: string;
   closingNotes?: string;

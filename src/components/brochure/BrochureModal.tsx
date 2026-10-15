@@ -5,20 +5,18 @@ import { Property } from "@/lib/types";
 import { useStore } from "@/lib/store";
 import {
   X,
-  Share2,
-  Building2,
   MapPin,
   Maximize2,
   BedDouble,
   ShieldCheck,
-  Check,
-  Copy,
   Printer,
   FileDown,
   MessageCircle,
-  ExternalLink,
   Award,
+  Loader2,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface BrochureModalProps {
   property: Property;
@@ -27,7 +25,7 @@ interface BrochureModalProps {
 
 export function BrochureModal({ property, onClose }: BrochureModalProps) {
   const { mandates } = useStore();
-  const [copied, setCopied] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const isExclusive = mandates.some(
     (m) =>
@@ -42,37 +40,124 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
   // Müşteri Paylaşımına Uygun Fotoğraflar (PRD Güvenlik Kuralı)
   const displayPhotos = property.photos.filter((p) => p.shareable);
 
-  const handleCopyLink = () => {
-    const brochureLink = `${window.location.origin}/brosur/${property.id}`;
-    navigator.clipboard.writeText(brochureLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // Broşürden Yüksek Çözünürlüklü PDF Blob Üretici
+  const generateBrochurePdf = async (): Promise<{ blob: Blob; filename: string }> => {
+    const brochureElement = document.getElementById("printable-brochure-content");
+    if (!brochureElement) throw new Error("Broşür içeriği bulunamadı.");
 
-  const handleShareWhatsApp = () => {
-    const brochureLink = `${window.location.origin}/brosur/${property.id}`;
-    const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım:* ${property.area} m² (${property.rooms || ""})\n\n📄 *Broşür Detayları ve Fotoğraflar için:* ${brochureLink}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
-  };
+    const canvas = await html2canvas(brochureElement, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#ffffff",
+    });
 
-  const handleNativeShare = async () => {
-    const brochureLink = `${window.location.origin}/brosur/${property.id}`;
-    const shareData = {
-      title: `${property.title} - Trustline Portföy Broşürü`,
-      text: `${property.title} | ${property.price.toLocaleString("tr-TR")} ${property.currency} | ${property.region}`,
-      url: brochureLink,
-    };
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch {}
+    const imgData = canvas.toDataURL("image/jpeg", 0.95);
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    if (imgHeight <= pageHeight) {
+      pdf.addImage(imgData, "JPEG", 0, 0, imgWidth, imgHeight);
+    } else {
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
     }
-    handleCopyLink();
+
+    const cleanTitle = (property.title || "Portfoy_Brosuru")
+      .replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ_-]/g, "_")
+      .slice(0, 40);
+    const filename = `Trustline_${cleanTitle}.pdf`;
+    const blob = pdf.output("blob");
+
+    return { blob, filename };
   };
 
-  const handleDownloadPdf = () => {
+  // 1. WP PAYLAŞ: PDF Üretip WhatsApp Uygulamasına Yönlendirir
+  const handleShareWhatsApp = async () => {
+    try {
+      setIsGenerating(true);
+      const { blob, filename } = await generateBrochurePdf();
+      const pdfFile = new File([blob], filename, { type: "application/pdf" });
+
+      const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım Alanı:* ${property.area} m² (${property.rooms || ""})\n🏢 *Yetkili Danışman:* ${property.assignedToName || "Trustline Gayrimenkul"}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+
+      // 1. Web Share API (Mobil ve dosya paylaşımını destekleyen tarayıcılarda doğrudan WhatsApp'a dosya olarak atar)
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            title: `${property.title} - Trustline Portföy Broşürü`,
+            text: text,
+            files: [pdfFile],
+          });
+          return;
+        } catch (err: any) {
+          if (err.name === "AbortError") return;
+        }
+      }
+
+      // 2. Masaüstü Fallback: PDF'i cihaza otomatik indir ve WhatsApp uygulamasını/webini hazır metinle aç
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const desktopText = `${text}\n\n📎 *Not:* Broşür PDF dosyası (${filename}) bilgisayarınıza indirilmiştir. Sohbete dosya olarak ekleyebilirsiniz.`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(desktopText)}`, "_blank");
+    } catch (err) {
+      console.error("WhatsApp paylaşım hatası:", err);
+      const fallbackText = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım:* ${property.area} m² (${property.rooms || ""})\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(fallbackText)}`, "_blank");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // 2. YAZDIR: Doğrudan Yazdırma Ekranını Açar
+  const handlePrint = () => {
     window.print();
+  };
+
+  // 3. İNDİR: Broşürü Doğrudan PDF Olarak İndirir
+  const handleDownloadPdf = async () => {
+    try {
+      setIsGenerating(true);
+      const { blob, filename } = await generateBrochurePdf();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF indirme hatası:", err);
+      window.print();
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   React.useEffect(() => {
@@ -83,9 +168,9 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
   }, []);
 
   return (
-    <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="sharp-card w-full max-w-3xl bg-white border border-slate-200 shadow-2xl my-8">
-        {/* Güvenlik & İşlem Başlığı (Ofis Tarafı) */}
+        {/* Güvenlik & İşlem Başlığı (Sadece 3 Net Aksiyon: WP PAYLAŞ, YAZDIR, İNDİR) */}
         <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -100,62 +185,47 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
           </div>
 
           <div className="flex items-center flex-wrap gap-2">
-            {/* WhatsApp ile Paylaş Butonu */}
+            {/* 1. WP PAYLAŞ */}
             <button
+              disabled={isGenerating}
               onClick={handleShareWhatsApp}
-              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              title="WhatsApp ile Müşteriye Gönder"
+              className="px-3 py-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-60"
+              title="Broşür PDF'ini oluşturur ve doğrudan WhatsApp uygulamasına yönlendirir"
             >
-              <MessageCircle className="w-3.5 h-3.5" />
-              <span>WhatsApp</span>
+              {isGenerating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <MessageCircle className="w-3.5 h-3.5" />
+              )}
+              <span>WP PAYLAŞ</span>
             </button>
 
-            {/* PDF İndir / Kaydet Butonu */}
+            {/* 2. YAZDIR */}
             <button
-              onClick={handleDownloadPdf}
-              className="px-2.5 py-1 bg-[#1d2566] hover:bg-[#151b4d] text-white text-xs font-mono font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              title="Broşürü PDF olarak bilgisayara / telefona kaydet"
-            >
-              <FileDown className="w-3.5 h-3.5 text-[#00adb5]" />
-              <span>PDF İndir</span>
-            </button>
-
-            {/* Doğrudan Yazdır Butonu */}
-            <button
-              onClick={() => window.print()}
-              className="px-2 py-1 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-mono flex items-center gap-1 transition cursor-pointer"
-              title="Yazdır"
+              onClick={handlePrint}
+              className="px-3 py-1.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              title="Doğrudan yazdırma ekranını aç"
             >
               <Printer className="w-3.5 h-3.5 text-slate-600" />
-              <span className="hidden sm:inline">Yazdır</span>
+              <span>YAZDIR</span>
             </button>
 
-            {/* Cihaz Paylaşım Menüsü (Mobil / Web Share API) */}
+            {/* 3. İNDİR */}
             <button
-              onClick={handleNativeShare}
-              className="p-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 transition cursor-pointer"
-              title="Cihaz Paylaşımı (Paylaş Menüsü)"
+              disabled={isGenerating}
+              onClick={handleDownloadPdf}
+              className="px-3 py-1.5 bg-[#1d2566] hover:bg-[#151b4d] text-white text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs disabled:opacity-60"
+              title="Broşürü PDF dosyası olarak indir"
             >
-              <Share2 className="w-3.5 h-3.5 text-[#00adb5]" />
-            </button>
-
-            {/* Link Kopyala */}
-            <button
-              onClick={handleCopyLink}
-              className="px-2.5 py-1 bg-white border border-slate-300 hover:border-[#00adb5] text-xs font-mono text-slate-700 flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-              title="Müşteri Broşür Bağlantısını Kopyala"
-            >
-              {copied ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Kopyalandı!
-                </>
+              {isGenerating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#00adb5]" />
               ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" /> Link
-                </>
+                <FileDown className="w-3.5 h-3.5 text-[#00adb5]" />
               )}
+              <span>İNDİR</span>
             </button>
 
+            {/* Kapat Butonu */}
             <button
               onClick={onClose}
               className="p-1.5 bg-white border border-slate-300 hover:border-rose-400 hover:text-rose-600 text-slate-500 transition ml-1 cursor-pointer"
@@ -167,13 +237,14 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
         </div>
 
         {/* Müşterinin Göreceği Profesyonel Broşür Alanı (Ferah Beyaz) */}
-        <div className="printable-brochure p-8 space-y-6 text-slate-800 bg-white">
+        <div id="printable-brochure-content" className="printable-brochure p-8 space-y-6 text-slate-800 bg-white">
           {/* Broşür Üst Başlığı & Orijinal Logo */}
           <div className="flex items-center justify-between border-b border-slate-200 pb-5">
             <div>
               <img
                 src="/logo.png"
                 alt="Trustline Real Estate"
+                crossOrigin="anonymous"
                 className="h-11 md:h-12 w-auto object-contain"
               />
             </div>
@@ -226,7 +297,8 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
                   <img
                     src={photo.url}
                     alt={property.title}
-                    className="w-full h-56 object-cover object-center hover:scale-103 transition duration-500"
+                    crossOrigin="anonymous"
+                    className="w-full h-56 object-cover object-center"
                   />
                 </div>
               ))}

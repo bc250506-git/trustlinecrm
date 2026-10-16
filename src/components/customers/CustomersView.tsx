@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { Customer, CustomerCategory, Currency, PipelineStage } from "@/lib/types";
 import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import { isCustomerActiveTenant } from "@/lib/matchmaker";
+import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 import {
   Users,
   Plus,
@@ -199,11 +200,11 @@ export function CustomersView({
                     })()}
                   </div>
                   <div className="flex items-center gap-2 mt-1 text-xs text-slate-600 font-mono">
-                    <span className="font-semibold text-slate-700">{c.phone || "Telefon yok"}</span>
+                    <span className="font-semibold text-slate-700">{formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"}</span>
                     {c.email && <span>• {c.email}</span>}
                     {c.birthDate && (
                       <span className="text-slate-500">
-                        • 🎂 {c.birthDate.split("-").reverse().join(".")}
+                        • 🎂 {formatDateTR(c.birthDate)}
                       </span>
                     )}
                   </div>
@@ -325,7 +326,7 @@ export function CustomersView({
 
                     {c.whatsapp && (
                       <a
-                        href={`https://wa.me/${c.whatsapp.replace(/\D/g, "")}`}
+                        href={`https://wa.me/${cleanWhatsAppNumber(c.whatsapp)}`}
                         target="_blank"
                         rel="noreferrer"
                         className="p-1 bg-white border border-slate-300 hover:border-emerald-500 hover:text-emerald-600 text-slate-600 transition"
@@ -548,13 +549,13 @@ export function CustomersView({
                 <div>
                   <span className="text-slate-500 block text-[10px]">TELEFON:</span>
                   <span className="text-slate-800 font-semibold">
-                    {activeCustomerDetail.phone}
+                    {formatPhoneWithPrefix(activeCustomerDetail.phone) || activeCustomerDetail.phone || "-"}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[10px]">WHATSAPP:</span>
                   <span className="text-slate-800 font-semibold">
-                    {activeCustomerDetail.whatsapp}
+                    {formatPhoneWithPrefix(activeCustomerDetail.whatsapp) || activeCustomerDetail.whatsapp || "-"}
                   </span>
                 </div>
                 <div>
@@ -577,7 +578,7 @@ export function CustomersView({
                     <span className="text-slate-800 font-semibold flex items-center gap-1.5">
                       <Cake className="w-3.5 h-3.5 text-pink-500" />
                       {activeCustomerDetail.birthDate
-                        ? activeCustomerDetail.birthDate.split("-").reverse().join(".")
+                        ? formatDateTR(activeCustomerDetail.birthDate)
                         : "Belirtilmedi"}
                     </span>
                   </div>
@@ -596,7 +597,7 @@ export function CustomersView({
                 if (!isToday) return null;
 
                 const phone = activeCustomerDetail.whatsapp || activeCustomerDetail.phone || "";
-                const cleanPhone = phone.replace(/[^0-9]/g, "");
+                const cleanPhone = cleanWhatsAppNumber(phone);
                 const greeting = `Sayın ${activeCustomerDetail.fullName}, Trustline Gayrimenkul ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bereketli bir yıl dileriz. 🎂🎉`;
                 const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(greeting)}`;
 

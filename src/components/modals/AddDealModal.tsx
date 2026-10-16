@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
+import { PhoneInput } from "@/components/common/PhoneInput";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddDealModalProps {
   isOpen: boolean;
@@ -599,6 +601,7 @@ export function AddDealModal({
               </label>
               <input
                 type="date"
+                lang="tr-TR"
                 required
                 value={formReportDate}
                 onChange={(e) => setFormReportDate(e.target.value)}
@@ -860,7 +863,7 @@ export function AddDealModal({
                   )}
                   {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "SELLER" ? "• Satıcı/Ev Sahibi" : ""}
+                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "SELLER" ? "• Satıcı/Ev Sahibi" : ""}
                     </option>
                   ))}
                 </select>
@@ -873,12 +876,9 @@ export function AddDealModal({
                     <span>TELEFON</span>
                   </label>
                 </div>
-                <input
-                  type="text"
+                <PhoneInput
                   value={formLandlordPhone}
-                  onChange={(e) => setFormLandlordPhone(e.target.value)}
-                  placeholder="+90 533 ..."
-                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
+                  onChange={setFormLandlordPhone}
                 />
               </div>
 
@@ -890,6 +890,7 @@ export function AddDealModal({
                 </div>
                 <input
                   type="date"
+                  lang="tr-TR"
                   value={formMandateDate}
                   onChange={(e) => setFormMandateDate(e.target.value)}
                   className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
@@ -925,7 +926,7 @@ export function AddDealModal({
                   <option value="">-- Müşteri havuzundan alıcı seçin * --</option>
                   {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "BUYER" || c.category === "TENANT" ? "• Alıcı/Kiracı" : ""}
+                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "BUYER" || c.category === "TENANT" ? "• Alıcı/Kiracı" : ""}
                     </option>
                   ))}
                 </select>
@@ -938,12 +939,9 @@ export function AddDealModal({
                     <span>TELEFON</span>
                   </label>
                 </div>
-                <input
-                  type="text"
+                <PhoneInput
                   value={formCustomerPhone}
-                  onChange={(e) => setFormCustomerPhone(e.target.value)}
-                  placeholder="+90 548 ..."
-                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
+                  onChange={setFormCustomerPhone}
                 />
               </div>
 
@@ -955,6 +953,7 @@ export function AddDealModal({
                 </div>
                 <input
                   type="date"
+                  lang="tr-TR"
                   value={formDepositDate}
                   onChange={(e) => setFormDepositDate(e.target.value)}
                   className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
@@ -971,6 +970,7 @@ export function AddDealModal({
                 </label>
                 <input
                   type="date"
+                  lang="tr-TR"
                   required
                   value={formClosingDate}
                   onChange={(e) => setFormClosingDate(e.target.value)}
@@ -1117,6 +1117,7 @@ export function AddDealModal({
                 </label>
                 <input
                   type="date"
+                  lang="tr-TR"
                   value={formCollectionDate}
                   onChange={(e) => setFormCollectionDate(e.target.value)}
                   className="sharp-input w-full p-2 font-mono"
@@ -1285,12 +1286,9 @@ export function AddDealModal({
                   <label className="block text-slate-700 font-mono text-[10px] mb-1 font-bold">
                     ORTAK İLETİŞİM BİLGİSİ
                   </label>
-                  <input
-                    type="text"
+                  <PhoneInput
                     value={formPartnerPhone}
-                    onChange={(e) => setFormPartnerPhone(e.target.value)}
-                    placeholder="+90 533 ..."
-                    className="sharp-input w-full p-1.5 bg-white text-xs font-mono"
+                    onChange={setFormPartnerPhone}
                   />
                 </div>
               </div>

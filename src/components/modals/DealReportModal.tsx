@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
+import { formatDateTR, formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface DealReportModalProps {
   deal: Deal;
@@ -30,11 +31,12 @@ const PROPERTY_TYPES = ["Ofis", "Daire", "Villa", "Apartman", "Arsa", "Dükkan"]
 export function DealReportModal({ deal, onClose }: DealReportModalProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const reportDate =
+  const rawReportDate =
     deal.brokerApprovedAt ||
     deal.closingDate ||
     deal.createdAt?.split("T")[0] ||
     new Date().toISOString().split("T")[0];
+  const reportDate = formatDateTR(rawReportDate);
 
   const handlePrint = () => {
     window.print();
@@ -332,7 +334,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                 <div>
                   <span className="font-bold text-slate-700 block text-[10px]">TELEFON:</span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 block font-medium">
-                    {deal.landlordPhone || "-"}
+                    {formatPhoneWithPrefix(deal.landlordPhone) || deal.landlordPhone || "-"}
                   </span>
                 </div>
                 <div>
@@ -340,7 +342,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                     YETKİ BELGESİ ALINAN TARİH:
                   </span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 block font-medium">
-                    {deal.mandateDate || "-"}
+                    {formatDateTR(deal.mandateDate)}
                   </span>
                 </div>
               </div>
@@ -357,7 +359,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                 <div>
                   <span className="font-bold text-slate-700 block text-[10px]">TELEFON:</span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 block font-medium">
-                    {deal.customerPhone || "-"}
+                    {formatPhoneWithPrefix(deal.customerPhone) || deal.customerPhone || "-"}
                   </span>
                 </div>
                 <div>
@@ -365,7 +367,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                     DEPOZİTO TARİHİ:
                   </span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 block font-medium">
-                    {deal.depositDate || "-"}
+                    {formatDateTR(deal.depositDate)}
                   </span>
                 </div>
               </div>
@@ -374,7 +376,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                 <div>
                   <span className="font-bold text-slate-700">İŞLEM KAPATMA TARİHİ: </span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                    {deal.closingDate || reportDate}
+                    {formatDateTR(deal.closingDate || rawReportDate)}
                   </span>
                 </div>
                 <div>
@@ -459,7 +461,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
               <div className="mb-1.5">
                 <span className="font-bold text-slate-700">TAHSİLAT TARİHİ / YÖNTEMİ: </span>
                 <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                  {deal.collectionDate || deal.paymentDue || reportDate} /{" "}
+                  {formatDateTR(deal.collectionDate || deal.paymentDue || rawReportDate)} /{" "}
                   {deal.paymentMethod || "Banka Havalesi / EFT"}
                 </span>
               </div>
@@ -514,7 +516,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                 <div>
                   <span className="font-bold text-slate-700">ORTAK İLETİŞİM BİLGİSİ: </span>
                   <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                    {deal.partnerPhone || "-"}
+                    {formatPhoneWithPrefix(deal.partnerPhone) || deal.partnerPhone || "-"}
                   </span>
                 </div>
               </div>
@@ -587,7 +589,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                     {deal.createdByName || "Danışman"}
                   </div>
                   <div className="text-[10px] font-mono text-slate-500">
-                    Elektronik Sistem Beyanı ({deal.closingDate || reportDate})
+                    Elektronik Sistem Beyanı ({formatDateTR(deal.closingDate || rawReportDate)})
                   </div>
                   <div className="mt-4 pt-2 border-t border-slate-300 text-[9px] text-slate-400 font-mono">
                     Danışman Dijital Onayı Alındı
@@ -603,7 +605,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                     <span>{deal.brokerApprovedBy || "Volkan Affan Kanıgür"}</span>
                   </div>
                   <div className="text-[10px] font-mono text-emerald-700 font-semibold">
-                    ✓ RESMİ BROKER ONAYI VERİLDİ ({deal.brokerApprovedAt || reportDate})
+                    ✓ RESMİ BROKER ONAYI VERİLDİ ({formatDateTR(deal.brokerApprovedAt || rawReportDate)})
                   </div>
                   <div className="mt-4 pt-2 border-t border-slate-300 text-[9px] text-emerald-700 font-mono font-bold">
                     [ RESMİ MÜHÜR & ELEKTRONİK İMZA DOĞRULANDI ]

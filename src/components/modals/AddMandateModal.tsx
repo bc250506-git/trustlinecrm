@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AddPropertyModal } from "./AddPropertyModal";
 import { AddCustomerModal } from "./AddCustomerModal";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddMandateModalProps {
   isOpen: boolean;
@@ -177,7 +178,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               <option value="">-- Mal Sahibi Seçin --</option>
               {customers.filter((c) => !c.deletedAt).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.fullName} ({c.phone || c.whatsapp}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
+                  {c.fullName} ({formatPhoneWithPrefix(c.phone || c.whatsapp) || c.phone || c.whatsapp || "Tel yok"}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
                 </option>
               ))}
             </select>
@@ -228,6 +229,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               </label>
               <input
                 type="date"
+                lang="tr-TR"
                 required
                 value={formStartDate}
                 onChange={(e) => setFormStartDate(e.target.value)}
@@ -241,6 +243,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               </label>
               <input
                 type="date"
+                lang="tr-TR"
                 required
                 value={formEndDate}
                 onChange={(e) => setFormEndDate(e.target.value)}

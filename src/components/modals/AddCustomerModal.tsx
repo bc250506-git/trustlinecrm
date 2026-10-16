@@ -14,6 +14,7 @@ import {
   MapPin,
   Cake,
 } from "lucide-react";
+import { PhoneInput } from "@/components/common/PhoneInput";
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -234,13 +235,10 @@ export function AddCustomerModal({
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                 Telefon Numarası *
               </label>
-              <input
-                type="text"
+              <PhoneInput
                 required
                 value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-                placeholder="+90 532 000 00 00"
-                className="sharp-input w-full p-2 font-mono"
+                onChange={setFormPhone}
               />
             </div>
           </div>
@@ -248,14 +246,12 @@ export function AddCustomerModal({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-slate-600 font-mono text-[11px] mb-1">
-                WhatsApp
+                WhatsApp (Aynı ise boş)
               </label>
-              <input
-                type="text"
+              <PhoneInput
                 value={formWhatsapp}
-                onChange={(e) => setFormWhatsapp(e.target.value)}
-                placeholder="Boşsa telefon"
-                className="sharp-input w-full p-2 font-mono"
+                onChange={setFormWhatsapp}
+                placeholder="Boşsa telefon kullanılır"
               />
             </div>
 
@@ -292,6 +288,7 @@ export function AddCustomerModal({
               </label>
               <input
                 type="date"
+                lang="tr-TR"
                 value={formBirthDate}
                 onChange={(e) => setFormBirthDate(e.target.value)}
                 className="sharp-input w-full p-2 font-mono bg-white"

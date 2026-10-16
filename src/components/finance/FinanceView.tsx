@@ -9,6 +9,8 @@ import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { AddDealModal } from "@/components/modals/AddDealModal";
 import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
+import { PhoneInput } from "@/components/common/PhoneInput";
+import { formatDateTR } from "@/lib/formatters";
 import {
   Calculator,
   Plus,
@@ -886,7 +888,7 @@ export function FinanceView() {
                       : totalComm - advShare - partShare;
 
                   const rawDate = d.closingDate || d.paymentDue || d.createdAt;
-                  const formattedDate = rawDate ? rawDate.split("T")[0] : "—";
+                  const formattedDate = rawDate ? formatDateTR(rawDate) : "—";
 
                   return (
                     <tr key={d.id} className="hover:bg-slate-50/80 transition">
@@ -1352,12 +1354,9 @@ export function FinanceView() {
                       <label className="block text-slate-500 font-mono text-[10px] mb-0.5">
                         Dış Danışman Telefonu
                       </label>
-                      <input
-                        type="tel"
+                      <PhoneInput
                         value={editPartnerPhone}
-                        onChange={(e) => setEditPartnerPhone(e.target.value)}
-                        placeholder="0533..."
-                        className="sharp-input w-full p-1.5 text-xs"
+                        onChange={(val) => setEditPartnerPhone(val)}
                       />
                     </div>
                   </div>
@@ -1409,6 +1408,7 @@ export function FinanceView() {
                   </label>
                   <input
                     type="date"
+                    lang="tr-TR"
                     value={editPaymentDue}
                     onChange={(e) => setEditPaymentDue(e.target.value)}
                     className="sharp-input w-full p-2 font-mono"

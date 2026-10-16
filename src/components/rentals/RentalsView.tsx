@@ -32,6 +32,8 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { PhoneInput } from "@/components/common/PhoneInput";
+import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 
 export function RentalsView() {
   const {
@@ -909,7 +911,7 @@ export function RentalsView() {
                                     : `${reminderStatus.diffDays} gün sonra vadesi dolacaktır.`
                                 } Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.`
                               );
-                              const phone = r.tenantPhone.replace(/[^0-9]/g, "");
+                              const phone = cleanWhatsAppNumber(r.tenantPhone);
                               window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
                             }}
                             className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
@@ -925,7 +927,7 @@ export function RentalsView() {
                                 : `(${reminderStatus.diffDays} Gün Kaldı)`}
                             </span>
                           </button>
-                          <span className="text-[10px] text-slate-400 font-mono">({r.tenantPhone})</span>
+                          <span className="text-[10px] text-slate-400 font-mono">({formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone})</span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono">
@@ -1224,15 +1226,13 @@ export function RentalsView() {
                       }
                       className="sharp-input w-full p-1.5 text-xs"
                     />
-                    <input
-                      type="text"
-                      placeholder="Kiracı Telefon Numarası"
-                      value={formData.tenantPhone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, tenantPhone: e.target.value })
-                      }
-                      className="sharp-input w-full p-1.5 text-xs font-mono"
-                    />
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono text-slate-500">Kiracı Telefonu</label>
+                      <PhoneInput
+                        value={formData.tenantPhone}
+                        onChange={(val) => setFormData({ ...formData, tenantPhone: val })}
+                      />
+                    </div>
                   </div>
 
                   {/* Ev Sahibi */}
@@ -1277,15 +1277,13 @@ export function RentalsView() {
                       }
                       className="sharp-input w-full p-1.5 text-xs"
                     />
-                    <input
-                      type="text"
-                      placeholder="Mülk Sahibi Telefon"
-                      value={formData.landlordPhone}
-                      onChange={(e) =>
-                        setFormData({ ...formData, landlordPhone: e.target.value })
-                      }
-                      className="sharp-input w-full p-1.5 text-xs font-mono"
-                    />
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-mono text-slate-500">Mülk Sahibi Telefonu</label>
+                      <PhoneInput
+                        value={formData.landlordPhone}
+                        onChange={(val) => setFormData({ ...formData, landlordPhone: val })}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1415,6 +1413,7 @@ export function RentalsView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       value={formData.contractStart}
                       onChange={(e) =>
                         setFormData({ ...formData, contractStart: e.target.value })
@@ -1429,6 +1428,7 @@ export function RentalsView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       value={formData.contractEnd}
                       onChange={(e) =>
                         setFormData({ ...formData, contractEnd: e.target.value })
@@ -1471,7 +1471,7 @@ export function RentalsView() {
                       {getDurationInMonths(formData.contractStart, formData.contractEnd)} Ay ({getDurationInMonths(formData.contractStart, formData.contractEnd)} Taksit Matrise Yerleşecek)
                     </span>
                     <span className="text-[10px] text-slate-500 font-normal">
-                      ({formData.contractStart} — {formData.contractEnd})
+                      ({formatDateTR(formData.contractStart)} — {formatDateTR(formData.contractEnd)})
                     </span>
                   </div>
                 )}
@@ -1598,7 +1598,7 @@ export function RentalsView() {
                 </div>
                 {activeReceiptModal.dueDate && (
                   <div className="text-slate-500 text-[10px]">
-                    Vade Tarihi: {activeReceiptModal.dueDate}
+                    Vade Tarihi: {formatDateTR(activeReceiptModal.dueDate)}
                   </div>
                 )}
               </div>
@@ -1732,13 +1732,11 @@ export function RentalsView() {
                   <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
                     Kiracı Telefonu
                   </label>
-                  <input
-                    type="text"
+                  <PhoneInput
                     value={editRentalForm.tenantPhone}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, tenantPhone: e.target.value }))
+                    onChange={(val) =>
+                      setEditRentalForm((prev) => ({ ...prev, tenantPhone: val }))
                     }
-                    className="sharp-input w-full p-2"
                   />
                 </div>
               </div>
@@ -1763,13 +1761,11 @@ export function RentalsView() {
                   <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
                     Mülk Sahibi Telefonu
                   </label>
-                  <input
-                    type="text"
+                  <PhoneInput
                     value={editRentalForm.landlordPhone}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, landlordPhone: e.target.value }))
+                    onChange={(val) =>
+                      setEditRentalForm((prev) => ({ ...prev, landlordPhone: val }))
                     }
-                    className="sharp-input w-full p-2"
                   />
                 </div>
               </div>
@@ -1876,6 +1872,7 @@ export function RentalsView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       value={editRentalForm.contractStart}
                       onChange={(e) =>
                         setEditRentalForm((prev) => ({ ...prev, contractStart: e.target.value }))
@@ -1889,6 +1886,7 @@ export function RentalsView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       value={editRentalForm.contractEnd}
                       onChange={(e) =>
                         setEditRentalForm((prev) => ({ ...prev, contractEnd: e.target.value }))
@@ -1920,7 +1918,7 @@ export function RentalsView() {
                       {getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Ay ({getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Taksit Matrise Yerleşecek)
                     </span>
                     <span className="text-[10px] text-slate-500 font-normal">
-                      ({editRentalForm.contractStart} — {editRentalForm.contractEnd})
+                      ({formatDateTR(editRentalForm.contractStart)} — {formatDateTR(editRentalForm.contractEnd)})
                     </span>
                   </div>
                 )}

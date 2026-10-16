@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useStore } from "@/lib/store";
 import { WorkflowNotification } from "@/lib/types";
-import { formatAutomationCategory } from "@/lib/formatters";
+import { formatAutomationCategory, cleanWhatsAppNumber } from "@/lib/formatters";
 import {
   Bell,
   Sparkles,
@@ -101,7 +101,7 @@ export function NotificationCenterDrawer({
   };
 
   const handleOpenWhatsApp = (phone: string, text: string) => {
-    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    const cleanPhone = cleanWhatsAppNumber(phone);
     const encodedText = encodeURIComponent(text);
     const url = `https://wa.me/${cleanPhone}?text=${encodedText}`;
     window.open(url, "_blank");

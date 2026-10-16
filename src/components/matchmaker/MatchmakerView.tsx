@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Customer, Property } from "@/lib/types";
-import { formatCustomerCategory, formatCustomerTemperature } from "@/lib/formatters";
+import { formatCustomerCategory, formatCustomerTemperature, cleanWhatsAppNumber } from "@/lib/formatters";
 import {
   findMatchesForCustomer,
   findMatchesForProperty,
@@ -505,9 +505,8 @@ export function MatchmakerView({
                     <div className="flex items-center gap-2 shrink-0">
                       {selectedCustomer && selectedCustomer.whatsapp && (
                         <a
-                          href={`https://wa.me/${selectedCustomer.whatsapp.replace(
-                            /\D/g,
-                            ""
+                          href={`https://wa.me/${cleanWhatsAppNumber(
+                            selectedCustomer.whatsapp
                           )}?text=${encodeURIComponent(
                             `Sayın ${selectedCustomer.fullName}, aradığınız kriterlere uygun yeni portföyümüzü incelemenizi isteriz: ${property.title} - ${property.price.toLocaleString("tr-TR")} ${property.currency}`
                           )}`}
@@ -640,9 +639,8 @@ export function MatchmakerView({
 
                       {customer.whatsapp && selectedProperty && (
                         <a
-                          href={`https://wa.me/${customer.whatsapp.replace(
-                            /\D/g,
-                            ""
+                          href={`https://wa.me/${cleanWhatsAppNumber(
+                            customer.whatsapp
                           )}?text=${encodeURIComponent(
                             `Merhaba ${customer.fullName}, talep ettiğiniz kriterlerde yeni portföyümüz portföy havuzumuza girdi: ${selectedProperty.title} - ${selectedProperty.price.toLocaleString("tr-TR")} ${selectedProperty.currency}`
                           )}`}

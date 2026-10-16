@@ -45,6 +45,7 @@ import {
   formatFollowUpKind,
   formatCustomerCategory,
   formatCustomerTemperature,
+  cleanWhatsAppNumber,
 } from "@/lib/formatters";
 
 interface DashboardViewProps {
@@ -701,10 +702,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                                 <Phone className="w-3.5 h-3.5" />
                               </a>
                               <a
-                                href={`https://wa.me/${task.customerPhone.replace(
-                                  /\D/g,
-                                  ""
-                                )}`}
+                                href={`https://wa.me/${cleanWhatsAppNumber(task.customerPhone)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-1.5 bg-white border border-slate-300 hover:border-emerald-500 hover:text-emerald-600 text-slate-600 transition"
@@ -1097,10 +1095,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                           )}
                           {cust.whatsapp && (
                             <a
-                              href={`https://wa.me/${cust.whatsapp.replace(
-                                /\D/g,
-                                ""
-                              )}`}
+                              href={`https://wa.me/${cleanWhatsAppNumber(cust.whatsapp)}`}
                               target="_blank"
                               rel="noreferrer"
                               className="px-2 py-1 bg-white border border-slate-300 hover:border-emerald-500 text-[10px] font-mono text-slate-700 hover:text-emerald-600 flex items-center gap-1"

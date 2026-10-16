@@ -8,6 +8,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
+import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 import {
   FileCheck,
   Plus,
@@ -138,7 +139,7 @@ export function MandatesView() {
         days <= 0 ? "süresi dolmuştur" : `${days} gün sonra sona erecektir`
       }. Satış çalışmalarımızı kesintisiz sürdürmek ve yetki süresini uzatmak üzere görüşebilir miyiz? - Trustline Real Estate`
     );
-    const cleanPhone = m.ownerPhone.replace(/[^0-9]/g, "");
+    const cleanPhone = cleanWhatsAppNumber(m.ownerPhone);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");
   };
 
@@ -459,7 +460,7 @@ export function MandatesView() {
                       {m.ownerName}
                     </div>
                     <div className="text-[10px] text-slate-400 font-mono">
-                      {m.ownerPhone || "Telefon yok"}
+                      {formatPhoneWithPrefix(m.ownerPhone) || m.ownerPhone || "Telefon yok"}
                     </div>
                   </td>
 
@@ -491,9 +492,9 @@ export function MandatesView() {
                   <td className="py-3 px-4">
                     <div className="text-xs font-mono font-medium text-slate-800 flex items-center gap-1.5">
                       <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{m.startDate}</span>
+                      <span>{formatDateTR(m.startDate)}</span>
                       <span className="text-slate-400">→</span>
-                      <span className="font-bold">{m.endDate}</span>
+                      <span className="font-bold">{formatDateTR(m.endDate)}</span>
                     </div>
 
                     <div className="mt-1">
@@ -654,7 +655,7 @@ export function MandatesView() {
                   <option value="">-- Mal Sahibi Seçin --</option>
                   {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} ({c.phone || c.whatsapp}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
+                      {c.fullName} ({formatPhoneWithPrefix(c.phone || c.whatsapp) || c.phone || c.whatsapp || "Tel yok"}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
                     </option>
                   ))}
                 </select>
@@ -734,6 +735,7 @@ export function MandatesView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       required
                       value={formStartDate}
                       onChange={(e) => setFormStartDate(e.target.value)}
@@ -747,6 +749,7 @@ export function MandatesView() {
                     </label>
                     <input
                       type="date"
+                      lang="tr-TR"
                       required
                       value={formEndDate}
                       onChange={(e) => setFormEndDate(e.target.value)}

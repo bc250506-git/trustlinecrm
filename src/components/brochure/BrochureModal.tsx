@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface BrochureModalProps {
   property: Property;
@@ -545,7 +546,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
             <div className="text-right shrink-0">
               {assignedUser?.phone && assignedUser.phone !== "+905338460080" && (
                 <div className="text-xs font-mono text-[#00adb5] font-bold">
-                  Danışman: {assignedUser.phone}
+                  Danışman: {formatPhoneWithPrefix(assignedUser.phone) || assignedUser.phone}
                 </div>
               )}
               <div className="text-xs font-mono text-[#1d2566] font-bold">

@@ -5,6 +5,8 @@ import { useStore } from "@/lib/store";
 import { FollowUp } from "@/lib/types";
 import {
   formatFollowUpKind,
+  cleanWhatsAppNumber,
+  formatPhoneWithPrefix,
 } from "@/lib/formatters";
 import {
   Calendar as CalendarIcon,
@@ -864,10 +866,10 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                               title="Telefonla Ara"
                             >
                               <Phone className="w-2.5 h-2.5 text-[#00adb5]" />
-                              {task.customerPhone}
+                              {formatPhoneWithPrefix(task.customerPhone) || task.customerPhone}
                             </a>
                             <a
-                              href={`https://wa.me/${task.customerPhone.replace(/\D/g, "")}`}
+                              href={`https://wa.me/${cleanWhatsAppNumber(task.customerPhone)}`}
                               target="_blank"
                               rel="noreferrer"
                               className="px-2 py-0.5 bg-white border border-slate-300 hover:border-emerald-500 text-slate-700 hover:text-emerald-600 flex items-center gap-1"

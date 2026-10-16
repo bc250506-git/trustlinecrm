@@ -703,12 +703,14 @@ export function SecurityView() {
                       <div className="grid grid-cols-2 gap-2 mt-2">
                         <input
                           type="date"
+                          lang="tr-TR"
                           value={customStartDate}
                           onChange={(e) => setCustomStartDate(e.target.value)}
                           className="px-2 py-1 text-xs font-mono border border-slate-300 bg-white"
                         />
                         <input
                           type="date"
+                          lang="tr-TR"
                           value={customEndDate}
                           onChange={(e) => setCustomEndDate(e.target.value)}
                           className="px-2 py-1 text-xs font-mono border border-slate-300 bg-white"

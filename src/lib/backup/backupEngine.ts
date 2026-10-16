@@ -9,7 +9,7 @@ import {
   FollowUp,
   User,
 } from "../types";
-import { formatPropertyStatus, formatListingType } from "../formatters";
+import { formatPropertyStatus, formatListingType, formatDateTR, formatPhoneWithPrefix } from "../formatters";
 
 export type BackupModuleKey =
   | "customers"
@@ -280,11 +280,11 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "No": idx + 1,
     "Müşteri ID": c.id,
     "Ad Soyad": c.fullName,
-    "Telefon": c.phone,
-    "WhatsApp": c.whatsapp || c.phone,
+    "Telefon": formatPhoneWithPrefix(c.phone) || c.phone,
+    "WhatsApp": formatPhoneWithPrefix(c.whatsapp || c.phone) || c.whatsapp || c.phone,
     "E-posta": c.email || "-",
     "Instagram": c.instagramHandle || "-",
-    "Doğum Tarihi": c.birthDate || "-",
+    "Doğum Tarihi": formatDateTR(c.birthDate),
     "Kategori":
       c.category === "BUYER"
         ? "Alıcı"
@@ -308,8 +308,8 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Bütçe Tutarı": c.budget ? `${c.budget.toLocaleString("tr-TR")} ${c.budgetCurrency}` : "0",
     "Aşama (Pipeline)": c.stage,
     "Sorumlu Danışman": c.assignedToName || "-",
-    "Eklenme Tarihi": c.createdAt ? new Date(c.createdAt).toLocaleDateString("tr-TR") : "-",
-    "Son İletişim": c.lastContactAt ? new Date(c.lastContactAt).toLocaleDateString("tr-TR") : "-",
+    "Eklenme Tarihi": formatDateTR(c.createdAt),
+    "Son İletişim": formatDateTR(c.lastContactAt),
     "Özel Notlar": c.notes || "-",
   }));
 
@@ -330,12 +330,12 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Alan (m²)": p.area,
     "Açık Adres": p.address || "-",
     "Mülk Sahibi Adı": p.ownerName || "-",
-    "Mülk Sahibi Telefonu": p.ownerPhone || "-",
+    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(p.ownerPhone) || p.ownerPhone || "-",
     "Anahtar Teslim / Kimde": p.keyHolder || "-",
     "Danışman": p.assignedToName || "-",
     "Paylaşımlı Portföy": p.isShared ? "Evet" : "Hayır",
     "Off-Market (Gizli)": p.isOffMarket ? "Evet" : "Hayır",
-    "Kayıt Tarihi": p.createdAt ? new Date(p.createdAt).toLocaleDateString("tr-TR") : "-",
+    "Kayıt Tarihi": formatDateTR(p.createdAt),
     "İlan Linki": p.listingUrl || "-",
     "Görsel Linki": p.imageUrl || "-",
     "Genel Açıklama": p.publicDescription || "-",
@@ -352,14 +352,14 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Portföy Başlığı": d.propertyTitle || d.title,
     "İşlem Tipi": d.dealType === "rent" ? "Kiralama" : "Satış",
     "Alıcı / Kiracı": d.customerName || "-",
-    "Alıcı Telefonu": d.customerPhone || "-",
+    "Alıcı Telefonu": formatPhoneWithPrefix(d.customerPhone) || d.customerPhone || "-",
     "Mülk Sahibi": d.landlordName || "-",
-    "Mülk Sahibi Telefonu": d.landlordPhone || "-",
+    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(d.landlordPhone) || d.landlordPhone || "-",
     "Nihai Anlaşılan Fiyat": `${d.agreedPrice.toLocaleString("tr-TR")} ${d.currency}`,
     "Alınan Depozito": d.deposit ? `${d.deposit.toLocaleString("tr-TR")} ${d.currency}` : "0",
-    "Depozito Tarihi": d.depositDate || "-",
+    "Depozito Tarihi": formatDateTR(d.depositDate),
     "Ödeme Şekli": d.paymentMethod || "-",
-    "Tahsilat Tarihi": d.collectionDate || "-",
+    "Tahsilat Tarihi": formatDateTR(d.collectionDate),
     "Satış/Kiralama Süresi": d.durationText || "-",
     "Komisyon Oranı (%)": d.commissionRate ? `%${d.commissionRate}` : "-",
     "Brüt Komisyon Tutarı": `${d.commissionReceived.toLocaleString("tr-TR")} ${d.currency}`,
@@ -375,10 +375,10 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Satış Danışmanı Payı": `${(d.advisorShareAmount || 0).toLocaleString("tr-TR")} ${d.currency}`,
     "Trustline Ofis Payı": `${(d.officeShareAmount || 0).toLocaleString("tr-TR")} ${d.currency}`,
     "Alıcının Geldiği Kanal": d.leadChannel || "-",
-    "Kapanış / Satış Tarihi": d.closingDate || (d.createdAt ? new Date(d.createdAt).toLocaleDateString("tr-TR") : "-"),
+    "Kapanış / Satış Tarihi": formatDateTR(d.closingDate || d.createdAt),
     "İşlemi Yapan": d.createdByName || "-",
     "Broker Onayı": d.brokerApproval ? "Onaylandı" : "Bekliyor",
-    "Broker Onay Tarihi": d.brokerApprovedAt ? new Date(d.brokerApprovedAt).toLocaleDateString("tr-TR") : "-",
+    "Broker Onay Tarihi": formatDateTR(d.brokerApprovedAt),
   }));
 
   const wsDeals = XLSX.utils.json_to_sheet(dealsRows);
@@ -395,13 +395,13 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
       "Kiralanan Mülk": r.propertyTitle,
       "Bölge": r.region,
       "Kiracı Adı": r.tenantName,
-      "Kiracı Telefonu": r.tenantPhone,
+      "Kiracı Telefonu": formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone,
       "Mülk Sahibi": r.landlordName,
       "Aylık Kira Bedeli": `${r.monthlyRent.toLocaleString("tr-TR")} ${r.currency}`,
       "Kira Ödeme Günü": `Her ayın ${r.dueDay}. günü`,
       "Depozito": `${r.depositAmount.toLocaleString("tr-TR")} ${r.currency}`,
-      "Sözleşme Başlangıç": r.contractStart,
-      "Sözleşme Bitiş": r.contractEnd,
+      "Sözleşme Başlangıç": formatDateTR(r.contractStart),
+      "Sözleşme Bitiş": formatDateTR(r.contractEnd),
       "Ödenen Ay Sayısı": paidCount,
       "Kalan / Ödenmeyen": unpaidCount,
       "Kontrat Durumu": r.active ? "Aktif Yürürlükte" : "Sona Erdi",
@@ -424,9 +424,9 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Yetki Türü": m.mandateType === "exclusive" ? "Tek Yetkili (Exclusive)" : "Genel Yetki",
     "Komisyon Oranı (%)": `%${m.commissionRate}`,
     "Mülk Sahibi Adı": m.ownerName,
-    "Mülk Sahibi Telefonu": m.ownerPhone,
-    "Başlangıç Tarihi": m.startDate,
-    "Bitiş Tarihi": m.endDate,
+    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(m.ownerPhone) || m.ownerPhone,
+    "Başlangıç Tarihi": formatDateTR(m.startDate),
+    "Bitiş Tarihi": formatDateTR(m.endDate),
     "Sorumlu Danışman": m.assignedToName || "-",
     "Durum": m.status === "active" ? "Aktif" : m.status === "expired" ? "Süresi Doldu" : "İptal",
   }));

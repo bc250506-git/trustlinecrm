@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddFollowUpModalProps {
   isOpen: boolean;
@@ -152,7 +153,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
                 <option value="">-- Müşteri Seçilmedi (Boş) --</option>
                 {customers.filter((c) => !c.deletedAt).map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.fullName}
+                    {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""}
                   </option>
                 ))}
               </select>
@@ -212,6 +213,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
               </label>
               <input
                 type="date"
+                lang="tr-TR"
                 required
                 value={formDate}
                 onChange={(e) => setFormDate(e.target.value)}

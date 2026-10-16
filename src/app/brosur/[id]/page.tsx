@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
+import { cleanWhatsAppNumber } from "@/lib/formatters";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -315,7 +316,7 @@ function BrosurContent({ params }: PageProps) {
     const advisor = initialUsers.find(
       (a) => a.id === property.assignedToId || a.name === property.assignedToName
     );
-    const targetPhone = (advisor?.phone || "+90 533 846 00 80").replace(/[^0-9]/g, "");
+    const targetPhone = cleanWhatsAppNumber(advisor?.phone || "+90 533 846 00 80");
     window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 

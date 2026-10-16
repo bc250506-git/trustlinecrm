@@ -1091,6 +1091,7 @@ export function CalendarView() {
                   </label>
                   <input
                     type="date"
+                    lang="tr-TR"
                     required
                     value={editFormDate}
                     onChange={(e) => setEditFormDate(e.target.value)}

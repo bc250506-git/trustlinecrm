@@ -47,7 +47,7 @@ export function SettingsView() {
   // Profil Form State
   const [profileName, setProfileName] = useState(currentUser.name);
   const [profileEmail, setProfileEmail] = useState(currentUser.email);
-  const [profilePhone, setProfilePhone] = useState(currentUser.phone || "+90 548 888 00 00");
+  const [profilePhone, setProfilePhone] = useState(currentUser.phone || "");
   const [profileTitle, setProfileTitle] = useState(currentUser.title || "");
   const [profileSaved, setProfileSaved] = useState(false);
 

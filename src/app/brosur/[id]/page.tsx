@@ -518,21 +518,18 @@ function BrosurContent({ params }: PageProps) {
         </div>
 
         {/* İletişim Alt Çubuğu */}
-        <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between">
+        <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-bold text-[#1d2566]">
-              İletişim & Randevu:
+              İletişim & Randevu: {property.assignedToName || "Trustline Real Estate"}
             </div>
-            <div className="text-[11px] text-slate-500 font-mono">
-              Trustline Gayrimenkul Danışmanlığı • Levent / İstanbul
+            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+              Trustline Real Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-xs font-mono text-[#00adb5] font-bold">
-              +90 (212) 800 40 40
-            </div>
-            <div className="text-[10px] text-slate-500 font-mono">
-              info@trustline.com.tr
+          <div className="text-right shrink-0">
+            <div className="text-xs font-mono text-[#1d2566] font-bold">
+              Ofis: +90 533 846 00 80
             </div>
           </div>
         </div>

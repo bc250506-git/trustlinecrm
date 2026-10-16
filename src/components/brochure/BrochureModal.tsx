@@ -24,8 +24,14 @@ interface BrochureModalProps {
 }
 
 export function BrochureModal({ property, onClose }: BrochureModalProps) {
-  const { mandates } = useStore();
+  const { mandates, users } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const assignedUser =
+    users.find((u) => u.id === property.assignedToId) ||
+    users.find((u) => u.name.trim().toLowerCase() === property.assignedToName?.trim().toLowerCase()) ||
+    users.find((u) => u.id === "usr-volkan") ||
+    users[0];
 
   const isExclusive = mandates.some(
     (m) =>
@@ -527,22 +533,29 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
           </div>
 
           {/* İletişim Alt Çubuğu */}
-          <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between">
+          <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
             <div>
               <div className="text-xs font-bold text-[#1d2566]">
-                İletişim & Randevu:
+                İletişim & Randevu: {assignedUser?.name || property.assignedToName || "Trustline Real Estate"}
               </div>
-              <div className="text-[11px] text-slate-500 font-mono">
-                Trustline Gayrimenkul Danışmanlığı • Levent / İstanbul
+              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                Trustline Real Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs font-mono text-[#00adb5] font-bold">
-                +90 (212) 800 40 40
+            <div className="text-right shrink-0">
+              {assignedUser?.phone && assignedUser.phone !== "+905338460080" && (
+                <div className="text-xs font-mono text-[#00adb5] font-bold">
+                  Danışman: {assignedUser.phone}
+                </div>
+              )}
+              <div className="text-xs font-mono text-[#1d2566] font-bold">
+                Ofis: +90 533 846 00 80
               </div>
-              <div className="text-[10px] text-slate-500 font-mono">
-                info@trustline.com.tr
-              </div>
+              {assignedUser?.email ? (
+                <div className="text-[10px] text-slate-500 font-mono">
+                  {assignedUser.email}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

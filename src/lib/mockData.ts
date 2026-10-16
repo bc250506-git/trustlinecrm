@@ -170,7 +170,7 @@ export const initialAutomationRules: AutomationRule[] = [
   {
     id: "rule-rent-reminder",
     name: "Otomatik Kira Vadesi Hatırlatma Robotu",
-    description: "Kira vadesine 3 gün kala kiracının WhatsApp'ına otomatik hatırlatma mesajı ve ofis IBAN bilgisini hazırlar.",
+    description: "Kira vadesine 3 gün kala kiracının WhatsApp'ına otomatik hatırlatma mesajını hazırlar.",
     enabled: true,
     category: "rental",
     lastTriggeredAt: "Bugün 09:15",

@@ -1046,7 +1046,7 @@ export function RentalsView() {
                                     : reminderStatus.diffDays === 0
                                     ? "için bugün son gündür."
                                     : `${reminderStatus.diffDays} gün sonra vadesi dolacaktır.`
-                                } Ofis Banka IBAN: GB29NWBK60161331926819 (Trustline Real Estate). Dekontunuzu WhatsApp üzerinden iletebilirsiniz. Teşekkür ederiz.`
+                                } Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.`
                               );
                               const phone = r.tenantPhone.replace(/[^0-9]/g, "");
                               window.open(`https://wa.me/${phone}?text=${text}`, "_blank");

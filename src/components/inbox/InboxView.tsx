@@ -48,82 +48,9 @@ interface AiIncomingLead {
 export function InboxView() {
   const { isBroker, addCustomer, users, properties } = useStore();
 
-  const [leads, setLeads] = useState<AiIncomingLead[]>([
-    {
-      id: "lead-ai-1",
-      senderName: "Ahmet Taner",
-      senderPhone: "+90 533 821 44 22",
-      channel: "whatsapp",
-      language: "TR",
-      rawMessages: [
-        "Merhabalar kolay gelsin, web sitenizdeki Girne Alsancak portföylerinizi inceliyordum.",
-        "2+1 deniz manzaralı satılık bir daire arıyoruz, bütçemiz 125.000 sterlin civarı. Hafta sonu yer gösterme yapabilir miyiz?",
-      ],
-      extractedData: {
-        category: "BUYER",
-        region: "Girne / Alsancak",
-        propertyType: "Daire",
-        budget: 125000,
-        budgetCurrency: "GBP",
-        summaryQuote:
-          '"Girne Alsancak... 2+1 deniz manzaralı satılık daire, bütçemiz 125.000 sterlin... Hafta sonu yer gösterme yapabilir miyiz?"',
-        suggestedReply:
-          "Merhaba Ahmet Bey, Trustline Real Estate'e hoş geldiniz! Alsancak bölgesinde bütçenize tam uyan deniz manzaralı 2 harika dairemiz mevcuttur. Hafta sonu cumartesi günü saat 14:00'te randevu organize edebiliriz.",
-      },
-      matchedProperties: ["Girne Alsancak 2+1 Lüks Penthouse"],
-      status: "pending",
-    },
-    {
-      id: "lead-ai-2",
-      senderName: "David Miller",
-      senderPhone: "+44 7700 900123",
-      channel: "whatsapp",
-      language: "EN",
-      rawMessages: [
-        "Hello from London! I am looking for a high-yield investment property in Northern Cyprus.",
-        "Particularly interested in Iskele Long Beach studio or 1-bedroom near the sea. Budget around £95k - £110k GBP. Do you have payment plan options?",
-      ],
-      extractedData: {
-        category: "BUYER",
-        region: "İskele / Long Beach",
-        propertyType: "Daire",
-        budget: 105000,
-        budgetCurrency: "GBP",
-        summaryQuote:
-          '"Iskele Long Beach studio or 1-bedroom near the sea. Budget around £95k - £110k GBP with payment plans."',
-        suggestedReply:
-          "Hello David! Thank you for reaching out to Trustline Real Estate. We have prime beachfront 1-bedroom apartments in Iskele Long Beach starting from £98,000 with up to 36 months interest-free developer payment plans. Would you like me to send the investor PDF brochure via WhatsApp?",
-      },
-      matchedProperties: ["İskele Long Beach Sea Pearl 1+1"],
-      status: "pending",
-    },
-    {
-      id: "lead-ai-3",
-      senderName: "Elena Smirnova",
-      senderPhone: "+7 916 123 45 67",
-      channel: "whatsapp",
-      language: "RU",
-      rawMessages: [
-        "Здравствуйте! Мы переезжаем на Северный Кипр с семьей.",
-        "Ищем отдельную виллу 3 или 4 спальни с бассейном в районе Беллапаис или Чаталкёй. Бюджет до 380.000 фунтов стерлингов.",
-      ],
-      extractedData: {
-        category: "BUYER",
-        region: "Girne / Bellapais",
-        propertyType: "Villa",
-        budget: 380000,
-        budgetCurrency: "GBP",
-        summaryQuote:
-          '"Вилла 3-4 спальни с бассейном в районе Беллапаис или Чаталкёй, бюджет до 380.000 фунтов."',
-        suggestedReply:
-          "Здравствуйте, Елена! Добро пожаловать в Trustline Real Estate. В Беллапаисе и Чаталкёе у нас есть эксклюзивные виллы с панорамным видом на море и приватным бассейном в вашем ценовом диапазоне. Когда вам будет удобно созвониться для консультации?",
-      },
-      matchedProperties: ["Girne Bellapais Müstakil Havuzlu Villa"],
-      status: "pending",
-    },
-  ]);
+  const [leads, setLeads] = useState<AiIncomingLead[]>([]);
 
-  const [selectedLeadId, setSelectedLeadId] = useState<string>("lead-ai-1");
+  const [selectedLeadId, setSelectedLeadId] = useState<string>("");
   const [selectedAssignee, setSelectedAssignee] = useState(users[1]?.id || "");
 
   // AI Canlı Test Konsolu State

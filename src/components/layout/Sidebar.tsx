@@ -67,14 +67,14 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       id: "customers" as NavTab,
       label: "Müşteri Havuzu",
       icon: Users,
-      badge: customers.length,
+      badge: customers.filter((c) => !c.deletedAt).length,
       brokerOnly: false,
     },
     {
       id: "properties" as NavTab,
       label: "Portföy Yönetimi",
       icon: Building,
-      badge: properties.length,
+      badge: properties.filter((p) => !p.deletedAt).length,
       brokerOnly: false,
     },
     {

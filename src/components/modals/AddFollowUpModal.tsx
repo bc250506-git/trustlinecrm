@@ -133,7 +133,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
                 className="sharp-input w-full p-2 bg-white"
               >
                 <option value="">-- Müşteri Seçilmedi (Boş) --</option>
-                {customers.map((c) => (
+                {customers.filter((c) => !c.deletedAt).map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.fullName}
                   </option>
@@ -170,7 +170,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
               className="sharp-input w-full p-2 bg-white"
             >
               <option value="">Portföy Seçilmedi</option>
-              {properties.map((p) => (
+              {properties.filter((p) => !p.deletedAt).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title}
                 </option>

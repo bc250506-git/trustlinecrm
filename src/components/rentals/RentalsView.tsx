@@ -1277,7 +1277,7 @@ export function RentalsView() {
                     <option value="">
                       -- Mevcut portföylerden seçin veya aşağıya elle yazın --
                     </option>
-                    {properties.map((p) => (
+                    {properties.filter((p) => !p.deletedAt).map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.title} ({p.region || "KKTC"}) - {p.price} {p.currency}
                       </option>
@@ -1357,7 +1357,7 @@ export function RentalsView() {
                       className="sharp-input w-full p-1.5 text-xs bg-white"
                     >
                       <option value="">-- Müşteri havuzundan seç --</option>
-                      {customers.map((c) => (
+                      {customers.filter((c) => !c.deletedAt).map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.fullName} ({c.phone || "Tel yok"})
                         </option>
@@ -1416,7 +1416,7 @@ export function RentalsView() {
                     >
                       <option value="">-- Müşteri havuzundan seç --</option>
                       {customers
-                        .filter((c) => c.category === "SELLER")
+                        .filter((c) => !c.deletedAt && c.category === "SELLER")
                         .map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.fullName} ({c.phone || "Tel yok"})

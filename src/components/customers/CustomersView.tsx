@@ -88,6 +88,7 @@ export function CustomersView({
   // Filtreleme fonksiyonu
   const filterList = (list: Customer[]) => {
     return list.filter((c) => {
+      if (c.deletedAt) return false;
       if (vipOnly && !c.isVip) return false;
       if (categoryFilter !== "ALL" && c.category !== categoryFilter) return false;
       if (temperatureFilter !== "ALL" && c.temperature !== temperatureFilter)

@@ -709,7 +709,7 @@ export function MandatesView() {
                   className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
                 >
                   <option value="">-- Portföy Seçin --</option>
-                  {properties.map((p) => (
+                  {properties.filter((p) => !p.deletedAt).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} ({p.region}) - {p.price.toLocaleString("tr-TR")} {p.currency}
                     </option>
@@ -739,7 +739,7 @@ export function MandatesView() {
                   className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
                 >
                   <option value="">-- Mal Sahibi Seçin --</option>
-                  {customers.map((c) => (
+                  {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName} ({c.phone || c.whatsapp}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
                     </option>

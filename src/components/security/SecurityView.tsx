@@ -27,6 +27,9 @@ import {
   Copy,
   ExternalLink,
   Zap,
+  Building,
+  Users,
+  Search,
 } from "lucide-react";
 import {
   BackupModuleKey,
@@ -53,6 +56,13 @@ export function SecurityView() {
     isBroker,
     customers,
     properties,
+    deletedCustomers,
+    deletedProperties,
+    restoreCustomer,
+    permanentDeleteCustomer,
+    restoreProperty,
+    permanentDeleteProperty,
+    emptyTrash,
     deals,
     rentals,
     mandates,
@@ -69,6 +79,83 @@ export function SecurityView() {
   const [activeTab, setActiveTab] = useState<
     "export" | "restore" | "snapshots" | "cloud" | "merge" | "trash"
   >("export");
+
+  // =========================================================================
+  // ÇÖP KUTUSU (SOFT DELETE ARŞİVİ) STATE'LERİ
+  // =========================================================================
+  const [trashFilter, setTrashFilter] = useState<"all" | "properties" | "customers">("all");
+  const [trashSearch, setTrashSearch] = useState("");
+  const [itemToPurge, setItemToPurge] = useState<{
+    type: "property" | "customer";
+    id: string;
+    title: string;
+  } | null>(null);
+  const [isConfirmEmptyOpen, setIsConfirmEmptyOpen] = useState(false);
+  const [trashFeedback, setTrashFeedback] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  const totalDeletedCount = (deletedCustomers?.length || 0) + (deletedProperties?.length || 0);
+
+  const combinedTrashItems = useMemo(() => {
+    const list: Array<{
+      id: string;
+      type: "property" | "customer";
+      title: string;
+      subTitle: string;
+      deletedAt: string;
+      assignedToName: string;
+    }> = [];
+
+    if (trashFilter === "all" || trashFilter === "properties") {
+      (deletedProperties || []).forEach((p) => {
+        list.push({
+          id: p.id,
+          type: "property",
+          title: p.title,
+          subTitle: `${p.region || "KKTC"} • ${p.propertyType || "Portföy"} • ${p.price ? Number(p.price).toLocaleString("tr-TR") : 0} ${p.currency || "GBP"}`,
+          deletedAt: p.deletedAt || p.updatedAt,
+          assignedToName: p.assignedToName || "Ofis Portföyü",
+        });
+      });
+    }
+
+    if (trashFilter === "all" || trashFilter === "customers") {
+      (deletedCustomers || []).forEach((c) => {
+        list.push({
+          id: c.id,
+          type: "customer",
+          title: c.fullName,
+          subTitle: `${c.phone || c.whatsapp || "Tel yok"} • ${
+            c.category === "BUYER"
+              ? "Alıcı"
+              : c.category === "SELLER"
+              ? "Satıcı"
+              : c.category === "TENANT"
+              ? "Kiracı"
+              : "Müşteri"
+          } • ${c.region || "KKTC"}`,
+          deletedAt: c.deletedAt || c.updatedAt,
+          assignedToName: c.assignedToName || "Ofis Havuzu",
+        });
+      });
+    }
+
+    const filtered = list.filter((item) => {
+      if (!trashSearch.trim()) return true;
+      const q = trashSearch.toLowerCase();
+      return (
+        item.title.toLowerCase().includes(q) ||
+        item.subTitle.toLowerCase().includes(q) ||
+        item.assignedToName.toLowerCase().includes(q)
+      );
+    });
+
+    return filtered.sort(
+      (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
+    );
+  }, [deletedProperties, deletedCustomers, trashFilter, trashSearch]);
 
   // =========================================================================
   // BULUT SENKRONİZASYON (SUPABASE) STATE'LERİ
@@ -475,6 +562,11 @@ export function SecurityView() {
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span>Çöp Kutusu</span>
+            {totalDeletedCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-rose-500 text-white text-[10px] font-bold">
+                {totalDeletedCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -1401,29 +1493,328 @@ export function SecurityView() {
       )}
 
       {/* ========================================================================= */}
-      {/* SEKME 6: ÇÖP KUTUSU                                                       */}
+      {/* SEKME 6: ÇÖP KUTUSU (SOFT DELETE ARŞİVİ)                                  */}
       {/* ========================================================================= */}
       {activeTab === "trash" && (
-        <div className="sharp-card p-6 space-y-4 bg-white border border-slate-200">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div>
-              <h3 className="text-xs font-bold text-[#1d2566] font-mono uppercase">
-                Geri Dönüşüm Kutusu (Soft Delete Arşivi)
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Danışmanlar veya broker tarafından silinen kayıtlar kalıcı olarak
-                yok edilmez; bu ekrandan tek tıkla geri kurtarılabilir.
-              </p>
+        <div className="space-y-4">
+          {/* Bildirim Alerti */}
+          {trashFeedback && (
+            <div
+              className={`p-3 text-xs font-mono flex items-center justify-between border ${
+                trashFeedback.type === "success"
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                  : "bg-rose-50 text-rose-800 border-rose-300"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{trashFeedback.text}</span>
+              </div>
+              <button
+                onClick={() => setTrashFeedback(null)}
+                className="text-xs font-bold hover:underline cursor-pointer ml-4"
+              >
+                Kapat
+              </button>
             </div>
-            <span className="text-xs font-mono text-slate-500">
-              0 Aktif Silinmiş Kayıt
-            </span>
+          )}
+
+          <div className="sharp-card p-6 space-y-4 bg-white border border-slate-200">
+            {/* Üst Başlık & Aksiyon */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
+              <div>
+                <h3 className="text-xs font-bold text-[#1d2566] font-mono uppercase tracking-wide flex items-center gap-2">
+                  <Trash2 className="w-4 h-4 text-rose-600" />
+                  <span>Geri Dönüşüm Kutusu (Soft Delete Arşivi)</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Danışmanlar veya broker tarafından silinen portföy ve müşteri kayıtları
+                  kalıcı olarak yok edilmez. Buradan tek tıkla geri kurtarılabilir veya kalıcı olarak temizlenebilir.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-mono px-2 py-1 bg-slate-100 border border-slate-200 text-slate-700 font-bold">
+                  {totalDeletedCount} Aktif Silinmiş Kayıt
+                </span>
+                {totalDeletedCount > 0 && isBroker && (
+                  <button
+                    onClick={() => setIsConfirmEmptyOpen(true)}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    title="Tüm silinmiş kayıtları veritabanından kalıcı olarak temizle"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Çöpü Boşalt</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Arama ve Filtre Butonları */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="flex items-center bg-slate-100 border border-slate-200 p-0.5 text-xs font-mono">
+                <button
+                  onClick={() => setTrashFilter("all")}
+                  className={`px-3 py-1 cursor-pointer transition ${
+                    trashFilter === "all"
+                      ? "bg-[#1d2566] text-white font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-[#1d2566]"
+                  }`}
+                >
+                  Tümü ({totalDeletedCount})
+                </button>
+                <button
+                  onClick={() => setTrashFilter("properties")}
+                  className={`px-3 py-1 cursor-pointer transition ${
+                    trashFilter === "properties"
+                      ? "bg-[#1d2566] text-white font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-[#1d2566]"
+                  }`}
+                >
+                  Portföyler ({(deletedProperties || []).length})
+                </button>
+                <button
+                  onClick={() => setTrashFilter("customers")}
+                  className={`px-3 py-1 cursor-pointer transition ${
+                    trashFilter === "customers"
+                      ? "bg-[#1d2566] text-white font-bold shadow-2xs"
+                      : "text-slate-600 hover:text-[#1d2566]"
+                  }`}
+                >
+                  Müşteriler ({(deletedCustomers || []).length})
+                </button>
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Silinenlerde başlık, isim, bölge ara..."
+                  value={trashSearch}
+                  onChange={(e) => setTrashSearch(e.target.value)}
+                  className="sharp-input w-full pl-8 pr-3 py-1.5 text-xs font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Tablo */}
+            {combinedTrashItems.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-400 font-mono border border-dashed border-slate-200 bg-slate-50/50">
+                {trashSearch
+                  ? "Arama kriterine uygun silinmiş kayıt bulunamadı."
+                  : "Şu anda geri dönüşüm kutusunda silinmiş kayıt bulunmuyor. Sistem tertemiz!"}
+              </div>
+            ) : (
+              <div className="sharp-card overflow-x-auto border border-slate-200 shadow-2xs">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
+                      <th className="py-2.5 px-3 w-28">Tür</th>
+                      <th className="py-2.5 px-3">Kayıt Adı / Detay</th>
+                      <th className="py-2.5 px-3">Sorumlu</th>
+                      <th className="py-2.5 px-3">Silinme Zamanı</th>
+                      <th className="py-2.5 px-3 text-right">Aksiyonlar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {combinedTrashItems.map((item) => (
+                      <tr
+                        key={`${item.type}-${item.id}`}
+                        className="hover:bg-slate-50/80 transition font-sans"
+                      >
+                        {/* Tür */}
+                        <td className="py-3 px-3">
+                          {item.type === "property" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono text-[10px] font-bold">
+                              <Building className="w-3 h-3 text-indigo-600" />
+                              PORTFÖY
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-teal-50 border border-teal-200 text-teal-700 font-mono text-[10px] font-bold">
+                              <Users className="w-3 h-3 text-teal-600" />
+                              MÜŞTERİ
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Başlık & Alt Bilgi */}
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-[#1d2566] text-xs">
+                            {item.title}
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                            {item.subTitle}
+                          </div>
+                        </td>
+
+                        {/* Sorumlu Danışman */}
+                        <td className="py-3 px-3 font-mono text-[11px] text-slate-600 font-semibold">
+                          {item.assignedToName}
+                        </td>
+
+                        {/* Silinme Tarihi */}
+                        <td className="py-3 px-3 font-mono text-[11px] text-slate-500">
+                          {(() => {
+                            try {
+                              const d = new Date(item.deletedAt);
+                              return d.toLocaleString("tr-TR", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              });
+                            } catch {
+                              return item.deletedAt;
+                            }
+                          })()}
+                        </td>
+
+                        {/* Aksiyonlar */}
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Geri Yükle */}
+                            <button
+                              onClick={() => {
+                                if (item.type === "property") {
+                                  restoreProperty(item.id);
+                                } else {
+                                  restoreCustomer(item.id);
+                                }
+                                setTrashFeedback({
+                                  type: "success",
+                                  text: `"${item.title}" kaydı başarıyla aktif listeye geri yüklendi.`,
+                                });
+                              }}
+                              className="px-2.5 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer shadow-2xs"
+                              title="Aktif sisteme geri yükle"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Geri Kurtar</span>
+                            </button>
+
+                            {/* Kalıcı Sil */}
+                            <button
+                              onClick={() => setItemToPurge(item)}
+                              className="px-2 py-1 bg-white hover:bg-rose-50 text-rose-600 border border-rose-300 text-[11px] font-mono font-bold flex items-center gap-1 transition cursor-pointer"
+                              title="Veritabanından kalıcı olarak sil"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              <span>Kalıcı Sil</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          <div className="p-8 text-center text-xs text-slate-400 font-mono">
-            Şu anda çöp kutusunda bekleyen silinmiş müşteri veya portföy kaydı
-            bulunmuyor.
-          </div>
+          {/* TEKİL KAYIT KALICI SİLME ONAY MODALI */}
+          {itemToPurge && (
+            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="sharp-card w-full max-w-md p-6 bg-white border border-rose-300 shadow-2xl space-y-4">
+                <div className="flex items-center gap-3 text-rose-600">
+                  <div className="p-2 bg-rose-100 rounded-full">
+                    <AlertTriangle className="w-5 h-5 text-rose-600" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Kalıcı Olarak Silinsin mi?
+                  </h4>
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-2">
+                  <p>
+                    <span className="font-bold text-[#1d2566]">
+                      &quot;{itemToPurge.title}&quot;
+                    </span>{" "}
+                    adlı {itemToPurge.type === "property" ? "portföy" : "müşteri"} kaydı
+                    bulut veritabanından kalıcı olarak yok edilecektir.
+                  </p>
+                  <p className="text-rose-600 font-mono font-bold">
+                    ⚠️ Bu işlem geri alınamaz!
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    onClick={() => setItemToPurge(null)}
+                    className="px-3 py-1.5 text-xs font-mono font-bold text-slate-600 hover:bg-slate-100 border border-slate-300 cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (itemToPurge.type === "property") {
+                        permanentDeleteProperty(itemToPurge.id);
+                      } else {
+                        permanentDeleteCustomer(itemToPurge.id);
+                      }
+                      setTrashFeedback({
+                        type: "success",
+                        text: `"${itemToPurge.title}" sistemden kalıcı olarak temizlendi.`,
+                      });
+                      setItemToPurge(null);
+                    }}
+                    className="px-4 py-1.5 text-xs font-mono font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-2xs"
+                  >
+                    Evet, Kalıcı Olarak Sil
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ÇÖPÜ BOŞALT ONAY MODALI */}
+          {isConfirmEmptyOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="sharp-card w-full max-w-md p-6 bg-white border border-rose-300 shadow-2xl space-y-4">
+                <div className="flex items-center gap-3 text-rose-600">
+                  <div className="p-2 bg-rose-100 rounded-full">
+                    <Trash2 className="w-5 h-5 text-rose-600" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Çöp Kutusunu Tamamen Boşalt
+                  </h4>
+                </div>
+
+                <div className="text-xs text-slate-600 space-y-2">
+                  <p>
+                    Geri dönüşüm kutusundaki toplam{" "}
+                    <span className="font-bold text-rose-600">{totalDeletedCount}</span> adet
+                    silinmiş kayıt kalıcı olarak veritabanından temizlenecektir.
+                  </p>
+                  <p className="text-rose-600 font-mono font-bold">
+                    ⚠️ Tüm silinmiş kayıtlar geri getirilemez biçimde imha edilecektir!
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    onClick={() => setIsConfirmEmptyOpen(false)}
+                    className="px-3 py-1.5 text-xs font-mono font-bold text-slate-600 hover:bg-slate-100 border border-slate-300 cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await emptyTrash();
+                      setTrashFeedback({
+                        type: "success",
+                        text: "Geri dönüşüm kutusu tamamen boşaltıldı. Tüm silinmiş kayıtlar kalıcı olarak temizlendi.",
+                      });
+                      setIsConfirmEmptyOpen(false);
+                    }}
+                    className="px-4 py-1.5 text-xs font-mono font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-2xs"
+                  >
+                    Evet, Tümünü Kalıcı Sil
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

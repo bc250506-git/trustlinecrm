@@ -53,7 +53,7 @@ export function PipelineView() {
     addCustomer,
   } = useStore();
 
-  const activeCustomers = isBroker ? customers : myCustomers;
+  const activeCustomers = (isBroker ? customers : myCustomers).filter((c) => !c.deletedAt);
 
   // Yeni Satış Süreci Modalı State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);

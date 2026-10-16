@@ -73,9 +73,13 @@ interface StoreContextType {
   setCurrentUser: (user: User) => void;
   users: User[];
   customers: Customer[];
+  allCustomers: Customer[];
+  deletedCustomers: Customer[];
   myCustomers: Customer[];
   sharedCustomers: Customer[];
   properties: Property[];
+  allProperties: Property[];
+  deletedProperties: Property[];
   myProperties: Property[];
   sharedProperties: Property[];
   followUps: FollowUp[];
@@ -110,10 +114,15 @@ interface StoreContextType {
   addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "updatedAt">) => Customer;
   updateCustomer: (id: string, updates: Partial<Customer>) => void;
   deleteCustomer: (id: string) => boolean;
+  restoreCustomer: (id: string) => boolean;
+  permanentDeleteCustomer: (id: string) => boolean;
   toggleCustomerShare: (id: string) => void;
   addProperty: (property: Omit<Property, "id" | "createdAt" | "updatedAt">) => Property;
   updateProperty: (id: string, updates: Partial<Property>) => boolean;
   deleteProperty: (id: string) => boolean;
+  restoreProperty: (id: string) => boolean;
+  permanentDeleteProperty: (id: string) => boolean;
+  emptyTrash: () => Promise<void>;
   togglePropertyShare: (id: string) => void;
   addFollowUp: (followUp: Omit<FollowUp, "id" | "createdAt">) => void;
   updateFollowUp: (id: string, updates: Partial<FollowUp>) => void;
@@ -186,8 +195,28 @@ interface StoreContextType {
 
 const USERS_STORAGE_KEY = "trustline_crm_users_kktc_v1";
 const PROPERTIES_STORAGE_KEY = "trustline_crm_properties_kktc_v1";
+const CUSTOMERS_STORAGE_KEY = "trustline_crm_customers_kktc_v1";
+const DEALS_STORAGE_KEY = "trustline_crm_deals_kktc_v1";
+const RENTALS_STORAGE_KEY = "trustline_crm_rentals_kktc_v1";
+const MANDATES_STORAGE_KEY = "trustline_crm_mandates_kktc_v1";
+const FOLLOWUPS_STORAGE_KEY = "trustline_crm_followups_kktc_v1";
 const CURRENT_USER_STORAGE_KEY = "trustline_crm_current_user_kktc_v1";
 const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
+
+function loadFromStorage<T>(key: string, fallback: T[]): T[] {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+  return fallback;
+}
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
@@ -228,26 +257,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     return initialUsers[0]; // Volkan Affan Kanıgür
   });
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [properties, setProperties] = useState<Property[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem("trustline_crm_properties_v3");
-        const saved = localStorage.getItem(PROPERTIES_STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        }
-      } catch (e) {}
-    }
-    return initialProperties;
-  });
-  const [followUps, setFollowUps] = useState<FollowUp[]>(initialFollowUps);
-  const [deals, setDeals] = useState<Deal[]>(initialDeals);
-  const [rentals, setRentals] = useState<RentalContract[]>(initialRentals);
-  const [mandates, setMandates] = useState<MandateContract[]>(initialMandates);
+
+  const [customers, setCustomers] = useState<Customer[]>(() =>
+    loadFromStorage(CUSTOMERS_STORAGE_KEY, initialCustomers)
+  );
+
+  const [properties, setProperties] = useState<Property[]>(() =>
+    loadFromStorage(PROPERTIES_STORAGE_KEY, initialProperties)
+  );
+
+  const [followUps, setFollowUps] = useState<FollowUp[]>(() =>
+    loadFromStorage(FOLLOWUPS_STORAGE_KEY, initialFollowUps)
+  );
+
+  const [deals, setDeals] = useState<Deal[]>(() =>
+    loadFromStorage(DEALS_STORAGE_KEY, initialDeals)
+  );
+
+  const [rentals, setRentals] = useState<RentalContract[]>(() =>
+    loadFromStorage(RENTALS_STORAGE_KEY, initialRentals)
+  );
+
+  const [mandates, setMandates] = useState<MandateContract[]>(() =>
+    loadFromStorage(MANDATES_STORAGE_KEY, initialMandates)
+  );
+
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
+
+  // Otomatik LocalStorage Senkronizasyonları (Sayfa Yenilendiğinde Asla Veri Kaybolmaz)
+  useEffect(() => {
+    if (typeof window !== "undefined" && customers.length > 0) {
+      try {
+        localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(customers));
+      } catch (e) {}
+    }
+  }, [customers]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && properties.length > 0) {
@@ -256,6 +301,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {}
     }
   }, [properties]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && deals.length > 0) {
+      try {
+        localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(deals));
+      } catch (e) {}
+    }
+  }, [deals]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && rentals.length > 0) {
+      try {
+        localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(rentals));
+      } catch (e) {}
+    }
+  }, [rentals]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && mandates.length > 0) {
+      try {
+        localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(mandates));
+      } catch (e) {}
+    }
+  }, [mandates]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && followUps.length > 0) {
+      try {
+        localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(followUps));
+      } catch (e) {}
+    }
+  }, [followUps]);
 
   // Supabase Realtime Canlı Senkronizasyon (Faz 5) ve Kullanıcı Kimlikleri
   useEffect(() => {
@@ -307,14 +384,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ])
       .then(([cloudCust, cloudProp, cloudDeals, cloudRent, cloudMand, cloudFollow]) => {
         if (!isMounted) return;
-        if (cloudCust) setCustomers(cloudCust);
-        if (cloudProp) setProperties(cloudProp);
-        if (cloudDeals) setDeals(cloudDeals);
-        if (cloudRent) setRentals(cloudRent);
-        if (cloudMand) setMandates(cloudMand);
-        if (cloudFollow) setFollowUps(cloudFollow);
+        // Asla boş dizi ile var olan yerel veriyi sıfırlama! Sadece dolu veri varsa güncelle
+        if (cloudCust && cloudCust.length > 0) setCustomers(cloudCust);
+        if (cloudProp && cloudProp.length > 0) setProperties(cloudProp);
+        if (cloudDeals && cloudDeals.length > 0) setDeals(cloudDeals);
+        if (cloudRent && cloudRent.length > 0) setRentals(cloudRent);
+        if (cloudMand && cloudMand.length > 0) setMandates(cloudMand);
+        if (cloudFollow && cloudFollow.length > 0) setFollowUps(cloudFollow);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn("Supabase veri senkronizasyonu sırasında hata, yerel veriler korundu:", err);
+      });
 
     // 3. Realtime WebSocket Dinleyicisi (Çoklu cihaz anında senkronizasyon)
     const cleanup = setupRealtimeSync(({ table, eventType, newRecord, oldRecord }) => {
@@ -1230,6 +1310,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         (p) => !p.deletedAt && (p.assignedToId === currentUser.id || p.isShared)
       );
 
+  // Silinmiş / Geri Dönüşüm Kutusu Havuzları (Soft Delete)
+  const deletedCustomers = isBroker
+    ? customers.filter((c) => !!c.deletedAt)
+    : customers.filter((c) => !!c.deletedAt && c.assignedToId === currentUser.id);
+
+  const deletedProperties = isBroker
+    ? properties.filter((p) => !!p.deletedAt)
+    : properties.filter((p) => !!p.deletedAt && p.assignedToId === currentUser.id);
+
   // Danışmanın kendi ajanda/takibi (Kimse birbirininkini göremez, ancak OFİS ETKİNLİKLERİ tüm ekibin ajandasında görünür)
   const visibleFollowUps = isBroker
     ? followUps
@@ -1287,6 +1376,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!cust) return false;
     if (!canManageCustomer(cust)) {
       alert("Bu müşteri başka bir danışmana aittir. Yalnızca sahibi veya ofis silebilir.");
+      return false;
+    }
+    const updatedCustomer: Customer = {
+      ...cust,
+      deletedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === id ? updatedCustomer : c))
+    );
+    saveCustomer(updatedCustomer).catch(() => {});
+    return true;
+  };
+
+  const restoreCustomer = (id: string): boolean => {
+    const cust = customers.find((c) => c.id === id);
+    if (!cust) return false;
+    const updatedCustomer: Customer = {
+      ...cust,
+      deletedAt: null,
+      updatedAt: new Date().toISOString(),
+    };
+    setCustomers((prev) =>
+      prev.map((c) => (c.id === id ? updatedCustomer : c))
+    );
+    saveCustomer(updatedCustomer).catch(() => {});
+    return true;
+  };
+
+  const permanentDeleteCustomer = (id: string): boolean => {
+    const cust = customers.find((c) => c.id === id);
+    if (!cust) return false;
+    if (!isBroker && cust.assignedToId !== currentUser.id) {
+      alert("Bu müşteriyi kalıcı olarak silme yetkiniz bulunmuyor.");
       return false;
     }
     setCustomers((prev) => prev.filter((c) => c.id !== id));
@@ -1393,6 +1516,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (!prop) return false;
     if (!canManageProperty(prop)) {
       alert("Bu portföy başka bir danışmana aittir. Yalnızca sahibi veya ofis silebilir.");
+      return false;
+    }
+    const updatedProperty: Property = {
+      ...prop,
+      deletedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setProperties((prev) =>
+      prev.map((p) => (p.id === id ? updatedProperty : p))
+    );
+    saveProperty(updatedProperty).catch(() => {});
+    return true;
+  };
+
+  const restoreProperty = (id: string): boolean => {
+    const prop = properties.find((p) => p.id === id);
+    if (!prop) return false;
+    const updatedProperty: Property = {
+      ...prop,
+      deletedAt: null,
+      updatedAt: new Date().toISOString(),
+    };
+    setProperties((prev) =>
+      prev.map((p) => (p.id === id ? updatedProperty : p))
+    );
+    saveProperty(updatedProperty).catch(() => {});
+    return true;
+  };
+
+  const permanentDeleteProperty = (id: string): boolean => {
+    const prop = properties.find((p) => p.id === id);
+    if (!prop) return false;
+    if (!isBroker && prop.assignedToId !== currentUser.id) {
+      alert("Bu portföyü kalıcı olarak silme yetkiniz bulunmuyor.");
       return false;
     }
     setProperties((prev) => prev.filter((p) => p.id !== id));
@@ -1972,7 +2129,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         status: "ARCHIVED",
         deletedAt: new Date().toISOString(),
       };
-      setProperties((prev) => prev.filter((p) => p.id !== prop.id));
+      setProperties((prev) => prev.map((p) => (p.id === prop.id ? updatedProp : p)));
       saveProperty(updatedProp).catch(() => {});
     }
 
@@ -2197,6 +2354,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return { success: res.success, message: res.message };
   };
 
+  const emptyTrash = async () => {
+    const softDeletedProps = properties.filter((p) => !!p.deletedAt);
+    const softDeletedCusts = customers.filter((c) => !!c.deletedAt);
+
+    setProperties((prev) => prev.filter((p) => !p.deletedAt));
+    setCustomers((prev) => prev.filter((c) => !c.deletedAt));
+
+    await Promise.all([
+      ...softDeletedProps.map((p) => deletePropertyFromDb(p.id)),
+      ...softDeletedCusts.map((c) => deleteCustomerFromDb(c.id)),
+    ]);
+  };
+
   return (
     <StoreContext.Provider
       value={{
@@ -2204,9 +2374,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setCurrentUser: handleSetCurrentUser,
         users,
         customers: visibleCustomers,
+        allCustomers: customers,
+        deletedCustomers,
         myCustomers,
         sharedCustomers,
         properties: visibleProperties,
+        allProperties: properties,
+        deletedProperties,
         myProperties,
         sharedProperties,
         followUps: visibleFollowUps,
@@ -2217,10 +2391,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        restoreCustomer,
+        permanentDeleteCustomer,
         toggleCustomerShare,
         addProperty,
         updateProperty,
         deleteProperty,
+        restoreProperty,
+        permanentDeleteProperty,
+        emptyTrash,
         togglePropertyShare,
         addFollowUp,
         updateFollowUp,

@@ -82,8 +82,8 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   const [isAddMandateModalOpen, setIsAddMandateModalOpen] = useState(false);
 
   // Sayım Mantığı
-  const hotCustomers = customers.filter((c) => c.temperature === "hot");
-  const activeProperties = properties.filter((p) => p.status === "AVAILABLE");
+  const hotCustomers = customers.filter((c) => !c.deletedAt && c.temperature === "hot");
+  const activeProperties = properties.filter((p) => !p.deletedAt && p.status === "AVAILABLE");
   const aiApprovedTodayCount = 2; // Simüle edilen bugünkü broker onaylı lead
 
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
@@ -113,8 +113,8 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
 
     // Danışman yalnızca kendi müşterilerini ve kiralarını görür, broker hepsini görür
     const userCustomers = isBroker
-      ? customers
-      : customers.filter((c) => c.assignedToId === currentUser.id);
+      ? customers.filter((c) => !c.deletedAt)
+      : customers.filter((c) => !c.deletedAt && c.assignedToId === currentUser.id);
 
     const userRentals = isBroker
       ? rentals

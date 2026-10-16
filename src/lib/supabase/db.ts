@@ -88,10 +88,7 @@ export async function checkSupabaseHealth(): Promise<SupabaseHealthStatus> {
 // ==========================================
 export async function getCustomers(): Promise<Customer[]> {
   try {
-    const { data, error } = await supabase
-      .from("customers")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("customers").select("*");
 
     if (error || !data) {
       return [];
@@ -125,10 +122,7 @@ export async function deleteCustomerFromDb(id: string): Promise<boolean> {
 // ==========================================
 export async function getProperties(): Promise<Property[]> {
   try {
-    const { data, error } = await supabase
-      .from("properties")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("properties").select("*");
 
     if (error || !data) {
       return [];
@@ -162,10 +156,7 @@ export async function deletePropertyFromDb(id: string): Promise<boolean> {
 // ==========================================
 export async function getFollowUps(): Promise<FollowUp[]> {
   try {
-    const { data, error } = await supabase
-      .from("follow_ups")
-      .select("*")
-      .order("due_at", { ascending: true });
+    const { data, error } = await supabase.from("follow_ups").select("*");
 
     if (error || !data) {
       return [];
@@ -199,10 +190,7 @@ export async function deleteFollowUpFromDb(id: string): Promise<boolean> {
 // ==========================================
 export async function getDeals(): Promise<Deal[]> {
   try {
-    const { data, error } = await supabase
-      .from("deals")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("deals").select("*");
 
     if (error || !data) {
       return [];
@@ -236,10 +224,7 @@ export async function deleteDealFromDb(id: string): Promise<boolean> {
 // ==========================================
 export async function getRentals(): Promise<RentalContract[]> {
   try {
-    const { data, error } = await supabase
-      .from("rentals")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("rentals").select("*");
 
     if (error || !data) {
       return [];
@@ -273,10 +258,7 @@ export async function deleteRentalFromDb(id: string): Promise<boolean> {
 // ==========================================
 export async function getMandates(): Promise<MandateContract[]> {
   try {
-    const { data, error } = await supabase
-      .from("mandates")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("mandates").select("*");
 
     if (error || !data) {
       return [];

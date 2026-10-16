@@ -643,7 +643,7 @@ export function AddDealModal({
                   className="sharp-input w-full p-2 bg-white"
                 >
                   <option value="">-- Portföy havuzundan seçin veya aşağıya yazın --</option>
-                  {properties.map((p) => (
+                  {properties.filter((p) => !p.deletedAt).map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency}) - {p.region}
                     </option>
@@ -790,7 +790,7 @@ export function AddDealModal({
                       {formLandlordName} (Portföy Kaydından)
                     </option>
                   )}
-                  {customers.map((c) => (
+                  {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "SELLER" ? "• Satıcı/Ev Sahibi" : ""}
                     </option>
@@ -855,7 +855,7 @@ export function AddDealModal({
                   className="sharp-input w-full h-9 p-2 bg-white text-xs font-mono font-medium text-slate-800"
                 >
                   <option value="">-- Müşteri havuzundan alıcı seçin * --</option>
-                  {customers.map((c) => (
+                  {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName} {c.phone ? `(${c.phone})` : ""} {c.category === "BUYER" || c.category === "TENANT" ? "• Alıcı/Kiracı" : ""}
                     </option>

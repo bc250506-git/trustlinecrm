@@ -11,7 +11,6 @@ import {
   Calendar,
   KeyRound,
   Calculator,
-  MessageSquareCode,
   ShieldAlert,
   Lock,
   FileCheck,
@@ -31,7 +30,6 @@ export type NavTab =
   | "rentals"
   | "mandates"
   | "finance"
-  | "inbox"
   | "security"
   | "settings";
 
@@ -115,13 +113,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       brokerOnly: true,
       href: "https://trustline-muhasebe.vercel.app/",
     },
-    {
-      id: "inbox" as NavTab,
-      label: "AI Mesaj",
-      icon: MessageSquareCode,
-      badge: isBroker ? "YCloud/Meta" : null,
-      brokerOnly: true,
-    },
+
     {
       id: "security" as NavTab,
       label: "Veri Koruma",

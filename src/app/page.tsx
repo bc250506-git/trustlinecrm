@@ -13,7 +13,6 @@ import { MonthCalendarView } from "@/components/calendar/MonthCalendarView";
 import { RentalsView } from "@/components/rentals/RentalsView";
 import { MandatesView } from "@/components/mandates/MandatesView";
 import { FinanceView } from "@/components/finance/FinanceView";
-import { InboxView } from "@/components/inbox/InboxView";
 import { SecurityView } from "@/components/security/SecurityView";
 import { SettingsView } from "@/components/settings/SettingsView";
 import { LoginView } from "@/components/auth/LoginView";
@@ -124,7 +123,6 @@ function MainApp() {
 
             {activeTab === "finance" && <FinanceView />}
 
-            {activeTab === "inbox" && <InboxView />}
 
             {activeTab === "security" && <SecurityView />}
 

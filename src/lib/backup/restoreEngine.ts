@@ -64,12 +64,61 @@ export function parseAndValidateBackup(jsonString: string): ParseBackupResult {
     const rawFollowUps =
       parsed.followUps || parsed.data?.followUps || [];
 
-    const customers: Customer[] = Array.isArray(rawCustomers) ? rawCustomers : [];
-    const properties: Property[] = Array.isArray(rawProperties) ? rawProperties : [];
-    const deals: Deal[] = Array.isArray(rawDeals) ? rawDeals : [];
-    const rentals: RentalContract[] = Array.isArray(rawRentals) ? rawRentals : [];
-    const mandates: MandateContract[] = Array.isArray(rawMandates) ? rawMandates : [];
-    const followUps: FollowUp[] = Array.isArray(rawFollowUps) ? rawFollowUps : [];
+    const customers: Customer[] = (Array.isArray(rawCustomers) ? rawCustomers : []).map((c: any) => ({
+      ...c,
+      category: c.category || "BUYER",
+      temperature: c.temperature || "warm",
+      isVip: c.isVip ?? false,
+      budgetCurrency: c.budgetCurrency || "TRY",
+      stage: c.stage || "NEW",
+      regions: Array.isArray(c.regions) ? c.regions : (c.region ? [c.region] : []),
+      propertyTypes: Array.isArray(c.propertyTypes) ? c.propertyTypes : (c.propertyType ? [c.propertyType] : []),
+      roomsList: Array.isArray(c.roomsList) ? c.roomsList : (c.rooms ? [c.rooms] : []),
+    }));
+
+    const properties: Property[] = (Array.isArray(rawProperties) ? rawProperties : []).map((p: any) => ({
+      ...p,
+      currency: p.currency || "TRY",
+      listingType: p.listingType || "sale",
+      status: p.status || "AVAILABLE",
+      photos: Array.isArray(p.photos) ? p.photos : [],
+      isOffMarket: p.isOffMarket ?? false,
+      isShared: p.isShared ?? false,
+    }));
+
+    const deals: Deal[] = (Array.isArray(rawDeals) ? rawDeals : []).map((d: any) => ({
+      ...d,
+      dealType: d.dealType || "sale",
+      currency: d.currency || "TRY",
+      sharingType: d.sharingType || "none",
+      portfolioOrigin: d.portfolioOrigin || "advisor",
+      brokerApproval: d.brokerApproval ?? false,
+      askingPrice: d.askingPrice || 0,
+      offeredPrice: d.offeredPrice || 0,
+      agreedPrice: d.agreedPrice || 0,
+      deposit: d.deposit || 0,
+      commissionExpected: d.commissionExpected || 0,
+      commissionReceived: d.commissionReceived || 0,
+    }));
+
+    const rentals: RentalContract[] = (Array.isArray(rawRentals) ? rawRentals : []).map((r: any) => ({
+      ...r,
+      currency: r.currency || "GBP",
+      active: r.active ?? true,
+      payments: Array.isArray(r.payments) ? r.payments : [],
+    }));
+
+    const mandates: MandateContract[] = (Array.isArray(rawMandates) ? rawMandates : []).map((m: any) => ({
+      ...m,
+      currency: m.currency || "GBP",
+      status: m.status || "active",
+    }));
+
+    const followUps: FollowUp[] = (Array.isArray(rawFollowUps) ? rawFollowUps : []).map((f: any) => ({
+      ...f,
+      status: f.status || "open",
+      outcome: f.outcome || "pending",
+    }));
 
     const totalRecords =
       customers.length +

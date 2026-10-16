@@ -369,8 +369,29 @@ export async function saveUserCredentialsToSupabase(
         .eq("id", userId);
 
       if (err2) {
-        console.warn("Supabase kullanıcı şifre hash kaydı uyarısı:", err2.message);
-        return { success: false, error: err2.message };
+        // Eğer must_change_password kolonu henüz eklenmemişse yalnızca hash & salt kaydetmeyi dene
+        const { error: err3 } = await supabase
+          .from("users")
+          .update({
+            password_hash: passwordHash,
+            password_salt: passwordSalt,
+          })
+          .eq("id", userId);
+
+        if (err3) {
+          const { error: err4 } = await supabase
+            .from("users")
+            .update({
+              passwordHash,
+              passwordSalt,
+            })
+            .eq("id", userId);
+
+          if (err4) {
+            console.warn("Supabase kullanıcı şifre hash kaydı uyarısı (SQL şeması güncellenmeli):", err2.message);
+            return { success: false, error: err2.message };
+          }
+        }
       }
     }
     return { success: true };

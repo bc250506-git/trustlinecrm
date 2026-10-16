@@ -257,15 +257,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           for (const cu of cloudUsers) {
             const existing = map.get(cu.id);
             if (existing) {
+              const hasLocalPassword = Boolean(existing.passwordHash && existing.passwordSalt);
+              const hasCloudPassword = Boolean(cu.passwordHash && cu.passwordSalt);
               map.set(cu.id, {
                 ...existing,
                 ...cu,
                 passwordHash: cu.passwordHash || existing.passwordHash,
                 passwordSalt: cu.passwordSalt || existing.passwordSalt,
-                mustChangePassword:
-                  cu.mustChangePassword !== undefined
-                    ? cu.mustChangePassword
-                    : existing.mustChangePassword,
+                mustChangePassword: hasCloudPassword
+                  ? cu.mustChangePassword
+                  : hasLocalPassword
+                  ? false
+                  : (cu.mustChangePassword ?? existing.mustChangePassword ?? true),
               });
             } else {
               map.set(cu.id, cu);
@@ -285,18 +288,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (eventType === "INSERT" || eventType === "UPDATE") {
         if (table === "users" && newRecord) {
           setUsers((prev) => {
+            const existing = prev.find((u) => u.id === newRecord.id);
+            const cloudHash = newRecord.passwordHash || newRecord.password_hash;
+            const cloudSalt = newRecord.passwordSalt || newRecord.password_salt;
+            const effectiveHash = cloudHash || existing?.passwordHash;
+            const effectiveSalt = cloudSalt || existing?.passwordSalt;
+            const hasPassword = Boolean(effectiveHash && effectiveSalt);
+
             const updated: User = {
+              ...(existing || {}),
               ...newRecord,
-              passwordHash: newRecord.passwordHash || newRecord.password_hash,
-              passwordSalt: newRecord.passwordSalt || newRecord.password_salt,
-              mustChangePassword:
-                newRecord.mustChangePassword ??
-                newRecord.must_change_password ??
-                false,
+              passwordHash: effectiveHash,
+              passwordSalt: effectiveSalt,
+              mustChangePassword: hasPassword
+                ? (cloudHash ? (newRecord.mustChangePassword ?? newRecord.must_change_password ?? false) : false)
+                : (newRecord.mustChangePassword ?? newRecord.must_change_password ?? true),
             };
-            const exists = prev.some((u) => u.id === updated.id);
+            const exists = Boolean(existing);
             const nextUsers = exists
-              ? prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u))
+              ? prev.map((u) => (u.id === updated.id ? updated : u))
               : [...prev, updated];
             try {
               localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(nextUsers));
@@ -946,8 +956,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           (u) => u.username.toLowerCase() === clean || u.email.toLowerCase() === clean
         );
         if (freshMatch) {
-          found = { ...(found || {}), ...freshMatch } as User;
-          setUsers((prev) => prev.map((u) => (u.id === freshMatch.id ? { ...u, ...freshMatch } : u)));
+          const hasLocalPassword = Boolean(found?.passwordHash && found?.passwordSalt);
+          const hasCloudPassword = Boolean(freshMatch.passwordHash && freshMatch.passwordSalt);
+          const mergedUser: User = {
+            ...(found || {}),
+            ...freshMatch,
+            passwordHash: freshMatch.passwordHash || found?.passwordHash,
+            passwordSalt: freshMatch.passwordSalt || found?.passwordSalt,
+            mustChangePassword: hasCloudPassword
+              ? freshMatch.mustChangePassword
+              : hasLocalPassword
+              ? false
+              : (freshMatch.mustChangePassword ?? found?.mustChangePassword ?? true),
+          } as User;
+          found = mergedUser;
+          setUsers((prev) => prev.map((u) => (u.id === freshMatch.id ? mergedUser : u)));
         }
       }
     } catch {}

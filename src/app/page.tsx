@@ -24,11 +24,28 @@ import { useStore } from "@/lib/store";
 
 function MainApp() {
   const { isAuthenticated } = useStore();
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
   const [matchmakerCustomer, setMatchmakerCustomer] = useState<Customer | null>(null);
   const [matchmakerProperty, setMatchmakerProperty] = useState<Property | null>(null);
   const [brochureProperty, setBrochureProperty] = useState<Property | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+
+  // SSR Hydration Uyuşmazlığını Önleme (Sunucu ile Tarayıcıyı Senkronize Et)
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center font-mono text-xs text-slate-400">
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-[#00adb5] animate-ping rounded-full" />
+          <span>Trustline CRM Yükleniyor...</span>
+        </div>
+      </div>
+    );
+  }
 
   // Müşteriden Eşleştirme Motoruna Geçiş
   const handleFindMatchesForCustomer = (customer: Customer) => {

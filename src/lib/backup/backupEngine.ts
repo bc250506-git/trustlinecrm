@@ -283,6 +283,8 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Telefon": c.phone,
     "WhatsApp": c.whatsapp || c.phone,
     "E-posta": c.email || "-",
+    "Instagram": c.instagramHandle || "-",
+    "Doğum Tarihi": c.birthDate || "-",
     "Kategori":
       c.category === "BUYER"
         ? "Alıcı"
@@ -329,11 +331,14 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Açık Adres": p.address || "-",
     "Mülk Sahibi Adı": p.ownerName || "-",
     "Mülk Sahibi Telefonu": p.ownerPhone || "-",
+    "Anahtar Teslim / Kimde": p.keyHolder || "-",
     "Danışman": p.assignedToName || "-",
     "Paylaşımlı Portföy": p.isShared ? "Evet" : "Hayır",
     "Off-Market (Gizli)": p.isOffMarket ? "Evet" : "Hayır",
     "Kayıt Tarihi": p.createdAt ? new Date(p.createdAt).toLocaleDateString("tr-TR") : "-",
     "İlan Linki": p.listingUrl || "-",
+    "Görsel Linki": p.imageUrl || "-",
+    "Genel Açıklama": p.publicDescription || "-",
   }));
 
   const wsProperties = XLSX.utils.json_to_sheet(propertiesRows);
@@ -343,12 +348,19 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
   const dealsRows = payload.deals.map((d, idx) => ({
     "No": idx + 1,
     "İşlem ID": d.id,
+    "İşlem / Portföy No": d.dealNumber || "-",
     "Portföy Başlığı": d.propertyTitle || d.title,
     "İşlem Tipi": d.dealType === "rent" ? "Kiralama" : "Satış",
     "Alıcı / Kiracı": d.customerName || "-",
+    "Alıcı Telefonu": d.customerPhone || "-",
     "Mülk Sahibi": d.landlordName || "-",
+    "Mülk Sahibi Telefonu": d.landlordPhone || "-",
     "Nihai Anlaşılan Fiyat": `${d.agreedPrice.toLocaleString("tr-TR")} ${d.currency}`,
     "Alınan Depozito": d.deposit ? `${d.deposit.toLocaleString("tr-TR")} ${d.currency}` : "0",
+    "Depozito Tarihi": d.depositDate || "-",
+    "Ödeme Şekli": d.paymentMethod || "-",
+    "Tahsilat Tarihi": d.collectionDate || "-",
+    "Satış/Kiralama Süresi": d.durationText || "-",
     "Komisyon Oranı (%)": d.commissionRate ? `%${d.commissionRate}` : "-",
     "Brüt Komisyon Tutarı": `${d.commissionReceived.toLocaleString("tr-TR")} ${d.currency}`,
     "Portföy Kökeni": d.portfolioOrigin === "advisor" ? "Danışman Portföyü" : "Ofis Portföyü",
@@ -366,6 +378,7 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
     "Kapanış / Satış Tarihi": d.closingDate || (d.createdAt ? new Date(d.createdAt).toLocaleDateString("tr-TR") : "-"),
     "İşlemi Yapan": d.createdByName || "-",
     "Broker Onayı": d.brokerApproval ? "Onaylandı" : "Bekliyor",
+    "Broker Onay Tarihi": d.brokerApprovedAt ? new Date(d.brokerApprovedAt).toLocaleDateString("tr-TR") : "-",
   }));
 
   const wsDeals = XLSX.utils.json_to_sheet(dealsRows);

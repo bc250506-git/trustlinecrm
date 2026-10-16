@@ -13,14 +13,23 @@
 -- 4. Aşağıdaki tüm SQL kodunu yapıştırın ve "RUN" (Çalıştır) butonuna tıklayın.
 -- ==============================================================================
 
--- 0. TEMİZ BAŞLANGIÇ (ESKİ TABLOLARI SIFIRLA)
+-- 0. TEMİZ BAŞLANGIÇ (TÜM ESKİ VE ARTIK TABLOLARI, TİPLERİ SIFIRLA)
 DROP TABLE IF EXISTS deals CASCADE;
 DROP TABLE IF EXISTS rentals CASCADE;
+DROP TABLE IF EXISTS rental_receipts CASCADE;
 DROP TABLE IF EXISTS mandates CASCADE;
 DROP TABLE IF EXISTS follow_ups CASCADE;
+DROP TABLE IF EXISTS property_photos CASCADE;
+DROP TABLE IF EXISTS property_price_history CASCADE;
 DROP TABLE IF EXISTS properties CASCADE;
 DROP TABLE IF EXISTS customers CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+
+DROP TYPE IF EXISTS property_status CASCADE;
+DROP TYPE IF EXISTS customer_category CASCADE;
+DROP TYPE IF EXISTS pipeline_stage CASCADE;
+DROP TYPE IF EXISTS user_role CASCADE;
+DROP TYPE IF EXISTS currency_code CASCADE;
 
 -- ==============================================================================
 -- 1. KULLANICILAR & DANIŞMANLAR (users)

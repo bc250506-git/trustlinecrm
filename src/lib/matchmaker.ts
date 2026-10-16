@@ -1,4 +1,4 @@
-import { Customer, Property } from "./types";
+import { Customer, Property, RentalContract } from "./types";
 import { convertCurrency, formatCurrencyAmount, getCurrentExchangeRates } from "./currency";
 
 export interface MatchResult {
@@ -12,11 +12,33 @@ export interface MatchResult {
 }
 
 /**
+ * Bir müşterinin halihazırda aktif bir kira sözleşmesi olup olmadığını kontrol eder.
+ * Aktif kiracılar ev bulmuş durumdadır, portföy arayışında DEĞİLDİR.
+ */
+export function isCustomerActiveTenant(
+  customer: { id: string; phone?: string; fullName?: string },
+  rentals?: RentalContract[]
+): boolean {
+  if (!rentals || rentals.length === 0) return false;
+  const cleanPhone = (customer.phone || "").replace(/\D/g, "");
+  const cleanName = (customer.fullName || "").trim().toLowerCase();
+
+  return rentals.some((r) => {
+    if (!r.active) return false;
+    if (r.tenantCustomerId && r.tenantCustomerId === customer.id) return true;
+    if (cleanPhone && r.tenantPhone && r.tenantPhone.replace(/\D/g, "") === cleanPhone) return true;
+    if (cleanName && r.tenantName && r.tenantName.trim().toLowerCase() === cleanName) return true;
+    return false;
+  });
+}
+
+/**
  * Müşteri ve Portföy Eşleştirme Fonksiyonu
  */
 export function matchCustomerAndProperty(
   customer: Customer,
-  property: Property
+  property: Property,
+  rentals?: RentalContract[]
 ): MatchResult {
   const matchedCriteria: string[] = [];
   const missingCriteria: string[] = [];
@@ -42,12 +64,49 @@ export function matchCustomerAndProperty(
     };
   }
 
-  // 1. İŞLEM VE NİYET UYUMU (SERT ELEME - HARD FILTER)
-  // Satılık arayan birine kiralık, kiralık arayana satılık ASLA önerilmez!
+  // 1. MÜLK SAHİBİ KENDİ PORTFÖYÜYLE ASLA EŞLEŞEMEZ (SERT ELEME - HARD FILTER)
+  const isOwner =
+    (property.ownerCustomerId && property.ownerCustomerId === customer.id) ||
+    (property.ownerPhone && customer.phone && property.ownerPhone.replace(/\D/g, "") === customer.phone.replace(/\D/g, "")) ||
+    (property.ownerName && customer.fullName && property.ownerName.trim().toLowerCase() === customer.fullName.trim().toLowerCase());
+
+  if (isOwner) {
+    return {
+      score: 0,
+      isEligible: false,
+      matchedCriteria: [],
+      missingCriteria: ["Mülk sahibi kendi mülkü ile eşleştirilemez."],
+      isStrictMatch: false,
+    };
+  }
+
+  // 2. SATICILARA PORTFÖY ÖNERİLMEZ, PORTFÖYE DE SATICI ÖNERİLMEZ (SERT ELEME)
+  if (customer.category === "SELLER") {
+    return {
+      score: 0,
+      isEligible: false,
+      matchedCriteria: [],
+      missingCriteria: ["Satıcı müşteri portföy arayışında değildir."],
+      isStrictMatch: false,
+    };
+  }
+
+  // 3. AKTİF KİRACILAR EV BULMUŞTUR, YENİDEN KİRALIK ARAMAZLAR (SERT ELEME)
+  if (customer.category === "TENANT" && isCustomerActiveTenant(customer, rentals)) {
+    return {
+      score: 0,
+      isEligible: false,
+      matchedCriteria: [],
+      missingCriteria: ["Mevcut aktif kira sözleşmesi bulunmaktadır (Ev bulmuş, arayışta değil)."],
+      isStrictMatch: false,
+    };
+  }
+
+  // 4. İŞLEM VE NİYET UYUMU (SERT ELEME - HARD FILTER)
+  // Alıcıya YALNIZCA Satılık portföy, Kiracı Adayına YALNIZCA Kiralık portföy önerilir!
   const isIntentMatch =
     (customer.category === "BUYER" && property.listingType === "sale") ||
-    (customer.category === "TENANT" && property.listingType === "rent") ||
-    (customer.category === "SELLER" && property.listingType === "sale");
+    (customer.category === "TENANT" && property.listingType === "rent");
 
   if (!isIntentMatch) {
     return {
@@ -56,9 +115,9 @@ export function matchCustomerAndProperty(
       matchedCriteria: [],
       missingCriteria: [
         customer.category === "BUYER"
-          ? "Niyet Uyumsuz: Müşteri Satılık arıyor, portföy Kiralık."
+          ? "Niyet Uyumsuz: Alıcı müşteri Satılık portföy arıyor, bu mülk Kiralıktır."
           : customer.category === "TENANT"
-          ? "Niyet Uyumsuz: Müşteri Kiralık arıyor, portföy Satılık."
+          ? "Niyet Uyumsuz: Kiracı adayı Kiralık portföy arıyor, bu mülk Satılıktır."
           : "Niyet Uyumsuzluğu",
       ],
       isStrictMatch: false,
@@ -69,9 +128,7 @@ export function matchCustomerAndProperty(
   matchedCriteria.push(
     customer.category === "BUYER"
       ? "Satılık Alıcı Uyumu"
-      : customer.category === "TENANT"
-      ? "Kiralık Kiracı Uyumu"
-      : "Portföy Satıcı Uyumu"
+      : "Kiralık Kiracı Adayı Uyumu"
   );
 
   // 2. BÜTÇE & FİYAT UYUMU (40 PUAN) - DÖVİZ KURU OTOMATİK ÇEVRİLİR
@@ -264,16 +321,34 @@ export function matchCustomerAndProperty(
 
 /**
  * Müşteri için En Uygun Portföyleri Bulur ve Sıralar
+ * Yalnızca ALICI ve KİRACI ADAYLARI portföy eşleşmesi alabilir.
+ * SATICILAR ve AKTİF KİRACILAR (sözleşmesi olanlar) kesinlikle boş liste alır.
  */
 export function findMatchesForCustomer(
   customer: Customer,
-  properties: Property[]
+  properties: Property[],
+  rentals?: RentalContract[]
 ): { property: Property; result: MatchResult }[] {
+  // 1. SATICILAR KESİNLİKLE PORTFÖY ARAYIŞINDA DEĞİLDİR
+  if (customer.category === "SELLER") return [];
+
+  // 2. AKTİF KİRACILAR EV TUTMUŞTUR, YENİDEN KİRALIK ARAMAZLAR
+  if (customer.category === "TENANT" && isCustomerActiveTenant(customer, rentals)) {
+    return [];
+  }
+
   return properties
-    .filter((p) => p.status === "AVAILABLE" && !p.deletedAt)
+    .filter((p) => {
+      if (p.status !== "AVAILABLE" || p.deletedAt) return false;
+      // Alıcıya SADECE Satılık
+      if (customer.category === "BUYER" && p.listingType !== "sale") return false;
+      // Kiracı Adayına SADECE Kiralık
+      if (customer.category === "TENANT" && p.listingType !== "rent") return false;
+      return true;
+    })
     .map((property) => ({
       property,
-      result: matchCustomerAndProperty(customer, property),
+      result: matchCustomerAndProperty(customer, property, rentals),
     }))
     .filter((item) => item.result.isEligible && item.result.score >= 50)
     .sort((a, b) => {
@@ -292,16 +367,44 @@ export function findMatchesForCustomer(
 
 /**
  * Portföy için En Uygun Müşterileri Bulur ve Sıralar (Sıcaklık & VIP Ağırlıklı)
+ * SATILIK portföye SADECE ALICI müşteriler önerilir.
+ * KİRALIK portföye SADECE KİRACI ADAYLARI (aktif sözleşmesi olmayan) önerilir.
+ * SATICILAR, AKTİF KİRACILAR ve MÜLKÜN KENDİ SAHİBİ ASLA ÖNERİLMEZ.
  */
 export function findMatchesForProperty(
   property: Property,
-  customers: Customer[]
+  customers: Customer[],
+  rentals?: RentalContract[]
 ): { customer: Customer; result: MatchResult }[] {
   return customers
-    .filter((c) => !c.deletedAt)
+    .filter((c) => {
+      if (c.deletedAt) return false;
+      // Satıcılar hiçbir portföye alıcı/kiracı olarak önerilemez
+      if (c.category === "SELLER") return false;
+
+      // Mülk sahibi kendi portföyüne müşteri olarak önerilemez
+      const isOwner =
+        (property.ownerCustomerId && property.ownerCustomerId === c.id) ||
+        (property.ownerPhone && c.phone && property.ownerPhone.replace(/\D/g, "") === c.phone.replace(/\D/g, "")) ||
+        (property.ownerName && c.fullName && property.ownerName.trim().toLowerCase() === c.fullName.trim().toLowerCase());
+      if (isOwner) return false;
+
+      // Satılık portföye YALNIZCA ALICI (BUYER)
+      if (property.listingType === "sale") {
+        return c.category === "BUYER";
+      }
+
+      // Kiralık portföye YALNIZCA KİRACI ADAYI (Aktif sözleşmesi bulunmayan TENANT)
+      if (property.listingType === "rent") {
+        if (c.category !== "TENANT") return false;
+        return !isCustomerActiveTenant(c, rentals);
+      }
+
+      return false;
+    })
     .map((customer) => ({
       customer,
-      result: matchCustomerAndProperty(customer, property),
+      result: matchCustomerAndProperty(customer, property, rentals),
     }))
     .filter((item) => item.result.isEligible && item.result.score >= 50)
     .sort((a, b) => {

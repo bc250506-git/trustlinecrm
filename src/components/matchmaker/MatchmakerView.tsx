@@ -7,6 +7,7 @@ import { formatCustomerCategory, formatCustomerTemperature } from "@/lib/formatt
 import {
   findMatchesForCustomer,
   findMatchesForProperty,
+  isCustomerActiveTenant,
 } from "@/lib/matchmaker";
 import { updateLiveExchangeRates } from "@/lib/currency";
 import {
@@ -37,13 +38,25 @@ export function MatchmakerView({
   initialProperty,
   onOpenBrochure,
 }: MatchmakerViewProps) {
-  const { customers, properties } = useStore();
+  const { customers, properties, rentals } = useStore();
 
   // Yalnızca AVAILABLE (Aktif) ve silinmemiş portföyler eşleşme motorunda yer alabilir
   const activeProperties = properties.filter(
     (p) => p.status === "AVAILABLE" && !p.deletedAt
   );
-  const activeCustomers = customers.filter((c) => !c.deletedAt);
+
+  // Müşteriye Portföy Bul için uygun adaylar:
+  // SATICI ve AKTİF KİRACI (ev tutmuş, kira takibinde olan) kişilerin portföy aramaya ihtiyacı yoktur!
+  // Yalnızca ALICI ve KİRACI ADAYLARI aranır ve önerilir.
+  const eligibleSearchCustomers = customers.filter((c) => {
+    if (c.deletedAt) return false;
+    // Satıcılar kesinlikle portföy aramaz
+    if (c.category === "SELLER") return false;
+    // Aktif sözleşmesi olan kiracılar ev bulmuştur, arayışta değildir
+    if (c.category === "TENANT" && isCustomerActiveTenant(c, rentals)) return false;
+    // Yalnızca ALICI ve KİRACI ADAYLARI
+    return c.category === "BUYER" || c.category === "TENANT";
+  });
 
   const [mode, setMode] = useState<"customer_to_property" | "property_to_customer">(
     initialProperty && initialProperty.status === "AVAILABLE" && !initialProperty.deletedAt
@@ -51,9 +64,27 @@ export function MatchmakerView({
       : "customer_to_property"
   );
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    initialCustomer?.id || activeCustomers[0]?.id || ""
-  );
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(() => {
+    if (
+      initialCustomer &&
+      !initialCustomer.deletedAt &&
+      initialCustomer.category !== "SELLER" &&
+      !(initialCustomer.category === "TENANT" && isCustomerActiveTenant(initialCustomer, rentals))
+    ) {
+      return initialCustomer.id;
+    }
+    return eligibleSearchCustomers[0]?.id || "";
+  });
+
+  // Eğer mevcut seçili müşteri eligibleSearchCustomers içinde yoksa ilk uygun müşteriyi seç
+  useEffect(() => {
+    if (
+      eligibleSearchCustomers.length > 0 &&
+      !eligibleSearchCustomers.some((c) => c.id === selectedCustomerId)
+    ) {
+      setSelectedCustomerId(eligibleSearchCustomers[0].id);
+    }
+  }, [eligibleSearchCustomers, selectedCustomerId]);
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>(
     initialProperty && initialProperty.status === "AVAILABLE" && !initialProperty.deletedAt
@@ -69,16 +100,16 @@ export function MatchmakerView({
     return () => clearInterval(interval);
   }, []);
 
-  const selectedCustomer = activeCustomers.find((c) => c.id === selectedCustomerId);
+  const selectedCustomer = eligibleSearchCustomers.find((c) => c.id === selectedCustomerId);
   const selectedProperty = activeProperties.find((p) => p.id === selectedPropertyId);
 
-  // Eşleştirme Sonuçları (Sadece aktif portföylerle çalışır)
+  // Eşleştirme Sonuçları (Sadece kurala uygun müşteriler ve aktif portföylerle çalışır)
   const matchesForCustomer = selectedCustomer
-    ? findMatchesForCustomer(selectedCustomer, activeProperties)
+    ? findMatchesForCustomer(selectedCustomer, activeProperties, rentals)
     : [];
 
   const matchesForProperty = selectedProperty
-    ? findMatchesForProperty(selectedProperty, activeCustomers)
+    ? findMatchesForProperty(selectedProperty, customers, rentals)
     : [];
 
   return (
@@ -137,12 +168,16 @@ export function MatchmakerView({
                 onChange={(e) => setSelectedCustomerId(e.target.value)}
                 className="sharp-input w-full p-2.5 text-xs font-mono bg-white mb-4"
               >
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.fullName} ({formatCustomerCategory(c.category)} - {c.budget?.toLocaleString("tr-TR")}{" "}
-                    {c.budgetCurrency})
-                  </option>
-                ))}
+                {eligibleSearchCustomers.length === 0 ? (
+                  <option value="">Arayışta olan Alıcı veya Kiracı Adayı bulunmuyor</option>
+                ) : (
+                  eligibleSearchCustomers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.fullName} ({c.category === "BUYER" ? "Alıcı" : "Kiracı Adayı"} - {c.budget?.toLocaleString("tr-TR")}{" "}
+                      {c.budgetCurrency})
+                    </option>
+                  ))
+                )}
               </select>
             ) : (
               <select
@@ -172,7 +207,7 @@ export function MatchmakerView({
                   </span>
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                      {formatCustomerCategory(selectedCustomer.category)}
+                      {selectedCustomer.category === "BUYER" ? "ALICI" : "KİRACI ADAYI"}
                     </span>
                     {selectedCustomer.isVip && (
                       <span className="text-[9px] font-mono uppercase bg-amber-500 text-black px-1.5 py-0.5 font-bold flex items-center gap-0.5">
@@ -364,10 +399,19 @@ export function MatchmakerView({
           {/* Müşteri -> Mülk Eşleşmeleri */}
           {mode === "customer_to_property" && (
             <div className="space-y-3">
-              {matchesForCustomer.length === 0 ? (
+              {!selectedCustomer ? (
                 <div className="sharp-card p-8 text-center text-slate-500 font-mono text-xs">
                   <p className="font-semibold text-slate-600">
-                    Bu müşteriye uygun aktif portföy bulunamadı.
+                    Sistemde portföy arayışında olan aktif Alıcı veya Kiracı Adayı bulunmuyor.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Satıcılar ve sözleşmesi yapılmış mevcut kiracılar eşleşme havuzundan muaf tutulur.
+                  </p>
+                </div>
+              ) : matchesForCustomer.length === 0 ? (
+                <div className="sharp-card p-8 text-center text-slate-500 font-mono text-xs">
+                  <p className="font-semibold text-slate-600">
+                    Bu {selectedCustomer.category === "BUYER" ? "alıcıya" : "kiracı adayına"} uygun aktif {selectedCustomer.category === "BUYER" ? "satılık" : "kiralık"} portföy bulunamadı.
                   </p>
                 </div>
               ) : (
@@ -525,12 +569,12 @@ export function MatchmakerView({
                         </span>
 
                         <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                          {formatCustomerCategory(customer.category)}
+                          {customer.category === "BUYER" ? "Alıcı" : "Kiracı Adayı"}
                         </span>
 
                         {customer.temperature === "hot" ? (
                           <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-300 font-bold flex items-center gap-1">
-                            <Flame className="w-3 h-3 fill-rose-600" /> SICAK ALICI
+                            <Flame className="w-3 h-3 fill-rose-600" /> {customer.category === "BUYER" ? "SICAK ALICI" : "SICAK KİRACI ADAYI"}
                           </span>
                         ) : (
                           <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-medium">

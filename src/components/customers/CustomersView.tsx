@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Customer, CustomerCategory, Currency, PipelineStage } from "@/lib/types";
 import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
+import { isCustomerActiveTenant } from "@/lib/matchmaker";
 import {
   Users,
   Plus,
@@ -53,6 +54,7 @@ export function CustomersView({
     isBroker,
     currentUser,
     users,
+    rentals,
   } = useStore();
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -208,21 +210,30 @@ export function CustomersView({
 
                 {/* Kategori */}
                 <td className="py-3 px-4">
-                  <span
-                    className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${
-                      c.category === "BUYER"
-                        ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
-                        : c.category === "SELLER"
-                        ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
-                        : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    }`}
-                  >
-                    {c.category === "BUYER"
-                      ? "Alıcı Adayı"
-                      : c.category === "SELLER"
-                      ? "Satıcı"
-                      : "Kiracı"}
-                  </span>
+                  {(() => {
+                    const isActiveTenant = c.category === "TENANT" && isCustomerActiveTenant(c, rentals);
+                    return (
+                      <span
+                        className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${
+                          c.category === "BUYER"
+                            ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
+                            : c.category === "SELLER"
+                            ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
+                            : isActiveTenant
+                            ? "bg-slate-100 text-slate-700 border-slate-300"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        }`}
+                      >
+                        {c.category === "BUYER"
+                          ? "Alıcı"
+                          : c.category === "SELLER"
+                          ? "Satıcı"
+                          : isActiveTenant
+                          ? "Aktif Kiracı"
+                          : "Kiracı Adayı"}
+                      </span>
+                    );
+                  })()}
                 </td>
 
                 {/* Bölge & Gayrimenkul Tipi */}
@@ -289,15 +300,17 @@ export function CustomersView({
                 {/* Hızlı Aksiyonlar */}
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-1.5">
-                    {/* Eşleştirme Motoru Butonu */}
-                    <button
-                      onClick={() => onFindMatches(c)}
-                      className="px-2.5 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white text-[11px] font-mono flex items-center gap-1 transition cursor-pointer font-bold shadow-2xs"
-                      title="Bu Müşteriye Uygun Portföyleri Eşleştir"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
-                      <span>Eşleştir</span>
-                    </button>
+                    {/* Eşleştirme Motoru Butonu (Yalnızca ALICI ve KİRACI ADAYLARI için gösterilir) */}
+                    {(c.category === "BUYER" || (c.category === "TENANT" && !isCustomerActiveTenant(c, rentals))) && (
+                      <button
+                        onClick={() => onFindMatches(c)}
+                        className="px-2.5 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white text-[11px] font-mono flex items-center gap-1 transition cursor-pointer font-bold shadow-2xs"
+                        title="Bu Müşteriye Uygun Portföyleri Eşleştir"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                        <span>Eşleştir</span>
+                      </button>
+                    )}
 
                     {c.phone && (
                       <a

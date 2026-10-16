@@ -587,11 +587,12 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
       </div>
 
       {/* ANA İÇERİK: SOLDA KARELİ AY TAKVİMİ, SAĞDA "TAM KART" GÜNLÜK DETAY PANELİ */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+      {/* ANA İÇERİK: SOLDA KARELİ AY TAKVİMİ, SAĞDA "TAM KART" GÜNLÜK DETAY PANELİ */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* SOL: 7 KOLONLU KARELİ AY TAKVİMİ (xl:col-span-8) */}
-        <div className="xl:col-span-8 sharp-card bg-white border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="xl:col-span-8 sharp-card bg-white border border-slate-200 shadow-2xs overflow-hidden flex flex-col justify-between">
           {/* Hafta Günleri Başlık Satırı */}
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-mono font-bold text-slate-600">
+          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-mono font-bold text-slate-600 shrink-0">
             {WEEKDAY_NAMES.map((w, idx) => (
               <div
                 key={w.short}
@@ -606,7 +607,10 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
           </div>
 
           {/* Gün Kareleri Matrisi */}
-          <div className="grid grid-cols-7 bg-slate-200 gap-px">
+          <div
+            className="grid grid-cols-7 bg-slate-200 gap-px flex-1"
+            onMouseLeave={() => setHoveredDateStr(null)}
+          >
             {calendarDays.map((cell) => {
               const dayTasks = tasksByDate.get(cell.dateStr) || [];
               const isSelected = selectedDateStr === cell.dateStr;
@@ -616,10 +620,12 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
               return (
                 <div
                   key={cell.dateStr}
-                  onClick={() => setSelectedDateStr(cell.dateStr)}
+                  onClick={() => {
+                    setSelectedDateStr(cell.dateStr);
+                    setHoveredDateStr(null);
+                  }}
                   onMouseEnter={() => setHoveredDateStr(cell.dateStr)}
-                  onMouseLeave={() => setHoveredDateStr(null)}
-                  className={`relative min-h-[105px] p-1.5 transition-all cursor-pointer flex flex-col justify-between group ${
+                  className={`relative min-h-[105px] p-1.5 transition-colors cursor-pointer flex flex-col justify-between group ${
                     cell.isCurrentMonth
                       ? "bg-white"
                       : "bg-slate-50/70 text-slate-400"
@@ -727,9 +733,16 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
 
         {/* SAĞ: "TAM KART" GÜNLÜK DETAY PANELİ (xl:col-span-4) */}
         {/* Kullanıcının özel talebi: "üzerine gelindiğinde güzelce detay göstersin sitemizin tarzında popup gibi değil de güzel bi ui ile beliren tam kart" */}
-        <div className="xl:col-span-4 sharp-card bg-white border border-slate-200 shadow-sm p-4 sticky top-20 space-y-4">
+        <div
+          onMouseEnter={() => {
+            if (hoveredDateStr) {
+              setSelectedDateStr(hoveredDateStr);
+            }
+          }}
+          className="xl:col-span-4 sharp-card bg-white border border-slate-200 shadow-sm p-4 flex flex-col h-full min-h-[580px] xl:max-h-[720px] sticky top-20"
+        >
           {/* Kart Başlığı */}
-          <div className="pb-3 border-b border-slate-100 flex items-start justify-between">
+          <div className="shrink-0 pb-3 border-b border-slate-100 flex items-start justify-between">
             <div>
               <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold text-[#00adb5] uppercase">
                 {hoveredDateStr ? (
@@ -763,9 +776,9 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
           </div>
 
           {/* Günlük Görev Listesi */}
-          <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1 py-1">
             {inspectedTasks.length === 0 ? (
-              <div className="p-6 text-center border-2 border-dashed border-slate-200 space-y-2.5">
+              <div className="p-6 text-center border-2 border-dashed border-slate-200 space-y-2.5 h-full flex flex-col items-center justify-center min-h-[240px]">
                 <div className="w-10 h-10 mx-auto bg-slate-50 text-slate-400 flex items-center justify-center border border-slate-200">
                   <CalendarDays className="w-5 h-5 text-slate-400" />
                 </div>

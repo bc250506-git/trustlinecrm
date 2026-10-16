@@ -33,8 +33,10 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
   const [formTime, setFormTime] = useState("");
   const [formIsOfficeEvent, setFormIsOfficeEvent] = useState(false);
 
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       const now = new Date();
       const localDate = initialDate || now.toISOString().split("T")[0];
       setFormTitle("");
@@ -45,6 +47,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
       setFormTime("");
       setFormIsOfficeEvent(false);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, initialDate]);
 
   if (!isOpen) return null;

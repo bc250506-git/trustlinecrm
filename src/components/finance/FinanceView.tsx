@@ -7,6 +7,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { AddDealModal } from "@/components/modals/AddDealModal";
+import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import {
   Calculator,
@@ -26,6 +27,7 @@ import {
   PieChart,
   Handshake,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl)
@@ -85,6 +87,9 @@ export function FinanceView() {
   const [editPaymentDue, setEditPaymentDue] = useState("");
   const [editAdvisorId, setEditAdvisorId] = useState<string>(currentUser.id);
   const [editBrokerApproval, setEditBrokerApproval] = useState(false);
+
+  // İşlem Sonrası Ofis Raporu (Resmi PDF) Modalı State
+  const [selectedDealForReport, setSelectedDealForReport] = useState<Deal | null>(null);
 
   // === FİLTRELEME STATELERİ ===
   const [searchQuery, setSearchQuery] = useState("");
@@ -1035,10 +1040,23 @@ export function FinanceView() {
                       {/* 8. Broker Onayı */}
                       <td className="py-3 px-4 text-center">
                         {d.brokerApproval ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
-                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                            Onaylandı
-                          </span>
+                          <div className="inline-flex items-center gap-1.5 justify-center">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Onaylandı
+                            </span>
+                            {(isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id) && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDealForReport(d)}
+                                className="px-1.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs"
+                                title="İşlem Sonrası Ofis Raporu (Resmi PDF Görüntüle / İndir / Yazdır)"
+                              >
+                                <FileText className="w-3 h-3 text-red-600" />
+                                <span>PDF</span>
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-300">
                             Bekliyor
@@ -1479,6 +1497,14 @@ export function FinanceView() {
         }}
         onCancel={() => setDealToDelete(null)}
       />
+
+      {/* İŞLEM SONRASI OFİS RAPORU RESMİ PDF MODALI */}
+      {selectedDealForReport && (
+        <DealReportModal
+          deal={selectedDealForReport}
+          onClose={() => setSelectedDealForReport(null)}
+        />
+      )}
     </div>
   );
 }

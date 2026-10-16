@@ -53,8 +53,10 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
   const [formAssigneeId, setFormAssigneeId] = useState(currentUser.id);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setFormName("");
       setFormPhone("");
       setFormWhatsapp("");
@@ -78,7 +80,8 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setFormAssigneeId(currentUser.id);
       setDuplicateError(null);
     }
-  }, [isOpen, currentUser.id]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

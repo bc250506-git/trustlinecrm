@@ -34,8 +34,10 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
   const [formContractNumber, setFormContractNumber] = useState("");
   const [formNotes, setFormNotes] = useState("");
 
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       const now = new Date();
       const startStr = now.toISOString().split("T")[0];
       const end = new Date(now);
@@ -51,6 +53,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
       setFormContractNumber(`TL-YET-${now.getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
       setFormNotes("");
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
   if (!isOpen) return null;

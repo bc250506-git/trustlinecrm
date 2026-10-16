@@ -121,20 +121,21 @@ export function AddDealModal({
   // Broker Onayı
   const [formBrokerApproval, setFormBrokerApproval] = useState(isBroker);
 
-  // Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
+  // Satıldı Ancak Yeni Mal Sahibi de Satabilir (Portföyü Aktif Tut)
   const [keepActiveForNewOwner, setKeepActiveForNewOwner] = useState(false);
 
   // Sub-Modallar
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
 
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       const today = getTodayStr();
       const autoDealNo = `TRL-${new Date().getFullYear().toString().slice(-2)}${String(new Date().getMonth() + 1).padStart(2, "0")}-${Math.floor(100 + Math.random() * 900)}`;
 
-      // Modal açıldığında form değerlerini sıfırlayıp hazırlar
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // Modal açıldığında form değerlerini sıfırlayıp hazırlar (sadece ilk açılışta!)
       setFormDealNumber(autoDealNo);
       setFormReportDate(today);
       setFormAdvisorId(currentUser.id);
@@ -175,15 +176,31 @@ export function AddDealModal({
       setKeepActiveForNewOwner(false);
 
       if (initialPropertyId) {
-        handleSelectProperty(initialPropertyId);
         const targetProp = properties.find((p) => p.id === initialPropertyId);
-        if (targetProp && targetProp.listingType === "rent") {
-          setFormDealType("rent");
-          setFormCommissionRate(100);
+        if (targetProp) {
+          setFormPropertyId(initialPropertyId);
+          setFormTitle(`${targetProp.title} İşlem Kapama`);
+          setFormAddress(targetProp.address || targetProp.region || "");
+          if (targetProp.propertyType) setFormPropertyType(targetProp.propertyType);
+          if (targetProp.area) setFormArea(targetProp.area.toString());
+          if (targetProp.price) {
+            setFormAskingPrice(targetProp.price.toString());
+            setFormAgreedPrice(targetProp.price.toString());
+          }
+          setFormCurrency(targetProp.currency);
+          if (targetProp.ownerCustomerId) setFormLandlordId(targetProp.ownerCustomerId);
+          if (targetProp.ownerName) setFormLandlordName(targetProp.ownerName);
+          if (targetProp.ownerPhone) setFormLandlordPhone(targetProp.ownerPhone);
+          if (targetProp.mandateStart) setFormMandateDate(targetProp.mandateStart);
+          if (targetProp.listingType === "rent") {
+            setFormDealType("rent");
+            setFormCommissionRate(100);
+          }
         }
       }
     }
-  }, [isOpen, initialPropertyId, currentUser.id, isBroker, users, properties]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Portföy Seçimi Yapıldığında Otomatik Doldurma
   const handleSelectProperty = (pid: string) => {
@@ -426,9 +443,9 @@ export function AddDealModal({
       advisorShareAmount: calculatedAdvisorShare,
       officeShareRate: officeShareRate,
       officeShareAmount: calculatedOfficeShare,
-      brokerApproval: formBrokerApproval,
-      brokerApprovedAt: formBrokerApproval ? getTodayStr() : undefined,
-      brokerApprovedBy: formBrokerApproval ? "Volkan Affan Kanıgür" : undefined,
+      brokerApproval: isBroker ? formBrokerApproval : false,
+      brokerApprovedAt: isBroker && formBrokerApproval ? getTodayStr() : undefined,
+      brokerApprovedBy: isBroker && formBrokerApproval ? (currentUser.name || "Volkan Affan Kanıgür") : undefined,
       closingDate: formClosingDate || getTodayStr(),
       paymentDue: formCollectionDate || getTodayStr(),
       createdById: formAdvisorId,
@@ -522,7 +539,7 @@ export function AddDealModal({
                 <div className="sharp-input w-full p-2 bg-white font-medium text-slate-800 flex items-center justify-between">
                   <span className="font-bold text-[#1d2566]">{currentUser.name}</span>
                   <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold">
-                    Satış GD
+                    GD
                   </span>
                 </div>
               )}
@@ -1285,11 +1302,11 @@ export function AddDealModal({
                       </tr>
                     )}
 
-                    {/* Satış Danışmanı (Danışman A / GD 1) */}
+                    {/* Danışman (GD 1 / Portföy Sahibi) */}
                     <tr className="bg-slate-50/50">
                       <td className="py-2.5 px-2">
                         <div className="font-bold text-[#1d2566]">
-                          {formSharingType === "internal" ? "Danışman A — Portföy Sahibi" : "Satış GD"} ({assignedUser.name})
+                          {formSharingType === "internal" ? "Danışman A — Portföy Sahibi" : "GD"} ({assignedUser.name})
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {formSharingType === "internal"
@@ -1375,33 +1392,43 @@ export function AddDealModal({
             {/* İMZALAR & BROKER ONAYI */}
             <div className="bg-white p-3 border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
               <div>
-                <span className="text-[10px] font-mono text-slate-500 block">SATIŞ GD BEYANI:</span>
+                <span className="text-[10px] font-mono text-slate-500 block">GD BEYANI:</span>
                 <span className="font-bold text-slate-800 text-xs">
                   {assignedUser.name} — Beyan Edildi ({formReportDate})
                 </span>
               </div>
 
               <div className="flex items-center justify-end gap-3">
-                <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-2 border border-slate-200 hover:bg-slate-100 transition">
-                  <input
-                    type="checkbox"
-                    checked={formBrokerApproval}
-                    onChange={(e) => setFormBrokerApproval(e.target.checked)}
-                    className="w-4 h-4 text-emerald-600 accent-emerald-600 rounded-none cursor-pointer"
-                  />
-                  <div>
-                    <span className="font-bold text-[#1d2566] text-xs block">
-                      BROKER ONAYI (Volkan Affan Kanıgür)
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {formBrokerApproval ? "✓ Onaylandı" : "Onay Bekliyor"}
+                {isBroker ? (
+                  <label className="flex items-center gap-2 cursor-pointer bg-slate-50 p-2 border border-slate-200 hover:bg-slate-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={formBrokerApproval}
+                      onChange={(e) => setFormBrokerApproval(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 accent-emerald-600 rounded-none cursor-pointer"
+                    />
+                    <div>
+                      <span className="font-bold text-[#1d2566] text-xs block">
+                        BROKER ONAYI ({currentUser.name})
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {formBrokerApproval ? "✓ Onaylandı" : "Onay Bekliyor"}
+                      </span>
+                    </div>
+                  </label>
+                ) : (
+                  <div className="bg-slate-50 px-3 py-2 border border-slate-200 text-right">
+                    <span className="text-[10px] text-slate-400 font-mono block">BROKER DENETİMİ</span>
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 font-mono">
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      Broker Onayı Bekliyor (Yetki: Broker / Ofis)
                     </span>
                   </div>
-                </label>
+                )}
               </div>
             </div>
 
-            {/* Satıldı Ancak Yeni Mal Sahibi de Satıyor (Özel Satış Opsiyonu - Formun En Sonunda) */}
+            {/* Satıldı Ancak Yeni Mal Sahibi de Satabilir (Özel Satış Opsiyonu - Formun En Sonunda) */}
             {formDealType === "sale" && (
               <div className="p-3 bg-amber-50/90 border border-amber-300 text-amber-900 flex items-start gap-3 shadow-2xs">
                 <input
@@ -1413,7 +1440,7 @@ export function AddDealModal({
                 />
                 <label htmlFor="keepActiveForNewOwner" className="cursor-pointer select-none">
                   <span className="font-bold text-xs font-mono text-amber-950 block">
-                    Satıldı Ancak Yeni Mal Sahibi de Satıyor (Portföyü Aktif Tut)
+                    Satıldı Ancak Yeni Mal Sahibi de Satabilir (Portföyü Aktif Tut)
                   </span>
                   <span className="text-[11px] text-amber-800 font-mono block mt-0.5 leading-relaxed">
                     İşaretlenirse satış ve komisyon finans defterine işlenir; ancak portföy pasife düşürülmez. Alıcı ({formCustomerName || "Alıcı Müşteri"}) yeni mal sahibi olarak atanır ve ilan canlı kalır.

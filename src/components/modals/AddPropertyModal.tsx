@@ -49,8 +49,10 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
   const [formIsShared, setFormIsShared] = useState(false);
   const [formIsOffMarket, setFormIsOffMarket] = useState(false);
 
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setFormTitle("");
       setFormImageUrl(undefined);
       setFormDistrict(KKTC_DISTRICTS[0]);
@@ -69,6 +71,7 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
       setFormIsShared(false);
       setFormIsOffMarket(false);
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
   if (!isOpen) return null;

@@ -436,7 +436,7 @@ export function AddDealModal({
       customerName: finalCustomerName,
       customerPhone: finalCustomerPhone,
       propertyId: resolvedPropertyId || formPropertyId || "",
-      propertyTitle: selectedProp ? selectedProp.title : formAddress || "Gayrimenkul",
+      propertyTitle: selectedProp ? selectedProp.title : (formAddress || formTitle || ""),
       address: formAddress,
       propertyType: formPropertyType,
       area: Number(formArea) || undefined,

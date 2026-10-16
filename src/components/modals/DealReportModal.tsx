@@ -6,7 +6,6 @@ import {
   X,
   Printer,
   FileDown,
-  CheckCircle2,
   ShieldCheck,
   Loader2,
 } from "lucide-react";
@@ -37,6 +36,23 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
     deal.createdAt?.split("T")[0] ||
     new Date().toISOString().split("T")[0];
   const reportDate = formatDateTR(rawReportDate);
+
+  const hasPartner = Boolean(
+    deal.sharingType &&
+    deal.sharingType !== "none" &&
+    ((deal.partnerShareRate && deal.partnerShareRate > 0) ||
+      deal.partnerName ||
+      deal.partnerAdvisorName ||
+      deal.partnerCompany)
+  );
+
+  const displayAddress = (() => {
+    const addr = (deal.address || "").trim();
+    if (addr && addr.toLowerCase() !== "gayrimenkul") return addr;
+    const title = (deal.propertyTitle || "").trim();
+    if (title && title.toLowerCase() !== "gayrimenkul") return title;
+    return "";
+  })();
 
   const handlePrint = () => {
     window.print();
@@ -137,10 +153,10 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <div>
               <h3 className="font-bold text-sm tracking-wide">
-                İşlem Sonrası Ofis Raporu (Resmi Onaylı)
+                İşlem Sonrası Ofis Raporu
               </h3>
               <div className="text-[11px] text-slate-300 font-mono">
-                İşlem No: {deal.dealNumber || deal.id} • Broker Onay Tarihi: {reportDate}
+                İşlem No: {deal.dealNumber || deal.id} • Rapor Tarihi: {reportDate}
               </div>
             </div>
           </div>
@@ -191,36 +207,20 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
           >
             {/* 1. ÜST ANTET VE LOGO */}
             <div className="border-b-2 border-slate-900 pb-3 mb-3">
-              <div className="flex items-start justify-between">
+              <div className="flex items-center justify-between">
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/logo.png"
-                      alt="Trustline Real Estate"
-                      className="h-10 w-auto object-contain"
-                    />
-                    <div>
-                      <div className="font-black text-xl tracking-tight text-[#1d2566]">
-                        TRUSTLINE
-                      </div>
-                      <div className="text-[9px] tracking-[0.25em] font-semibold text-slate-600 uppercase">
-                        REAL ESTATE
-                      </div>
-                      <div className="text-[9px] italic text-slate-500 font-serif">
-                        by Volkan Affan Kanıgür
-                      </div>
-                    </div>
-                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/logo.png"
+                    alt="Trustline Real Estate"
+                    className="h-12 w-auto object-contain"
+                  />
                 </div>
 
                 <div className="text-right">
-                  <h1 className="text-lg font-black tracking-tight text-slate-900 uppercase">
+                  <h1 className="text-xl font-black tracking-tight text-slate-900 uppercase">
                     İŞLEM SONRASI OFİS RAPORU
                   </h1>
-                  <div className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 border border-emerald-300 inline-block mt-1">
-                    ✓ RESMİ BROKER ONAYLI BELGE
-                  </div>
                 </div>
               </div>
 
@@ -272,7 +272,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
               <div className="mb-2">
                 <span className="font-bold text-slate-700">ADRES: </span>
                 <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                  {deal.address || deal.propertyTitle || "-"}
+                  {displayAddress}
                 </span>
               </div>
 
@@ -421,12 +421,9 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
 
             {/* 04 İŞLEM BİLGİLERİ */}
             <div className="mb-3.5 pb-2.5 border-b border-slate-300">
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2">
                 <span className="font-black text-xs text-slate-900 tracking-wider">
                   04 İŞLEM BİLGİLERİ
-                </span>
-                <span className="font-bold text-slate-800 font-mono text-[11px]">
-                  Para birimi: <span className="underline">{deal.currency}</span>
                 </span>
               </div>
 
@@ -483,43 +480,45 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
               <div className="flex items-center gap-6 mb-2">
                 <label className="inline-flex items-center gap-1.5">
                   <span className="w-3.5 h-3.5 border border-slate-900 inline-flex items-center justify-center font-bold text-[10px] bg-slate-50">
-                    {deal.portfolioOrigin === "advisor" && deal.sharingType === "none" ? "✓" : ""}
+                    {deal.portfolioOrigin === "advisor" && !hasPartner ? "✓" : ""}
                   </span>
                   <span>Kendi portföyü</span>
                 </label>
 
                 <label className="inline-flex items-center gap-1.5">
                   <span className="w-3.5 h-3.5 border border-slate-900 inline-flex items-center justify-center font-bold text-[10px] bg-slate-50">
-                    {deal.portfolioOrigin === "office" && deal.sharingType === "none" ? "✓" : ""}
+                    {deal.portfolioOrigin === "office" && !hasPartner ? "✓" : ""}
                   </span>
                   <span>Ofis portföyü</span>
                 </label>
 
                 <label className="inline-flex items-center gap-1.5">
                   <span className="w-3.5 h-3.5 border border-slate-900 inline-flex items-center justify-center font-bold text-[10px] bg-slate-50">
-                    {deal.sharingType && deal.sharingType !== "none" ? "✓" : ""}
+                    {hasPartner ? "✓" : ""}
                   </span>
                   <span>Ortak</span>
                 </label>
               </div>
 
-              {/* Ortak Bilgileri */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2.5">
-                <div>
-                  <span className="font-bold text-slate-700">ORTAK OFİS / DANIŞMAN ADI: </span>
-                  <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                    {deal.sharingType === "internal"
-                      ? deal.partnerAdvisorName || "2. Danışman (İç Paylaşım)"
-                      : deal.partnerName || deal.partnerCompany || "-"}
-                  </span>
+              {/* Ortak Bilgileri (Yalnızca ortak işlemse dinamik olarak gösterilir) */}
+              {hasPartner && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2.5">
+                  <div>
+                    <span className="font-bold text-slate-700">ORTAK OFİS / DANIŞMAN ADI: </span>
+                    <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
+                      {deal.sharingType === "internal"
+                        ? deal.partnerAdvisorName || "2. Danışman (İç Paylaşım)"
+                        : deal.partnerName || deal.partnerCompany || "-"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-700">ORTAK İLETİŞİM BİLGİSİ: </span>
+                    <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
+                      {formatPhoneWithPrefix(deal.partnerPhone) || deal.partnerPhone || "-"}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="font-bold text-slate-700">ORTAK İLETİŞİM BİLGİSİ: </span>
-                  <span className="border-b border-dotted border-slate-400 pb-0.5 font-medium">
-                    {formatPhoneWithPrefix(deal.partnerPhone) || deal.partnerPhone || "-"}
-                  </span>
-                </div>
-              </div>
+              )}
 
               {/* Komisyon Pay Tablosu */}
               <table className="w-full border-collapse border border-slate-400 mb-3 text-[11px]">
@@ -549,21 +548,23 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                     </td>
                   </tr>
 
-                  <tr>
-                    <td className="border border-slate-400 p-1.5">
-                      Ortak (
-                      {deal.sharingType === "internal"
-                        ? deal.partnerAdvisorName || "2. Danışman"
-                        : deal.partnerName || "Yok"}
-                      )
-                    </td>
-                    <td className="border border-slate-400 p-1.5 text-center font-bold">
-                      %{deal.partnerShareRate || 0}
-                    </td>
-                    <td className="border border-slate-400 p-1.5 text-right font-bold">
-                      {(deal.partnerShareAmount || 0).toLocaleString("tr-TR")} {deal.currency}
-                    </td>
-                  </tr>
+                  {hasPartner && (
+                    <tr>
+                      <td className="border border-slate-400 p-1.5">
+                        Ortak (
+                        {deal.sharingType === "internal"
+                          ? deal.partnerAdvisorName || "2. Danışman"
+                          : deal.partnerName || deal.partnerCompany || "Ortak"}
+                        )
+                      </td>
+                      <td className="border border-slate-400 p-1.5 text-center font-bold">
+                        %{deal.partnerShareRate || 0}
+                      </td>
+                      <td className="border border-slate-400 p-1.5 text-right font-bold">
+                        {(deal.partnerShareAmount || 0).toLocaleString("tr-TR")} {deal.currency}
+                      </td>
+                    </tr>
+                  )}
 
                   <tr className="bg-emerald-50/40">
                     <td className="border border-slate-400 p-1.5 font-bold text-emerald-950">
@@ -580,43 +581,35 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
               </table>
 
               {/* İMZALAR VE ONAYLAR */}
-              <div className="grid grid-cols-2 gap-4 border border-slate-400 p-3 bg-slate-50/50 mt-2">
-                <div className="border-r border-slate-300 pr-3">
-                  <div className="font-bold text-[10px] text-slate-600 uppercase mb-1">
-                    GD ADI SOYADI / İMZA:
+              <div className="grid grid-cols-2 gap-4 border border-slate-400 p-4 bg-slate-50/50 mt-3">
+                <div className="border-r border-slate-300 pr-4 flex flex-col justify-between min-h-[75px]">
+                  <div>
+                    <div className="font-bold text-[10px] text-slate-600 uppercase mb-1">
+                      GD ADI SOYADI / İMZA:
+                    </div>
+                    <div className="font-bold text-sm text-slate-900">
+                      {deal.createdByName || "Danışman"}
+                    </div>
                   </div>
-                  <div className="font-bold text-sm text-slate-900 mb-0.5">
-                    {deal.createdByName || "Danışman"}
-                  </div>
-                  <div className="text-[10px] font-mono text-slate-500">
-                    Elektronik Sistem Beyanı ({formatDateTR(deal.closingDate || rawReportDate)})
-                  </div>
-                  <div className="mt-4 pt-2 border-t border-slate-300 text-[9px] text-slate-400 font-mono">
-                    Danışman Dijital Onayı Alındı
+                  <div className="mt-6 pt-1.5 border-t border-slate-400 text-[10px] text-slate-500 font-medium">
+                    İmza:
                   </div>
                 </div>
 
-                <div className="pl-1">
-                  <div className="font-bold text-[10px] text-slate-600 uppercase mb-1">
-                    BROKER ONAYI / TARİH / İMZA:
+                <div className="pl-2 flex flex-col justify-between min-h-[75px]">
+                  <div>
+                    <div className="font-bold text-[10px] text-slate-600 uppercase mb-1">
+                      BROKER ONAYI / TARİH / İMZA:
+                    </div>
+                    <div className="font-bold text-sm text-slate-900">
+                      {deal.brokerApprovedBy || "Volkan Affan Kanıgür"}
+                    </div>
                   </div>
-                  <div className="font-bold text-sm text-emerald-950 mb-0.5 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>{deal.brokerApprovedBy || "Volkan Affan Kanıgür"}</span>
-                  </div>
-                  <div className="text-[10px] font-mono text-emerald-700 font-semibold">
-                    ✓ RESMİ BROKER ONAYI VERİLDİ ({formatDateTR(deal.brokerApprovedAt || rawReportDate)})
-                  </div>
-                  <div className="mt-4 pt-2 border-t border-slate-300 text-[9px] text-emerald-700 font-mono font-bold">
-                    [ RESMİ MÜHÜR & ELEKTRONİK İMZA DOĞRULANDI ]
+                  <div className="mt-6 pt-1.5 border-t border-slate-400 text-[10px] text-slate-500 font-medium flex items-center justify-between">
+                    <span>Tarih: {reportDate}</span>
+                    <span>İmza:</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Alt Bilgi */}
-              <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono mt-4 pt-2 border-t border-slate-200">
-                <span>Trustline Real Estate Kurumsal CRM ve Finans Sistemi</span>
-                <span>Bu belge dijital ortamda broker onayı ile resmi olarak üretilmiştir.</span>
               </div>
             </div>
           </div>

@@ -138,7 +138,7 @@ export function MandatesView() {
     const text = encodeURIComponent(
       `Merhaba ${m.ownerName}, ${m.propertyTitle} portföyünüz için akdettiğimiz emlak aracılık sözleşmesi ${
         days <= 0 ? "süresi dolmuştur" : `${days} gün sonra sona erecektir`
-      }. Satış çalışmalarımızı kesintisiz sürdürmek ve yetki süresini uzatmak üzere görüşebilir miyiz? - Trustline Real Estate`
+      }. Satış çalışmalarımızı kesintisiz sürdürmek ve yetki süresini uzatmak üzere görüşebilir miyiz?\n\nTrustline Estate`
     );
     const cleanPhone = cleanWhatsAppNumber(m.ownerPhone);
     window.open(`https://wa.me/${cleanPhone}?text=${text}`, "_blank");

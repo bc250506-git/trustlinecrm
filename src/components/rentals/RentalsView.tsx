@@ -1056,7 +1056,7 @@ export function RentalsView() {
                                     : reminderStatus.diffDays === 0
                                     ? "için bugün son gündür."
                                     : `${reminderStatus.diffDays} gün sonra vadesi dolacaktır.`
-                                } Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.`
+                                } Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.\n\nTrustline Estate`
                               );
                               const phone = cleanWhatsAppNumber(r.tenantPhone);
                               window.open(`https://wa.me/${phone}?text=${text}`, "_blank");

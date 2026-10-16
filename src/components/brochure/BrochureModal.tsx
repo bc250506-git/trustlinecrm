@@ -199,7 +199,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const brochureUrl = `${origin}/brosur/${property.id}`;
 
-      const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım Alanı:* ${property.area} m² (${property.rooms || ""})\n🏢 *Yetkili Danışman:* ${property.assignedToName || "Trustline Gayrimenkul"}\n\n📄 *Canlı Broşür & PDF İncele:* ${brochureUrl}\n\n*Trustline Gayrimenkul Danışmanlığı*`;
+      const text = `🏡 *${property.title}*\n📍 *Bölge:* ${property.region}\n💰 *Fiyat:* ${property.price.toLocaleString("tr-TR")} ${property.currency}\n📐 *Kullanım Alanı:* ${property.area} m² (${property.rooms || ""})\n🏢 *Yetkili Danışman:* ${property.assignedToName || "Trustline Estate"}\n\n📄 *Canlı Broşür & PDF İncele:* ${brochureUrl}\n\n*Trustline Estate*`;
 
       // 1. Web Share API (Mobil ve dosya paylaşımını destekleyen tarayıcılarda doğrudan WhatsApp'a PDF ekler)
       if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
@@ -538,14 +538,14 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
           <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
             <div>
               <div className="text-xs font-bold text-[#1d2566]">
-                İletişim & Randevu: {assignedUser?.name || property.assignedToName || "Trustline Real Estate"}
+                İletişim & Randevu: {assignedUser?.name || property.assignedToName || "Trustline Estate"}
               </div>
               <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                Trustline Real Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
+                Trustline Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
               </div>
             </div>
             <div className="text-right shrink-0">
-              {assignedUser?.phone && assignedUser.phone !== "+905338460080" && (
+              {assignedUser?.phone && (
                 <div className="text-xs font-mono text-[#00adb5] font-bold">
                   Danışman: {formatPhoneWithPrefix(assignedUser.phone) || assignedUser.phone}
                 </div>

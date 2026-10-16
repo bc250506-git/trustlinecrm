@@ -636,7 +636,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   }.`,
                   targetTab: "rentals",
                   targetId: r.id,
-                  whatsappDraft: `Merhaba ${r.tenantName}, ${r.propertyTitle} için ${p.dueDate} vadeli ${p.amount} ${p.currency} kira ödemeniz yaklaşmıştır. Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.`,
+                  whatsappDraft: `Merhaba ${r.tenantName}, ${r.propertyTitle} için ${p.dueDate} vadeli ${p.amount} ${p.currency} kira ödemeniz yaklaşmıştır. Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.\n\nTrustline Estate`,
                   read: false,
                   createdAt: "Az önce",
                   urgency: "high",
@@ -668,7 +668,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 targetTab: "customers",
                 targetId: c.id,
                 whatsappPhone: c.whatsapp || c.phone,
-                whatsappDraft: `Merhaba ${c.fullName}, Trustline Real Estate'den arıyorum. KKTC'de aradığınız portföy kriterlerinize uygun yeni portföylerimiz havuza dahil oldu. Kısa bir değerlendirme görüşmesi yapabilir miyiz?`,
+                whatsappDraft: `Merhaba ${c.fullName}, Trustline Estate'den arıyorum. KKTC'de aradığınız portföy kriterlerinize uygun yeni portföylerimiz havuza dahil oldu. Kısa bir değerlendirme görüşmesi yapabilir miyiz?\n\nTrustline Estate`,
                 read: false,
                 createdAt: "Az önce",
                 urgency: "high",
@@ -716,7 +716,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 whatsappPhone: m.ownerPhone,
                 whatsappDraft: `Merhaba ${m.ownerName}, ${m.propertyTitle} mülkünüzün satış yetki sözleşmesi ${
                   diffDays <= 0 ? "süresi dolmuştur" : `${diffDays} gün sonra tamamlanacaktır`
-                }. Satış çalışmalarına hız kesmeden devam etmek ve yetki süresini uzatmak üzere görüşebilir miyiz?`,
+                }. Satış çalışmalarına hız kesmeden devam etmek ve yetki süresini uzatmak üzere görüşebilir miyiz?\n\nTrustline Estate`,
                 read: false,
                 createdAt: isCritical ? "Acil (30 Gün)" : "Bilgilendirme (60 Gün)",
                 urgency: isCritical ? "high" : "medium",
@@ -764,7 +764,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               whatsappPhone: r.tenantPhone,
               whatsappDraft: `Merhaba ${r.tenantName}, ${r.propertyTitle} mülkünüzün kira sözleşmesi ${
                 diffDays <= 0 ? "tamamlanmıştır" : `${diffDays} gün sonra sona erecektir`
-              }. Yeni dönem kira sözleşmesi yenileme koşullarını görüşmek üzere sizi ofisimize davet ediyoruz. Teşekkür ederiz.`,
+              }. Yeni dönem kira sözleşmesi yenileme koşullarını görüşmek üzere sizi ofisimize davet ediyoruz. Teşekkür ederiz.\n\nTrustline Estate`,
               read: false,
               createdAt: isCritical ? "Acil (30 Gün)" : "Bilgilendirme (60 Gün)",
               urgency: isCritical ? "high" : "medium",
@@ -797,7 +797,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 targetTab: "customers",
                 targetId: c.id,
                 whatsappPhone: c.whatsapp || c.phone,
-                whatsappDraft: `Sayın ${c.fullName}, Trustline Gayrimenkul ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bol kazanç dolu nice mutlu yıllar dileriz. 🎂🎉`,
+                whatsappDraft: `Sayın ${c.fullName}, Trustline Estate ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bol kazanç dolu nice mutlu yıllar dileriz. 🎂🎉\n\nTrustline Estate`,
                 read: false,
                 createdAt: "Bugün",
                 urgency: "high",

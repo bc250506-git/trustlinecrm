@@ -508,7 +508,7 @@ export function MatchmakerView({
                           href={`https://wa.me/${cleanWhatsAppNumber(
                             selectedCustomer.whatsapp
                           )}?text=${encodeURIComponent(
-                            `Sayın ${selectedCustomer.fullName}, aradığınız kriterlere uygun yeni portföyümüzü incelemenizi isteriz: ${property.title} - ${property.price.toLocaleString("tr-TR")} ${property.currency}`
+                            `Sayın ${selectedCustomer.fullName}, aradığınız kriterlere uygun yeni portföyümüzü incelemenizi isteriz: ${property.title} - ${property.price.toLocaleString("tr-TR")} ${property.currency}\n\nTrustline Estate`
                           )}`}
                           target="_blank"
                           rel="noreferrer"
@@ -642,7 +642,7 @@ export function MatchmakerView({
                           href={`https://wa.me/${cleanWhatsAppNumber(
                             customer.whatsapp
                           )}?text=${encodeURIComponent(
-                            `Merhaba ${customer.fullName}, talep ettiğiniz kriterlerde yeni portföyümüz portföy havuzumuza girdi: ${selectedProperty.title} - ${selectedProperty.price.toLocaleString("tr-TR")} ${selectedProperty.currency}`
+                            `Merhaba ${customer.fullName}, talep ettiğiniz kriterlerde yeni portföyümüz portföy havuzumuza girdi: ${selectedProperty.title} - ${selectedProperty.price.toLocaleString("tr-TR")} ${selectedProperty.currency}\n\nTrustline Estate`
                           )}`}
                           target="_blank"
                           rel="noreferrer"

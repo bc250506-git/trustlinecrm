@@ -599,7 +599,7 @@ export function CustomersView({
 
                 const phone = activeCustomerDetail.whatsapp || activeCustomerDetail.phone || "";
                 const cleanPhone = cleanWhatsAppNumber(phone);
-                const greeting = `Sayın ${activeCustomerDetail.fullName}, Trustline Gayrimenkul ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bereketli bir yıl dileriz. 🎂🎉`;
+                const greeting = `Sayın ${activeCustomerDetail.fullName}, Trustline Estate ailesi olarak yeni yaşınızı en içten dileklerimizle kutlar; sevdiklerinizle birlikte sağlıklı, huzurlu ve bereketli bir yıl dileriz. 🎂🎉\n\nTrustline Estate`;
                 const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(greeting)}`;
 
                 return (

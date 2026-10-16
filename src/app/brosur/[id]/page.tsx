@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas-pro";
-import { cleanWhatsAppNumber } from "@/lib/formatters";
+import { cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -32,6 +32,23 @@ function BrosurContent({ params }: PageProps) {
   const [property, setProperty] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [users, setUsers] = useState(initialUsers);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const savedUsers =
+          localStorage.getItem("trustline_crm_users_kktc_v1") ||
+          localStorage.getItem("trustline_crm_users_v3");
+        if (savedUsers) {
+          const parsed = JSON.parse(savedUsers);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setUsers(parsed);
+          }
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     // 1. Önce localStorage'daki güncel havuzdan ara
@@ -309,14 +326,20 @@ function BrosurContent({ params }: PageProps) {
     }, 400);
   };
 
+  const assignedUser = property
+    ? users.find(
+        (u) =>
+          u.id === property.assignedToId ||
+          (property.assignedToName &&
+            u.name.trim().toLowerCase() === property.assignedToName.trim().toLowerCase())
+      )
+    : null;
+
   // WhatsApp'tan Bilgi Alma Butonu
   const handleContactWhatsApp = () => {
     if (!property) return;
-    const msg = `Merhaba Trustline, "${property.title}" (${property.region} - ${property.price.toLocaleString("tr-TR")} ${property.currency}) portföyünüz hakkında detaylı bilgi almak ve randevu oluşturmak istiyorum.`;
-    const advisor = initialUsers.find(
-      (a) => a.id === property.assignedToId || a.name === property.assignedToName
-    );
-    const targetPhone = cleanWhatsAppNumber(advisor?.phone || "+90 533 846 00 80");
+    const msg = `Merhaba, "${property.title}" (${property.region} - ${property.price.toLocaleString("tr-TR")} ${property.currency}) portföyünüz hakkında detaylı bilgi almak ve randevu oluşturmak istiyorum.\n\nTrustline Estate`;
+    const targetPhone = cleanWhatsAppNumber(assignedUser?.phone || "+90 533 846 00 80");
     window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
@@ -361,7 +384,7 @@ function BrosurContent({ params }: PageProps) {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="text-xs font-bold text-[#1d2566]">
-            Trustline Gayrimenkul • Resmi Portföy Broşürü
+            Trustline Estate • Resmi Portföy Broşürü
           </span>
         </div>
 
@@ -526,16 +549,26 @@ function BrosurContent({ params }: PageProps) {
         <div className="p-4 bg-slate-50 border border-slate-200 flex items-center justify-between gap-4">
           <div>
             <div className="text-xs font-bold text-[#1d2566]">
-              İletişim & Randevu: {property.assignedToName || "Trustline Real Estate"}
+              İletişim & Randevu: {assignedUser?.name || property.assignedToName || "Trustline Estate"}
             </div>
             <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-              Trustline Real Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
+              Trustline Estate • Kaan Otel Karşısı, Kemal Yapar Sk-No :1, Girne 99300
             </div>
           </div>
           <div className="text-right shrink-0">
+            {assignedUser?.phone && (
+              <div className="text-xs font-mono text-[#00adb5] font-bold">
+                Danışman: {formatPhoneWithPrefix(assignedUser.phone) || assignedUser.phone}
+              </div>
+            )}
             <div className="text-xs font-mono text-[#1d2566] font-bold">
               Ofis: +90 533 846 00 80
             </div>
+            {assignedUser?.email && (
+              <div className="text-[10px] text-slate-500 font-mono">
+                {assignedUser.email}
+              </div>
+            )}
           </div>
         </div>
       </div>

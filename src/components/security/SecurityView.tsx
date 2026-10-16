@@ -67,7 +67,7 @@ export function SecurityView() {
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<
-    "export" | "restore" | "snapshots" | "cloud" | "csv" | "merge" | "trash"
+    "export" | "restore" | "snapshots" | "cloud" | "merge" | "trash"
   >("export");
 
   // =========================================================================
@@ -405,11 +405,11 @@ export function SecurityView() {
           </p>
         </div>
 
-        {/* Ana Sekmeler */}
-        <div className="flex flex-wrap items-center bg-white border border-slate-200 p-1 shadow-xs gap-0.5">
+        {/* Ana Sekmeler (Tek Satır) */}
+        <div className="flex items-center overflow-x-auto whitespace-nowrap bg-white border border-slate-200 p-1 shadow-xs gap-1 scrollbar-none">
           <button
             onClick={() => setActiveTab("export")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "export"
                 ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#1d2566]"
@@ -420,7 +420,7 @@ export function SecurityView() {
           </button>
           <button
             onClick={() => setActiveTab("restore")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "restore"
                 ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#1d2566]"
@@ -431,7 +431,7 @@ export function SecurityView() {
           </button>
           <button
             onClick={() => setActiveTab("snapshots")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "snapshots"
                 ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#1d2566]"
@@ -445,7 +445,7 @@ export function SecurityView() {
               setActiveTab("cloud");
               if (!cloudHealth) handleCheckCloudHealth();
             }}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "cloud"
                 ? "bg-[#00adb5] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#00adb5]"
@@ -455,19 +455,8 @@ export function SecurityView() {
             <span>Bulut Senkron (Supabase)</span>
           </button>
           <button
-            onClick={() => setActiveTab("csv")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
-              activeTab === "csv"
-                ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
-                : "text-slate-600 hover:text-[#1d2566]"
-            }`}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>CSV İçe Aktar</span>
-          </button>
-          <button
             onClick={() => setActiveTab("merge")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "merge"
                 ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#1d2566]"
@@ -478,7 +467,7 @@ export function SecurityView() {
           </button>
           <button
             onClick={() => setActiveTab("trash")}
-            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
               activeTab === "trash"
                 ? "bg-[#1d2566] text-white font-semibold shadow-2xs"
                 : "text-slate-600 hover:text-[#1d2566]"
@@ -1168,32 +1157,7 @@ export function SecurityView() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* SEKME 4: CSV İÇE AKTARMA                                                  */}
-      {/* ========================================================================= */}
-      {activeTab === "csv" && (
-        <div className="sharp-card p-6 space-y-4 max-w-2xl bg-white border border-slate-200">
-          <div>
-            <h3 className="text-xs font-bold text-[#1d2566] font-mono uppercase">
-              Toplu Müşteri CSV İçe Aktarma Masası
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Excel veya eski sistemden alınan 500 satıra kadar CSV dosyalarını
-              yükleyin. Sistem mükerrer telefonları otomatik atlar.
-            </p>
-          </div>
 
-          <div className="border-2 border-dashed border-slate-300 p-8 text-center hover:border-[#00adb5] transition cursor-pointer bg-slate-50/60">
-            <Upload className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-            <div className="text-xs font-bold text-slate-800">
-              CSV Dosyasını Buraya Sürükleyin veya Dosya Seçin
-            </div>
-            <div className="text-[10px] font-mono text-slate-500 mt-1">
-              Sütunlar: Ad Soyad, Telefon, Kategori, Bütçe, Para Birimi, Bölge
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* SEKME 5: MÜŞTERİ BİRLEŞTİRME                                              */}

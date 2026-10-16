@@ -33,6 +33,7 @@ import {
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { PhoneInput } from "@/components/common/PhoneInput";
+import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 
 export function RentalsView() {
@@ -1424,14 +1425,12 @@ export function RentalsView() {
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                       Sözleşme Başlangıç Tarihi
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       value={formData.contractStart}
-                      onChange={(e) =>
-                        setFormData({ ...formData, contractStart: e.target.value })
+                      onChange={(val) =>
+                        setFormData({ ...formData, contractStart: val })
                       }
-                      className="sharp-input w-full p-2 text-xs font-mono"
+                      className="w-full text-xs font-mono"
                     />
                   </div>
 
@@ -1439,14 +1438,12 @@ export function RentalsView() {
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                       Sözleşme Bitiş Tarihi (Yenileme Alarmı)
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       value={formData.contractEnd}
-                      onChange={(e) =>
-                        setFormData({ ...formData, contractEnd: e.target.value })
+                      onChange={(val) =>
+                        setFormData({ ...formData, contractEnd: val })
                       }
-                      className="sharp-input w-full p-2 text-xs font-mono"
+                      className="w-full text-xs font-mono"
                     />
                   </div>
 
@@ -1883,28 +1880,24 @@ export function RentalsView() {
                     <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
                       Sözleşme Başlangıç Tarihi
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       value={editRentalForm.contractStart}
-                      onChange={(e) =>
-                        setEditRentalForm((prev) => ({ ...prev, contractStart: e.target.value }))
+                      onChange={(val) =>
+                        setEditRentalForm((prev) => ({ ...prev, contractStart: val }))
                       }
-                      className="sharp-input w-full p-2 font-mono"
+                      className="w-full font-mono"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
                       Sözleşme Bitiş Tarihi (Alarm)
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       value={editRentalForm.contractEnd}
-                      onChange={(e) =>
-                        setEditRentalForm((prev) => ({ ...prev, contractEnd: e.target.value }))
+                      onChange={(val) =>
+                        setEditRentalForm((prev) => ({ ...prev, contractEnd: val }))
                       }
-                      className="sharp-input w-full p-2 font-mono"
+                      className="w-full font-mono"
                     />
                   </div>
                   <div>

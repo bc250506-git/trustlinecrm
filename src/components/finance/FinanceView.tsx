@@ -10,6 +10,7 @@ import { AddDealModal } from "@/components/modals/AddDealModal";
 import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
+import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR } from "@/lib/formatters";
 import {
   Calculator,
@@ -1406,12 +1407,10 @@ export function FinanceView() {
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                     İşlem / Kapanış Tarihi
                   </label>
-                  <input
-                    type="date"
-                    lang="tr-TR"
+                  <DateInput
                     value={editPaymentDue}
-                    onChange={(e) => setEditPaymentDue(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
+                    onChange={(val) => setEditPaymentDue(val)}
+                    className="w-full"
                   />
                 </div>
               </div>

@@ -21,6 +21,7 @@ import {
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
 import { PhoneInput } from "@/components/common/PhoneInput";
+import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddDealModalProps {
@@ -606,13 +607,11 @@ export function AddDealModal({
                 <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
                 <span>RAPOR TARİHİ</span>
               </label>
-              <input
-                type="date"
-                lang="tr-TR"
+              <DateInput
                 required
                 value={formReportDate}
-                onChange={(e) => setFormReportDate(e.target.value)}
-                className="sharp-input w-full p-2 bg-white font-mono"
+                onChange={(val) => setFormReportDate(val)}
+                className="w-full"
               />
             </div>
           </div>
@@ -895,12 +894,10 @@ export function AddDealModal({
                     YETKİ BELGESİ ALINAN TARİH
                   </label>
                 </div>
-                <input
-                  type="date"
-                  lang="tr-TR"
+                <DateInput
                   value={formMandateDate}
-                  onChange={(e) => setFormMandateDate(e.target.value)}
-                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
+                  onChange={(val) => setFormMandateDate(val)}
+                  className="w-full h-9"
                 />
               </div>
             </div>
@@ -958,12 +955,10 @@ export function AddDealModal({
                     DEPOZİTO TARİHİ
                   </label>
                 </div>
-                <input
-                  type="date"
-                  lang="tr-TR"
+                <DateInput
                   value={formDepositDate}
-                  onChange={(e) => setFormDepositDate(e.target.value)}
-                  className="sharp-input w-full h-9 p-2 bg-white font-mono text-xs"
+                  onChange={(val) => setFormDepositDate(val)}
+                  className="w-full h-9"
                 />
               </div>
             </div>
@@ -975,13 +970,11 @@ export function AddDealModal({
                   <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
                   <span>İŞLEM KAPATMA TARİHİ *</span>
                 </label>
-                <input
-                  type="date"
-                  lang="tr-TR"
+                <DateInput
                   required
                   value={formClosingDate}
-                  onChange={(e) => setFormClosingDate(e.target.value)}
-                  className="sharp-input w-full h-9 p-2 font-mono font-bold text-[#1d2566] text-xs"
+                  onChange={(val) => setFormClosingDate(val)}
+                  className="w-full h-9"
                 />
               </div>
 
@@ -1122,12 +1115,10 @@ export function AddDealModal({
                 <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
                   TAHSİLAT TARİHİ
                 </label>
-                <input
-                  type="date"
-                  lang="tr-TR"
+                <DateInput
                   value={formCollectionDate}
-                  onChange={(e) => setFormCollectionDate(e.target.value)}
-                  className="sharp-input w-full p-2 font-mono"
+                  onChange={(val) => setFormCollectionDate(val)}
+                  className="w-full"
                 />
               </div>
 

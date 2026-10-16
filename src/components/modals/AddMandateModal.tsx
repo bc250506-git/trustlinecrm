@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { AddPropertyModal } from "./AddPropertyModal";
 import { AddCustomerModal } from "./AddCustomerModal";
+import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddMandateModalProps {
@@ -227,13 +228,11 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                 Başlangıç Tarihi *
               </label>
-              <input
-                type="date"
-                lang="tr-TR"
+              <DateInput
                 required
                 value={formStartDate}
-                onChange={(e) => setFormStartDate(e.target.value)}
-                className="sharp-input w-full p-2 font-mono"
+                onChange={(val) => setFormStartDate(val)}
+                className="w-full"
               />
             </div>
 
@@ -241,13 +240,11 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                 Bitiş Tarihi *
               </label>
-              <input
-                type="date"
-                lang="tr-TR"
+              <DateInput
                 required
                 value={formEndDate}
-                onChange={(e) => setFormEndDate(e.target.value)}
-                className="sharp-input w-full p-2 font-mono"
+                onChange={(val) => setFormEndDate(val)}
+                className="w-full"
               />
             </div>
           </div>

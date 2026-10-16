@@ -30,6 +30,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AddFollowUpModal } from "@/components/modals/AddFollowUpModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
+import { DateInput } from "@/components/common/DateInput";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl + Gelecek Aylar)
 const CALENDAR_MONTH_OPTIONS = [
@@ -1089,13 +1090,11 @@ export function CalendarView() {
                   <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                     Tarih *
                   </label>
-                  <input
-                    type="date"
-                    lang="tr-TR"
+                  <DateInput
                     required
                     value={editFormDate}
-                    onChange={(e) => setEditFormDate(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
+                    onChange={(val) => setEditFormDate(val)}
+                    className="w-full"
                   />
                 </div>
 

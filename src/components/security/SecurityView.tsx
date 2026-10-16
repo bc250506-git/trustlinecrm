@@ -40,6 +40,7 @@ import {
   downloadJsonFile,
   downloadExcelFile,
 } from "@/lib/backup/backupEngine";
+import { DateInput } from "@/components/common/DateInput";
 import {
   parseAndValidateBackup,
   BackupPreview,
@@ -701,19 +702,15 @@ export function SecurityView() {
 
                     {selectedPeriod === "custom" && (
                       <div className="grid grid-cols-2 gap-2 mt-2">
-                        <input
-                          type="date"
-                          lang="tr-TR"
+                        <DateInput
                           value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                          className="px-2 py-1 text-xs font-mono border border-slate-300 bg-white"
+                          onChange={(val) => setCustomStartDate(val)}
+                          className="text-xs font-mono"
                         />
-                        <input
-                          type="date"
-                          lang="tr-TR"
+                        <DateInput
                           value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.target.value)}
-                          className="px-2 py-1 text-xs font-mono border border-slate-300 bg-white"
+                          onChange={(val) => setCustomEndDate(val)}
+                          className="text-xs font-mono"
                         />
                       </div>
                     )}

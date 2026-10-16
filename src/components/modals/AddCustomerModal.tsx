@@ -15,6 +15,7 @@ import {
   Cake,
 } from "lucide-react";
 import { PhoneInput } from "@/components/common/PhoneInput";
+import { DateInput } from "@/components/common/DateInput";
 
 interface AddCustomerModalProps {
   isOpen: boolean;
@@ -286,12 +287,10 @@ export function AddCustomerModal({
                 <Cake className="w-3 h-3 text-pink-500" />
                 <span>Doğum Tarihi (Ops.)</span>
               </label>
-              <input
-                type="date"
-                lang="tr-TR"
+              <DateInput
                 value={formBirthDate}
-                onChange={(e) => setFormBirthDate(e.target.value)}
-                className="sharp-input w-full p-2 font-mono bg-white"
+                onChange={(val) => setFormBirthDate(val)}
+                className="w-full"
               />
             </div>
           </div>

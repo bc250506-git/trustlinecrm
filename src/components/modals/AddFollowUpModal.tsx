@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
+import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddFollowUpModalProps {
@@ -211,13 +212,11 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
               <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
                 Tarih *
               </label>
-              <input
-                type="date"
-                lang="tr-TR"
+              <DateInput
                 required
                 value={formDate}
-                onChange={(e) => setFormDate(e.target.value)}
-                className="sharp-input w-full p-2 font-mono"
+                onChange={(val) => setFormDate(val)}
+                className="w-full"
               />
             </div>
 

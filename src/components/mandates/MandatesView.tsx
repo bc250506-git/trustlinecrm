@@ -8,6 +8,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
+import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
 import {
   FileCheck,
@@ -733,13 +734,11 @@ export function MandatesView() {
                     <label className="block text-slate-600 text-[11px] font-mono mb-1">
                       Başlangıç Tarihi
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       required
                       value={formStartDate}
-                      onChange={(e) => setFormStartDate(e.target.value)}
-                      className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
+                      onChange={(val) => setFormStartDate(val)}
+                      className="w-full text-xs font-mono"
                     />
                   </div>
 
@@ -747,13 +746,11 @@ export function MandatesView() {
                     <label className="block text-slate-600 text-[11px] font-mono mb-1">
                       Bitiş Tarihi
                     </label>
-                    <input
-                      type="date"
-                      lang="tr-TR"
+                    <DateInput
                       required
                       value={formEndDate}
-                      onChange={(e) => setFormEndDate(e.target.value)}
-                      className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
+                      onChange={(val) => setFormEndDate(val)}
+                      className="w-full text-xs font-mono"
                     />
                   </div>
                 </div>

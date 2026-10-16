@@ -70,6 +70,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     users,
     mandates,
     reactivateProperty,
+    rentals,
+    deals,
   } = useStore();
 
   // İlgili portföyün Tek Yetki Sözleşmesi kontrolü
@@ -380,10 +382,59 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     });
   };
 
-  const isActive = (p: Property) =>
-    p.status !== "SOLD" && p.status !== "RENTED" && p.status !== "ARCHIVED" && !p.deletedAt;
-  const isPassive = (p: Property) =>
-    (p.status === "SOLD" || p.status === "RENTED") && !p.deletedAt;
+  const norm = (s?: string) =>
+    s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+
+  // Bu portföye bağlı aktif bir kira sözleşmesi var mı?
+  const isRentedByContract = (p: Property) => {
+    if (p.status === "RENTED") return true;
+    const pTitleNorm = norm(p.title);
+    return rentals.some((r) => {
+      if (r.active === false) return false;
+      if (r.propertyId && r.propertyId === p.id) return true;
+      if (r.propertyTitle && pTitleNorm) {
+        const rTitleNorm = norm(r.propertyTitle);
+        return rTitleNorm === pTitleNorm || rTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(rTitleNorm);
+      }
+      return false;
+    });
+  };
+
+  // Bu portföye bağlı kazanılmış (Won) bir satış/kiralama işlemi var mı?
+  const isSoldOrRentedByDeal = (p: Property) => {
+    if (p.status === "SOLD") return "SOLD";
+    if (p.status === "RENTED") return "RENTED";
+    const pTitleNorm = norm(p.title);
+    const wonDeal = deals.find((d) => {
+      if (d.stage !== "won") return false;
+      if (d.propertyId && d.propertyId === p.id) return true;
+      const dTitleNorm = norm(d.propertyTitle || d.title);
+      if (dTitleNorm && pTitleNorm) {
+        return dTitleNorm === pTitleNorm || dTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(dTitleNorm);
+      }
+      return false;
+    });
+    if (wonDeal) {
+      return wonDeal.dealType === "rent" ? "RENTED" : "SOLD";
+    }
+    return null;
+  };
+
+  const isActive = (p: Property) => {
+    if (p.deletedAt) return false;
+    if (p.status === "SOLD" || p.status === "RENTED" || p.status === "ARCHIVED") return false;
+    if (isRentedByContract(p)) return false;
+    if (isSoldOrRentedByDeal(p)) return false;
+    return true;
+  };
+
+  const isPassive = (p: Property) => {
+    if (p.deletedAt) return false;
+    if (p.status === "SOLD" || p.status === "RENTED") return true;
+    if (isRentedByContract(p)) return true;
+    if (isSoldOrRentedByDeal(p)) return true;
+    return false;
+  };
 
   const filteredMyProperties = filterList(myProperties.filter(isActive));
   const filteredSharedProperties = filterList(sharedProperties.filter(isActive));
@@ -754,8 +805,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {items.map((p) => {
-          const isSold = p.status === "SOLD";
-          const isRented = p.status === "RENTED";
+          const isSold = p.status === "SOLD" || isSoldOrRentedByDeal(p) === "SOLD";
+          const isRented = p.status === "RENTED" || isRentedByContract(p) || isSoldOrRentedByDeal(p) === "RENTED";
 
           return (
             <div

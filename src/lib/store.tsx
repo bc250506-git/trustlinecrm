@@ -491,6 +491,76 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // BİRBİRİYLE BAĞIL VERİ BÜTÜNLÜĞÜ OTOMATİK MUTABAKAT MOTORU (Relational Data Integrity Engine)
+  // 1. Kira takibinde aktif olan her portföy KESİNLİKLE 'RENTED' (Kiralandı) durumuna çekilir.
+  // 2. Kazanılmış (Won) durumdaki her işlemdeki portföy KESİNLİKLE 'SOLD' veya 'RENTED' durumuna çekilir.
+  useEffect(() => {
+    if (properties.length === 0) return;
+
+    const norm = (s?: string) =>
+      s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+
+    let hasChanges = false;
+    const updatedProps = properties.map((p) => {
+      if (p.deletedAt) return p;
+
+      const pTitleNorm = norm(p.title);
+
+      // Aktif kira sözleşmesi var mı?
+      const activeRental = rentals.find((r) => {
+        if (r.active === false) return false;
+        if (r.propertyId && r.propertyId === p.id) return true;
+        if (r.propertyTitle && pTitleNorm) {
+          const rTitleNorm = norm(r.propertyTitle);
+          return rTitleNorm === pTitleNorm || rTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(rTitleNorm);
+        }
+        return false;
+      });
+
+      if (activeRental && p.status !== "RENTED") {
+        hasChanges = true;
+        const updated: Property = {
+          ...p,
+          status: "RENTED",
+          updatedAt: new Date().toISOString(),
+        };
+        saveProperty(updated).catch(() => {});
+        return updated;
+      }
+
+      // Kazanılmış (Won) işlem var mı?
+      const wonDeal = deals.find((d) => {
+        if (d.stage !== "won") return false;
+        if (d.propertyId && d.propertyId === p.id) return true;
+        const dTitleNorm = norm(d.propertyTitle || d.title);
+        if (dTitleNorm && pTitleNorm) {
+          return dTitleNorm === pTitleNorm || dTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(dTitleNorm);
+        }
+        return false;
+      });
+
+      if (wonDeal) {
+        const expectedStatus: PropertyStatus = wonDeal.dealType === "rent" ? "RENTED" : "SOLD";
+        if (p.status !== expectedStatus) {
+          hasChanges = true;
+          const updated: Property = {
+            ...p,
+            status: expectedStatus,
+            updatedAt: new Date().toISOString(),
+          };
+          saveProperty(updated).catch(() => {});
+          return updated;
+        }
+      }
+
+      return p;
+    });
+
+    if (hasChanges) {
+      setProperties(updatedProps);
+    }
+  }, [rentals, deals, properties]);
+
   const markNotificationAsRead = (id: string) => {
 
     setNotifications((prev) =>
@@ -2205,15 +2275,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saveRental(newContract).catch(() => {});
 
     // BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (RENTED)
+    const norm = (s?: string) =>
+      s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
     const targetPropId = contractData.propertyId;
-    const targetPropTitle = contractData.propertyTitle?.trim().toLowerCase();
+    const targetPropTitle = norm(contractData.propertyTitle);
 
     if (contractData.active !== false) {
       setProperties((prev) =>
         prev.map((p) => {
+          const pTitleNorm = norm(p.title);
           const isMatch =
             (targetPropId && p.id === targetPropId) ||
-            (targetPropTitle && p.title.trim().toLowerCase() === targetPropTitle);
+            (targetPropTitle &&
+              (pTitleNorm === targetPropTitle ||
+                pTitleNorm.includes(targetPropTitle) ||
+                targetPropTitle.includes(pTitleNorm)));
 
           if (isMatch && p.status !== "RENTED") {
             const updatedP: Property = {

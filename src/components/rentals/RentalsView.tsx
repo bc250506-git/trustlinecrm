@@ -51,6 +51,7 @@ export function RentalsView() {
     deleteRentalContract,
     canManageRental,
     addProperty,
+    updateProperty,
     addCustomer,
     renewRentalContract,
     relistRentalProperty,
@@ -506,17 +507,22 @@ export function RentalsView() {
       (u) => u.id === (isBroker ? formData.assignedToId : currentUser.id)
     );
 
+    const norm = (s?: string) =>
+      s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+    const formTitleNorm = norm(formData.propertyTitle);
+
     const targetProp = properties.find(
       (p) =>
         (formData.selectedPropertyId && p.id === formData.selectedPropertyId) ||
-        (formData.propertyTitle &&
-          p.title.trim().toLowerCase() === formData.propertyTitle.trim().toLowerCase())
+        (formTitleNorm && norm(p.title) === formTitleNorm) ||
+        (formTitleNorm && (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title))))
     );
     const resolvedPropId = targetProp ? targetProp.id : (formData.selectedPropertyId || undefined);
+    const resolvedPropTitle = targetProp ? targetProp.title : formData.propertyTitle;
 
     addRentalContract({
       propertyId: resolvedPropId,
-      propertyTitle: targetProp ? targetProp.title : formData.propertyTitle,
+      propertyTitle: resolvedPropTitle,
       region: formData.region || targetProp?.region || "KKTC",
       tenantCustomerId: formData.selectedTenantId || undefined,
       tenantName: formData.tenantName,
@@ -536,8 +542,12 @@ export function RentalsView() {
       assignedToName: assignedUser ? assignedUser.name : currentUser.name,
     });
 
+    if (resolvedPropId) {
+      updateProperty(resolvedPropId, { status: "RENTED" });
+    }
+
     setActionFeedback(
-      `✓ Kira sözleşmesi başarıyla oluşturuldu. "${formData.propertyTitle}" portföyü 'KİRALANDI' (Pasif) durumuna çekildi.`
+      `✓ Kira sözleşmesi başarıyla oluşturuldu. "${resolvedPropTitle}" portföyü 'KİRALANDI' (Pasif) durumuna çekildi.`
     );
     setTimeout(() => setActionFeedback(null), 5000);
 

@@ -19,9 +19,17 @@ interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (newCustomer: Customer) => void;
+  zIndex?: number;
+  initialCategory?: CustomerCategory;
 }
 
-export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModalProps) {
+export function AddCustomerModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  zIndex,
+  initialCategory,
+}: AddCustomerModalProps) {
   const {
     currentUser,
     isBroker,
@@ -63,7 +71,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setFormInstagram("");
       setFormEmail("");
       setFormBirthDate("");
-      setFormCategory("BUYER");
+      setFormCategory(initialCategory || "BUYER");
       setFormTemperature("warm");
       setCustomerDistrict(KKTC_DISTRICTS[0]);
       setCustomerSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
@@ -81,7 +89,7 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
       setDuplicateError(null);
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen]);
+  }, [isOpen, initialCategory]);
 
   if (!isOpen) return null;
 
@@ -178,7 +186,10 @@ export function AddCustomerModal({ isOpen, onClose, onSuccess }: AddCustomerModa
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div
+      style={{ zIndex: zIndex || 70 }}
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+    >
       <div className="sharp-card w-full max-w-xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">

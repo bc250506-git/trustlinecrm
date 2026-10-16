@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { Property, Currency, PropertyStatus, Customer } from "@/lib/types";
 import { BrochureModal } from "../brochure/BrochureModal";
+import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
 import {
   KKTC_DISTRICTS,
   getRegionsByDistrict,
@@ -121,16 +122,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
   const [sellerNotice, setSellerNotice] = useState<string | null>(null);
   const ownerDropdownRef = useRef<HTMLDivElement>(null);
 
-  // "+ Yeni Satıcı Ekle" Sub-Modal State (Portföy modalı üstüne açılır)
+  // "+ Yeni Satıcı Ekle" Sub-Modal State (Standardize Modal Entegrasyonu)
   const [isAddSellerSubModalOpen, setIsAddSellerSubModalOpen] = useState(false);
-  const [sellerFormName, setSellerFormName] = useState("");
-  const [sellerFormPhone, setSellerFormPhone] = useState("");
-  const [sellerFormWhatsapp, setSellerFormWhatsapp] = useState("");
-  const [sellerFormEmail, setSellerFormEmail] = useState("");
-  const [sellerFormDistrict, setSellerFormDistrict] = useState("Girne");
-  const [sellerFormSubRegion, setSellerFormSubRegion] = useState("Alsancak");
-  const [sellerFormNotes, setSellerFormNotes] = useState("");
-  const [sellerFormIsShared, setSellerFormIsShared] = useState(false);
 
   // Silme Onay Modalı State
   const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
@@ -332,11 +325,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     setFormSubRegion(regions[0] || "");
   };
 
-  const handleSellerDistrictChange = (d: string) => {
-    setSellerFormDistrict(d);
-    const regions = getRegionsByDistrict(d);
-    setSellerFormSubRegion(regions[0] || "");
-  };
+
 
   // Müşteri havuzundan mülk sahibi seçildiğinde
   const handleSelectOwner = (customerId: string) => {
@@ -363,49 +352,6 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       return a.fullName.localeCompare(b.fullName, "tr");
     });
 
-  // Sub-modal: Yeni Satıcı Ekle (Müşteri havuzuna kaydet + anında portföye bağla)
-  const handleCreateSeller = (e: React.FormEvent) => {
-    e.preventDefault();
-    const fullRegion = `${sellerFormDistrict} / ${sellerFormSubRegion}`;
-
-    const createdCustomer = addCustomer({
-      fullName: sellerFormName,
-      phone: sellerFormPhone,
-      whatsapp: sellerFormWhatsapp || sellerFormPhone,
-      email: sellerFormEmail,
-      source: "manual",
-      category: "SELLER",
-      temperature: "hot",
-      isVip: false,
-      region: fullRegion,
-      propertyType: formPropertyType,
-      budget: Number(formPrice) || 0,
-      budgetCurrency: formCurrency,
-      notes:
-        sellerFormNotes ||
-        `${formTitle || "Portföy"} mülk sahibi (otomatik oluşturuldu)`,
-      stage: "LISTING_SENT",
-      assignedToId: currentUser.id,
-      assignedToName: currentUser.name,
-      isShared: sellerFormIsShared,
-    });
-
-    // Otomatik olarak yeni satıcıyı seç (hem yeni portföy modalı hem düzenleme modalı için)
-    setFormOwnerCustomerId(createdCustomer.id);
-    setEditOwnerCustomerId(createdCustomer.id);
-    setEditOwnerName(createdCustomer.fullName);
-    setEditOwnerPhone(createdCustomer.phone || "");
-    setIsAddSellerSubModalOpen(false);
-    setSellerFormName("");
-    setSellerFormPhone("");
-    setSellerFormWhatsapp("");
-    setSellerFormEmail("");
-    setSellerFormNotes("");
-    setSellerFormIsShared(false);
-
-    setSellerNotice(`✓ Yeni satıcı müşteri havuzuna eklendi ve portföye seçildi: ${createdCustomer.fullName}`);
-    setTimeout(() => setSellerNotice(null), 5000);
-  };
 
   // Ortak Filtreleyici
   const filterList = (list: Property[]) => {
@@ -1973,176 +1919,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               </div>
             </form>
 
-            {/* 4. KURAL: ÜST KATMAN SUB-MODAL: Backdrop-blur-md ile ferah blur efekti (Karartma yok) */}
-            {isAddSellerSubModalOpen && (
-              <div className="fixed inset-0 z-[60] bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4">
-                <div className="sharp-card w-full max-w-md max-h-[90vh] overflow-y-auto border-2 border-[#00adb5] bg-white shadow-2xl">
-                  <div className="p-4 border-b border-slate-200 bg-cyan-50/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <UserPlus className="w-4 h-4 text-[#00adb5]" />
-                      <div>
-                        <h3 className="text-xs font-bold text-[#1d2566]">
-                          Yeni Satıcı / Mülk Sahibi Ekle
-                        </h3>
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          Müşteri havuzunuza otomatik satıcı olarak eklenecektir
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsAddSellerSubModalOpen(false)}
-                      className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
 
-                  <form onSubmit={handleCreateSeller} className="p-4 space-y-3 text-xs">
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Satıcı Adı Soyadı *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={sellerFormName}
-                        onChange={(e) => setSellerFormName(e.target.value)}
-                        placeholder="Örn: Murat Erez"
-                        className="sharp-input w-full p-2"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                          Telefon Numarası *
-                        </label>
-                        <input
-                          type="tel"
-                          required
-                          value={sellerFormPhone}
-                          onChange={(e) => setSellerFormPhone(e.target.value)}
-                          placeholder="+90 532 999 11 22"
-                          className="sharp-input w-full p-2 font-mono"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                          WhatsApp
-                        </label>
-                        <input
-                          type="tel"
-                          value={sellerFormWhatsapp}
-                          onChange={(e) => setSellerFormWhatsapp(e.target.value)}
-                          placeholder="+90 532 999 11 22"
-                          className="sharp-input w-full p-2 font-mono"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        E-posta (Opsiyonel)
-                      </label>
-                      <input
-                        type="email"
-                        value={sellerFormEmail}
-                        onChange={(e) => setSellerFormEmail(e.target.value)}
-                        placeholder="murat.erez@email.com"
-                        className="sharp-input w-full p-2 font-mono"
-                      />
-                    </div>
-
-                    {/* KKTC İlçe & Bölge Dropdownları (Satıcı İçin) */}
-                    <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 border border-slate-200">
-                      <div>
-                        <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                          KKTC İlçesi
-                        </label>
-                        <select
-                          value={sellerFormDistrict}
-                          onChange={(e) => handleSellerDistrictChange(e.target.value)}
-                          className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                        >
-                          {KKTC_DISTRICTS.map((d) => (
-                            <option key={d} value={d}>
-                              {d}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-slate-600 font-mono text-[10px] mb-1 font-bold">
-                          Bölge / Mahalle
-                        </label>
-                        <select
-                          value={sellerFormSubRegion}
-                          onChange={(e) => setSellerFormSubRegion(e.target.value)}
-                          className="sharp-input w-full p-1.5 bg-white font-mono text-[11px]"
-                        >
-                          {getRegionsByDistrict(sellerFormDistrict).map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                        Satıcı Notları
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={sellerFormNotes}
-                        onChange={(e) => setSellerFormNotes(e.target.value)}
-                        placeholder="Mülk sahibi hakkında özel notlar, pazarlık payı vs..."
-                        className="sharp-input w-full p-2"
-                      />
-                    </div>
-
-                    {/* Diğer Danışmanlara Paylaş (Satıcı) */}
-                    <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer p-2 bg-cyan-50/50 border border-cyan-200">
-                      <input
-                        type="checkbox"
-                        checked={sellerFormIsShared}
-                        onChange={(e) => setSellerFormIsShared(e.target.checked)}
-                        className="w-4 h-4 text-[#00adb5] accent-[#00adb5] rounded border-slate-300 cursor-pointer"
-                      />
-                      <div>
-                        <span className="font-bold text-[#1d2566]">
-                          Diğer Danışmanlara Paylaş
-                        </span>
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          Müşteri havuzunda diğer danışmanların da bu satıcıyı görmesine izin ver
-                        </p>
-                      </div>
-                    </label>
-
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setIsAddSellerSubModalOpen(false)}
-                        className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer text-xs"
-                      >
-                        İptal
-                      </button>
-                      <button
-                        type="submit"
-                        className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer text-xs flex items-center gap-1.5"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Kaydet ve Portföye Seç</span>
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}
@@ -2696,6 +2473,25 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
         onSuccess={() => {
           setIsDealCloseModalOpen(false);
           setDealCloseProperty(null);
+        }}
+      />
+
+      {/* CANONICAL MÜŞTERİ / SATICI OLUŞTURMA MODALI */}
+      <AddCustomerModal
+        isOpen={isAddSellerSubModalOpen}
+        onClose={() => setIsAddSellerSubModalOpen(false)}
+        initialCategory="SELLER"
+        zIndex={80}
+        onSuccess={(newCustomer) => {
+          setIsAddSellerSubModalOpen(false);
+          if (newCustomer) {
+            setFormOwnerCustomerId(newCustomer.id);
+            setEditOwnerCustomerId(newCustomer.id);
+            setEditOwnerName(newCustomer.fullName);
+            setEditOwnerPhone(newCustomer.phone || "");
+            setSellerNotice(`✓ Yeni satıcı müşteri havuzuna eklendi ve portföye seçildi: ${newCustomer.fullName}`);
+            setTimeout(() => setSellerNotice(null), 5000);
+          }
         }}
       />
     </div>

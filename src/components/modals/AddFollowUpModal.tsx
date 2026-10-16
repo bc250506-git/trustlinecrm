@@ -6,7 +6,10 @@ import {
   CalendarDays,
   X,
   Users,
+  Plus,
 } from "lucide-react";
+import { AddCustomerModal } from "./AddCustomerModal";
+import { AddPropertyModal } from "./AddPropertyModal";
 
 interface AddFollowUpModalProps {
   isOpen: boolean;
@@ -32,6 +35,10 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formIsOfficeEvent, setFormIsOfficeEvent] = useState(false);
+
+  // Standart Modal Entegrasyonu
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
 
   const prevIsOpenRef = React.useRef(false);
 
@@ -124,9 +131,19 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                İlgili Müşteri (Opsiyonel)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-600 font-mono text-[11px] font-semibold">
+                  İlgili Müşteri (Opsiyonel)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustomerModalOpen(true)}
+                  className="text-[#00adb5] hover:text-[#00969d] font-mono font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  + Yeni
+                </button>
+              </div>
               <select
                 value={formCustomerId}
                 onChange={(e) => setFormCustomerId(e.target.value)}
@@ -161,9 +178,19 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
           </div>
 
           <div>
-            <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-              İlgili Portföy (Opsiyonel)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-slate-600 font-mono text-[11px] font-semibold">
+                İlgili Portföy (Opsiyonel)
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAddPropertyModalOpen(true)}
+                className="text-[#00adb5] hover:text-[#00969d] font-mono font-bold text-[10px] flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3 h-3" />
+                + Yeni
+              </button>
+            </div>
             <select
               value={formPropertyId}
               onChange={(e) => setFormPropertyId(e.target.value)}
@@ -251,6 +278,32 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
           </div>
         </form>
       </div>
+
+      {/* STANDART MÜŞTERİ EKLEME MODALI */}
+      <AddCustomerModal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        zIndex={80}
+        onSuccess={(newCust) => {
+          setIsAddCustomerModalOpen(false);
+          if (newCust) {
+            setFormCustomerId(newCust.id);
+          }
+        }}
+      />
+
+      {/* STANDART PORTFÖY EKLEME MODALI */}
+      <AddPropertyModal
+        isOpen={isAddPropertyModalOpen}
+        onClose={() => setIsAddPropertyModalOpen(false)}
+        zIndex={80}
+        onSuccess={(newProp) => {
+          setIsAddPropertyModalOpen(false);
+          if (newProp) {
+            setFormPropertyId(newProp.id);
+          }
+        }}
+      />
     </div>
   );
 }

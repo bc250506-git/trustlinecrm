@@ -9,7 +9,10 @@ import {
   Building,
   User,
   Award,
+  Plus,
 } from "lucide-react";
+import { AddPropertyModal } from "./AddPropertyModal";
+import { AddCustomerModal } from "./AddCustomerModal";
 
 interface AddMandateModalProps {
   isOpen: boolean;
@@ -33,6 +36,9 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
   const [formEndDate, setFormEndDate] = useState("");
   const [formContractNumber, setFormContractNumber] = useState("");
   const [formNotes, setFormNotes] = useState("");
+
+  const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
 
   const prevIsOpenRef = React.useRef(false);
 
@@ -112,10 +118,19 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
         <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
           {/* 1. Mülk / Portföy Seçimi */}
           <div>
-            <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold flex items-center gap-1">
-              <Building className="w-3.5 h-3.5 text-[#00adb5]" />
-              Yetki Alınan Portföy *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1">
+                <Building className="w-3.5 h-3.5 text-[#00adb5]" />
+                Yetki Alınan Portföy *
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAddPropertyModalOpen(true)}
+                className="text-[11px] text-[#00adb5] hover:text-[#1d2566] font-bold flex items-center gap-1 cursor-pointer font-mono"
+              >
+                <Plus className="w-3 h-3" /> + Yeni Portföy Ekle
+              </button>
+            </div>
             <select
               required
               value={formPropertyId}
@@ -130,7 +145,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               className="sharp-input w-full p-2 bg-white font-mono"
             >
               <option value="">-- Portföy Seçin --</option>
-              {properties.map((p) => (
+              {properties.filter((p) => !p.deletedAt).map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.title} ({p.region}) - {p.price.toLocaleString("tr-TR")} {p.currency}
                 </option>
@@ -140,10 +155,19 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
 
           {/* 2. Mal Sahibi Seçimi */}
           <div>
-            <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold flex items-center gap-1">
-              <User className="w-3.5 h-3.5 text-[#00adb5]" />
-              Mal Sahibi (Müşteri Havuzundan) *
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-slate-700 font-mono text-[11px] font-bold flex items-center gap-1">
+                <User className="w-3.5 h-3.5 text-[#00adb5]" />
+                Mal Sahibi (Müşteri Havuzundan) *
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerModalOpen(true)}
+                className="text-[11px] text-[#00adb5] hover:text-[#1d2566] font-bold flex items-center gap-1 cursor-pointer font-mono"
+              >
+                <Plus className="w-3 h-3" /> + Yeni Müşteri Ekle
+              </button>
+            </div>
             <select
               required
               value={formOwnerCustomerId}
@@ -151,7 +175,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
               className="sharp-input w-full p-2 bg-white font-mono"
             >
               <option value="">-- Mal Sahibi Seçin --</option>
-              {customers.map((c) => (
+              {customers.filter((c) => !c.deletedAt).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.fullName} ({c.phone || c.whatsapp}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
                 </option>
@@ -270,6 +294,29 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
           </div>
         </form>
       </div>
+
+      <AddPropertyModal
+        isOpen={isAddPropertyModalOpen}
+        onClose={() => setIsAddPropertyModalOpen(false)}
+        initialOwnerCustomerId={formOwnerCustomerId}
+        onSuccess={(newProp) => {
+          setFormPropertyId(newProp.id);
+          if (newProp.ownerCustomerId) {
+            setFormOwnerCustomerId(newProp.ownerCustomerId);
+          }
+          setIsAddPropertyModalOpen(false);
+        }}
+      />
+
+      <AddCustomerModal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        initialCategory="SELLER"
+        onSuccess={(newCust) => {
+          setFormOwnerCustomerId(newCust.id);
+          setIsAddCustomerModalOpen(false);
+        }}
+      />
     </div>
   );
 }

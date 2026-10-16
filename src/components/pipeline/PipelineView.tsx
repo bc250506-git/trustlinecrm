@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
+import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 
 const STAGES: { id: PipelineStage; label: string; color: string }[] = [
   { id: "NEW", label: "Yeni Lead", color: "border-t-[#00adb5]" },
@@ -68,14 +70,9 @@ export function PipelineView() {
   const [formNotes, setFormNotes] = useState("");
   const [formAdvisorId, setFormAdvisorId] = useState(currentUser.id);
 
-  // Yeni Müşteri Sub-Modalı State
+  // Standart Modal Entegrasyonu (Müşteri & Portföy)
   const [isAddCustSubModalOpen, setIsAddCustSubModalOpen] = useState(false);
-  const [custSubName, setCustSubName] = useState("");
-  const [custSubPhone, setCustSubPhone] = useState("");
-  const [custSubWhatsapp, setCustSubWhatsapp] = useState("");
-  const [custSubEmail, setCustSubEmail] = useState("");
-  const [custSubDistrict, setCustSubDistrict] = useState(KKTC_DISTRICTS[0]);
-  const [custSubSubRegion, setCustSubSubRegion] = useState(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
+  const [isAddPropertySubModalOpen, setIsAddPropertySubModalOpen] = useState(false);
 
   const [closingModal, setClosingModal] = useState<{
     customer: Customer;
@@ -126,7 +123,8 @@ export function PipelineView() {
       customerToDelete ||
       editingCustomer ||
       isAddModalOpen ||
-      isAddCustSubModalOpen
+      isAddCustSubModalOpen ||
+      isAddPropertySubModalOpen
     ) {
       document.body.style.overflow = "hidden";
     } else {
@@ -141,6 +139,7 @@ export function PipelineView() {
     editingCustomer,
     isAddModalOpen,
     isAddCustSubModalOpen,
+    isAddPropertySubModalOpen,
   ]);
 
   const handleOpenAddModal = () => {
@@ -192,42 +191,7 @@ export function PipelineView() {
     setIsAddModalOpen(false);
   };
 
-  const handleCreateCustSub = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!custSubName.trim()) {
-      alert("Lütfen müşteri ad ve soyadını girin.");
-      return;
-    }
-    const fullRegion = `${custSubDistrict} / ${custSubSubRegion}`;
-    const newCust = addCustomer({
-      fullName: custSubName.trim(),
-      phone: custSubPhone.trim(),
-      whatsapp: custSubWhatsapp.trim() || custSubPhone.trim(),
-      email: custSubEmail.trim(),
-      source: "manual",
-      category: "BUYER",
-      temperature: formTemperature,
-      isVip: false,
-      region: fullRegion,
-      propertyType: "Daire",
-      budget: Number(formBudget) || 0,
-      budgetCurrency: formCurrency,
-      notes: "Satış sürecinden hızlı eklendi",
-      stage: formStage,
-      assignedToId: isBroker ? formAdvisorId : currentUser.id,
-      assignedToName: isBroker
-        ? users.find((u) => u.id === formAdvisorId)?.name || currentUser.name
-        : currentUser.name,
-      isShared: false,
-    });
 
-    setFormCustomerId(newCust.id);
-    setIsAddCustSubModalOpen(false);
-    setCustSubName("");
-    setCustSubPhone("");
-    setCustSubWhatsapp("");
-    setCustSubEmail("");
-  };
 
   const handleMoveStage = (customer: Customer, newStage: PipelineStage) => {
     if (newStage === "WON" || newStage === "LOST") {
@@ -753,9 +717,19 @@ export function PipelineView() {
 
               {/* İlgili Portföy */}
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                  İlgili Portföy (Opsiyonel)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-mono text-[11px] font-bold">
+                    İlgili Portföy (Opsiyonel)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddPropertySubModalOpen(true)}
+                    className="text-[#00adb5] hover:text-[#00969d] font-mono font-bold text-[11px] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" />
+                    + Yeni Portföy Ekle
+                  </button>
+                </div>
                 <select
                   value={formPropertyId}
                   onChange={(e) => setFormPropertyId(e.target.value)}
@@ -891,139 +865,32 @@ export function PipelineView() {
         </div>
       )}
 
-      {/* HIZLI MÜŞTERİ EKLE SUB-MODALI */}
-      {isAddCustSubModalOpen && (
-        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="sharp-card w-full max-w-md bg-white border border-slate-300 shadow-2xl my-8">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-[#00adb5]" />
-                <h3 className="text-sm font-bold text-[#1d2566]">
-                  Hızlı Müşteri Ekle & Sürece Dahil Et
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddCustSubModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {/* STANDART MÜŞTERİ EKLEME MODALI */}
+      <AddCustomerModal
+        isOpen={isAddCustSubModalOpen}
+        onClose={() => setIsAddCustSubModalOpen(false)}
+        initialCategory="BUYER"
+        zIndex={80}
+        onSuccess={(newCust) => {
+          setIsAddCustSubModalOpen(false);
+          if (newCust) {
+            setFormCustomerId(newCust.id);
+          }
+        }}
+      />
 
-            <form onSubmit={handleCreateCustSub} className="p-5 space-y-3.5 text-xs">
-              <div>
-                <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                  Müşteri Ad Soyad *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={custSubName}
-                  onChange={(e) => setCustSubName(e.target.value)}
-                  className="sharp-input w-full p-2 font-semibold"
-                  placeholder="Örn: Ahmet Yılmaz"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                    Telefon Numarası
-                  </label>
-                  <input
-                    type="tel"
-                    value={custSubPhone}
-                    onChange={(e) => setCustSubPhone(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
-                    placeholder="0533 800 00 00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                    WhatsApp
-                  </label>
-                  <input
-                    type="tel"
-                    value={custSubWhatsapp}
-                    onChange={(e) => setCustSubWhatsapp(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono"
-                    placeholder="Aynı ise boş bırakın"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                  E-Posta Adresi
-                </label>
-                <input
-                  type="email"
-                  value={custSubEmail}
-                  onChange={(e) => setCustSubEmail(e.target.value)}
-                  className="sharp-input w-full p-2 font-mono"
-                  placeholder="musteri@ornek.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                    İlçe
-                  </label>
-                  <select
-                    value={custSubDistrict}
-                    onChange={(e) => {
-                      const d = e.target.value;
-                      setCustSubDistrict(d);
-                      setCustSubSubRegion(getRegionsByDistrict(d)[0] || "");
-                    }}
-                    className="sharp-input w-full p-2 font-mono bg-white"
-                  >
-                    {KKTC_DISTRICTS.map((dist) => (
-                      <option key={dist} value={dist}>
-                        {dist}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-slate-700 font-mono text-[11px] font-bold mb-1">
-                    Bölge
-                  </label>
-                  <select
-                    value={custSubSubRegion}
-                    onChange={(e) => setCustSubSubRegion(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono bg-white"
-                  >
-                    {getRegionsByDistrict(custSubDistrict).map((reg) => (
-                      <option key={reg} value={reg}>
-                        {reg}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setIsAddCustSubModalOpen(false)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-mono text-xs uppercase"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#00adb5] hover:bg-[#00969d] text-white font-mono font-bold text-xs uppercase tracking-wider cursor-pointer shadow-xs"
-                >
-                  Kaydet ve Seç
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* STANDART PORTFÖY EKLEME MODALI */}
+      <AddPropertyModal
+        isOpen={isAddPropertySubModalOpen}
+        onClose={() => setIsAddPropertySubModalOpen(false)}
+        zIndex={80}
+        onSuccess={(newProp) => {
+          setIsAddPropertySubModalOpen(false);
+          if (newProp) {
+            setFormPropertyId(newProp.id);
+          }
+        }}
+      />
 
       {/* SİLME ONAY MODALI */}
       <DeleteConfirmModal

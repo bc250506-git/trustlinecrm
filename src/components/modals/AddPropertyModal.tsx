@@ -21,9 +21,19 @@ interface AddPropertyModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (newProperty: Property) => void;
+  zIndex?: number;
+  initialListingType?: "sale" | "rent";
+  initialOwnerCustomerId?: string;
 }
 
-export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModalProps) {
+export function AddPropertyModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  zIndex,
+  initialListingType,
+  initialOwnerCustomerId,
+}: AddPropertyModalProps) {
   const {
     currentUser,
     isBroker,
@@ -57,13 +67,13 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
       setFormImageUrl(undefined);
       setFormDistrict(KKTC_DISTRICTS[0]);
       setFormSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0])[0] || "");
-      setFormListingType("sale");
+      setFormListingType(initialListingType || "sale");
       setFormPropertyType("Daire");
       setFormPrice("");
       setFormCurrency("GBP");
       setFormArea("");
       setFormRooms("2+1");
-      setFormOwnerCustomerId("");
+      setFormOwnerCustomerId(initialOwnerCustomerId || "");
       setFormKeyHolder("");
       setFormAddress("");
       setFormPublicDesc("");
@@ -72,7 +82,7 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
       setFormIsOffMarket(false);
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen]);
+  }, [isOpen, initialListingType, initialOwnerCustomerId]);
 
   if (!isOpen) return null;
 
@@ -129,7 +139,10 @@ export function AddPropertyModal({ isOpen, onClose, onSuccess }: AddPropertyModa
   };
 
   return (
-    <div className="fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div
+      style={{ zIndex: zIndex || 70 }}
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+    >
       <div className="sharp-card w-full max-w-xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-2">

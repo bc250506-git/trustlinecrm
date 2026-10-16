@@ -123,39 +123,34 @@ export function SecurityView() {
   // =========================================================================
   // 1. GRANÜLER YEDEKLEME (EXPORT) STATE'LERİ
   // =========================================================================
-  const [selectedScope, setSelectedScope] = useState<"all" | BackupModuleKey[]>("all");
+  const ALL_BACKUP_MODULES: BackupModuleKey[] = [
+    "customers",
+    "properties",
+    "deals",
+    "rentals",
+    "mandates",
+    "followUps",
+  ];
+
+  const [selectedScope, setSelectedScope] = useState<BackupModuleKey[]>(ALL_BACKUP_MODULES);
   const [selectedAdvisorId, setSelectedAdvisorId] = useState<"all" | string>("all");
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilter>("all");
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
   const [isExporting, setIsExporting] = useState<"json" | "excel" | "zip" | null>(null);
 
-  // Kapsam checkbox'ları kontrolü
+  // Kapsam checkbox'ları kontrolü (Tek tek bağımsız seçilir / kaldırılır)
   const toggleScopeKey = (key: BackupModuleKey) => {
-    if (selectedScope === "all") {
-      const allKeys: BackupModuleKey[] = [
-        "customers",
-        "properties",
-        "deals",
-        "rentals",
-        "mandates",
-        "followUps",
-      ];
-      setSelectedScope(allKeys.filter((k) => k !== key));
-    } else {
-      if (selectedScope.includes(key)) {
-        const next = selectedScope.filter((k) => k !== key);
-        setSelectedScope(next.length === 0 ? "all" : next);
+    setSelectedScope((prev) => {
+      if (prev.includes(key)) {
+        return prev.filter((k) => k !== key);
       } else {
-        const next = [...selectedScope, key];
-        if (next.length === 6) setSelectedScope("all");
-        else setSelectedScope(next);
+        return [...prev, key];
       }
-    }
+    });
   };
 
   const isScopeChecked = (key: BackupModuleKey) => {
-    if (selectedScope === "all") return true;
     return selectedScope.includes(key);
   };
 
@@ -164,7 +159,7 @@ export function SecurityView() {
     return generateBackupPayload(
       { customers, properties, deals, rentals, mandates, followUps },
       {
-        scope: selectedScope,
+        scope: selectedScope.length === ALL_BACKUP_MODULES.length ? "all" : selectedScope,
         advisorId: selectedAdvisorId,
         period: selectedPeriod,
         customStartDate: customStartDate || undefined,
@@ -190,6 +185,10 @@ export function SecurityView() {
   ]);
 
   const handleDownloadJSON = () => {
+    if (selectedScope.length === 0) {
+      alert("Lütfen yedeklemek için en az 1 veri modülü seçiniz.");
+      return;
+    }
     setIsExporting("json");
     try {
       const todayStr = new Date().toISOString().split("T")[0];
@@ -206,6 +205,10 @@ export function SecurityView() {
   };
 
   const handleDownloadExcel = () => {
+    if (selectedScope.length === 0) {
+      alert("Lütfen yedeklemek için en az 1 veri modülü seçiniz.");
+      return;
+    }
     setIsExporting("excel");
     try {
       const todayStr = new Date().toISOString().split("T")[0];
@@ -222,6 +225,10 @@ export function SecurityView() {
   };
 
   const handleDownloadZIP = async () => {
+    if (selectedScope.length === 0) {
+      alert("Lütfen yedeklemek için en az 1 veri modülü seçiniz.");
+      return;
+    }
     setIsExporting("zip");
     try {
       const todayStr = new Date().toISOString().split("T")[0];
@@ -510,12 +517,16 @@ export function SecurityView() {
                     </label>
                     <button
                       type="button"
-                      onClick={() =>
-                        setSelectedScope(selectedScope === "all" ? [] : "all")
-                      }
+                      onClick={() => {
+                        if (selectedScope.length === ALL_BACKUP_MODULES.length) {
+                          setSelectedScope([]);
+                        } else {
+                          setSelectedScope(ALL_BACKUP_MODULES);
+                        }
+                      }}
                       className="text-[11px] font-mono text-[#00adb5] hover:underline cursor-pointer font-bold"
                     >
-                      {selectedScope === "all" ? "Tümünü Temizle" : "Tüm Sistemi Seç"}
+                      {selectedScope.length === ALL_BACKUP_MODULES.length ? "Tümünü Temizle" : "Tüm Sistemi Seç"}
                     </button>
                   </div>
 
@@ -530,9 +541,17 @@ export function SecurityView() {
                     ].map((item) => {
                       const checked = isScopeChecked(item.key);
                       return (
-                        <label
+                        <div
                           key={item.key}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => toggleScopeKey(item.key)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleScopeKey(item.key);
+                            }
+                          }}
                           className={`p-2.5 border text-xs font-mono flex items-center justify-between cursor-pointer transition select-none ${
                             checked
                               ? "bg-slate-50 border-[#00adb5] text-[#1d2566] font-semibold shadow-2xs"
@@ -544,12 +563,13 @@ export function SecurityView() {
                               type="checkbox"
                               checked={checked}
                               readOnly
+                              tabIndex={-1}
                               className="accent-[#00adb5] w-3.5 h-3.5 pointer-events-none"
                             />
                             <span>{item.label}</span>
                           </div>
                           <span className="text-[10px] text-slate-400">({item.count})</span>
-                        </label>
+                        </div>
                       );
                     })}
                   </div>

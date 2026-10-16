@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { Currency, DealSharingType } from "@/lib/types";
+import { Property, Currency, DealSharingType } from "@/lib/types";
 import {
   Calculator,
   X,
@@ -178,94 +178,113 @@ export function AddDealModal({
       if (initialPropertyId) {
         const targetProp = properties.find((p) => p.id === initialPropertyId);
         if (targetProp) {
-          setFormPropertyId(initialPropertyId);
-          setFormTitle(`${targetProp.title} İşlem Kapama`);
-          setFormAddress(targetProp.address || targetProp.region || "");
-          if (targetProp.propertyType) setFormPropertyType(targetProp.propertyType);
-          if (targetProp.area) setFormArea(targetProp.area.toString());
-          if (targetProp.price) {
-            setFormAskingPrice(targetProp.price.toString());
-            setFormAgreedPrice(targetProp.price.toString());
-          }
-          setFormCurrency(targetProp.currency);
-          if (targetProp.ownerCustomerId) setFormLandlordId(targetProp.ownerCustomerId);
-          if (targetProp.ownerName) setFormLandlordName(targetProp.ownerName);
-          if (targetProp.ownerPhone) setFormLandlordPhone(targetProp.ownerPhone);
-          if (targetProp.mandateStart) setFormMandateDate(targetProp.mandateStart);
-          if (targetProp.listingType === "rent") {
-            setFormDealType("rent");
-            setFormCommissionRate(100);
-          }
+          applyPropertyData(targetProp);
         }
       }
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Portföy Seçimi Yapıldığında Otomatik Doldurma
-  const handleSelectProperty = (pid: string) => {
-    setFormPropertyId(pid);
-    if (!pid) return;
+  // Portföy Seçimi Yapıldığında Tüm İlgili Alanları (Başlık, Mülk Sahibi, Fiyat, m², Tür vb.) Otomatik Doldurma
+  const applyPropertyData = (prop: Property | undefined | null) => {
+    if (!prop) {
+      setFormPropertyId("");
+      setFormTitle("");
+      setFormAddress("");
+      setFormArea("");
+      setFormAskingPrice("");
+      setFormAgreedPrice("");
+      setFormLandlordId("");
+      setFormLandlordName("");
+      setFormLandlordPhone("");
+      setFormMandateDate("");
+      setFormDurationText("");
+      return;
+    }
 
-    const prop = properties.find((p) => p.id === pid);
-    if (prop) {
-      if (!formTitle) {
-        setFormTitle(`${prop.title} İşlem Kapama`);
+    setFormPropertyId(prop.id);
+    // Portföy başlığını direkt çek
+    setFormTitle(prop.title);
+    setFormAddress(prop.address || prop.region || "");
+
+    if (prop.propertyType) {
+      setFormPropertyType(prop.propertyType);
+    }
+    if (prop.area) {
+      setFormArea(prop.area.toString());
+    }
+    if (prop.currency) {
+      setFormCurrency(prop.currency);
+    }
+    if (prop.price) {
+      setFormAskingPrice(prop.price.toString());
+      setFormAgreedPrice(prop.price.toString());
+    }
+
+    const matchedDealType = prop.listingType === "rent" ? "rent" : "sale";
+    setFormDealType(matchedDealType);
+    setFormCommissionRate(matchedDealType === "rent" ? 100 : 5);
+
+    // Mülk Sahibi: Önce doğrudan bağlı müşteri ID'sinden, yoksa isim/telefon eşleşmesinden çek
+    if (prop.ownerCustomerId) {
+      const linkedCustomer = customers.find((c) => c.id === prop.ownerCustomerId);
+      if (linkedCustomer) {
+        setFormLandlordId(linkedCustomer.id);
+        setFormLandlordName(linkedCustomer.fullName);
+        setFormLandlordPhone(linkedCustomer.phone || prop.ownerPhone || "");
+      } else {
+        setFormLandlordId(prop.ownerCustomerId);
+        setFormLandlordName(prop.ownerName || "");
+        setFormLandlordPhone(prop.ownerPhone || "");
       }
-      setFormAddress(prop.address || prop.region || "");
-      if (prop.propertyType) {
-        setFormPropertyType(prop.propertyType);
+    } else if (prop.ownerName) {
+      setFormLandlordName(prop.ownerName);
+      const matchedLandlord = customers.find(
+        (c) =>
+          c.fullName.trim().toLowerCase() === prop.ownerName?.trim().toLowerCase() ||
+          (prop.ownerPhone && c.phone && c.phone.replace(/\D/g, "") === prop.ownerPhone.replace(/\D/g, ""))
+      );
+      if (matchedLandlord) {
+        setFormLandlordId(matchedLandlord.id);
+        setFormLandlordPhone(matchedLandlord.phone || prop.ownerPhone || "");
+      } else {
+        setFormLandlordId("");
+        setFormLandlordPhone(prop.ownerPhone || "");
       }
-      if (prop.area) {
-        setFormArea(prop.area.toString());
-      }
-      if (prop.price) {
-        setFormAskingPrice(prop.price.toString());
-        if (!formAgreedPrice) {
-          setFormAgreedPrice(prop.price.toString());
-        }
-      }
-      if (prop.currency) {
-        setFormCurrency(prop.currency);
-      }
-      if (prop.listingType) {
-        setFormDealType(prop.listingType === "rent" ? "rent" : "sale");
-        if (prop.listingType === "rent") {
-          setFormCommissionRate(100);
-        } else {
-          setFormCommissionRate(5);
-        }
-      }
-      if (prop.ownerName) {
-        setFormLandlordName(prop.ownerName);
-        // Havuzda eşleşen mülk sahibi var mı kontrol et
-        const matchedLandlord = customers.find(
-          (c) =>
-            c.fullName.trim().toLowerCase() === prop.ownerName?.trim().toLowerCase() ||
-            (prop.ownerPhone && c.phone && c.phone.replace(/\D/g, "") === prop.ownerPhone.replace(/\D/g, ""))
-        );
-        if (matchedLandlord) {
-          setFormLandlordId(matchedLandlord.id);
-          if (matchedLandlord.phone) setFormLandlordPhone(matchedLandlord.phone);
-        } else {
-          setFormLandlordId("");
-        }
-      }
-      if (prop.ownerPhone) {
-        setFormLandlordPhone(prop.ownerPhone);
-      }
-      // Portföy oluşturulma tarihine göre tahmini işlem süresi
-      if (prop.createdAt) {
-        try {
-          const createDate = new Date(prop.createdAt);
-          const now = new Date();
-          const diffDays = Math.max(1, Math.ceil((now.getTime() - createDate.getTime()) / (1000 * 3600 * 24)));
-          setFormDurationText(`${diffDays} Gün`);
-        } catch {
-          // ignore
-        }
+    } else {
+      setFormLandlordId("");
+      setFormLandlordName("");
+      setFormLandlordPhone("");
+    }
+
+    if (prop.mandateStart) {
+      setFormMandateDate(prop.mandateStart);
+    }
+
+    // Portföy oluşturulma tarihine göre tahmini işlem süresi
+    if (prop.createdAt) {
+      try {
+        const createDate = new Date(prop.createdAt);
+        const now = new Date();
+        const diffDays = Math.max(1, Math.ceil((now.getTime() - createDate.getTime()) / (1000 * 3600 * 24)));
+        setFormDurationText(`${diffDays} Gün`);
+      } catch {
+        // ignore
       }
     }
+
+    if (prop.assignedToId) {
+      setFormOrigin(prop.assignedToId === currentUser.id ? "advisor" : "office");
+    }
+  };
+
+  const handleSelectProperty = (pid: string) => {
+    if (!pid) {
+      applyPropertyData(null);
+      return;
+    }
+    const prop = properties.find((p) => p.id === pid);
+    applyPropertyData(prop);
   };
 
   // Mülk Sahibi Seçimi
@@ -371,6 +390,11 @@ export function AddDealModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formPropertyId) {
+      alert("Lütfen işlem kapatılacak portföyü seçin veya '+ Yeni Portföy' butonu ile ekleyin.");
+      return;
+    }
+
     if (!formAgreedPrice || numericPrice <= 0) {
       alert("Lütfen geçerli bir işlem bedeli girin.");
       return;
@@ -478,6 +502,16 @@ export function AddDealModal({
     onClose();
     if (onSuccess) onSuccess();
   };
+
+  // Satış / Kiralama filtreli portföy listesi
+  const filteredProperties = properties.filter((p) => {
+    if (p.deletedAt) return false;
+    if (formDealType === "sale") {
+      return p.listingType === "sale" || (!p.listingType && p.status !== "RENTED");
+    } else {
+      return p.listingType === "rent";
+    }
+  });
 
   if (!isOpen) return null;
 
@@ -590,8 +624,17 @@ export function AddDealModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setFormDealType("sale");
-                    if (formCommissionRate === 100) setFormCommissionRate(5);
+                    if (formDealType !== "sale") {
+                      setFormDealType("sale");
+                      if (formCommissionRate === 100) setFormCommissionRate(5);
+                      // Kiralık seçiliyken satışa geçildiğinde portföy uyumsuzsa sıfırla
+                      if (formPropertyId) {
+                        const cur = properties.find((p) => p.id === formPropertyId);
+                        if (cur && cur.listingType === "rent") {
+                          applyPropertyData(null);
+                        }
+                      }
+                    }
                   }}
                   className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
                     formDealType === "sale"
@@ -606,8 +649,17 @@ export function AddDealModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setFormDealType("rent");
-                    setFormCommissionRate(100);
+                    if (formDealType !== "rent") {
+                      setFormDealType("rent");
+                      setFormCommissionRate(100);
+                      // Satılık seçiliyken kiralamaya geçildiğinde portföy uyumsuzsa sıfırla
+                      if (formPropertyId) {
+                        const cur = properties.find((p) => p.id === formPropertyId);
+                        if (cur && cur.listingType === "sale") {
+                          applyPropertyData(null);
+                        }
+                      }
+                    }
                   }}
                   className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
                     formDealType === "rent"
@@ -621,12 +673,12 @@ export function AddDealModal({
               </div>
             </div>
 
-            {/* Portföy Seçimi veya Elle Giriş */}
+            {/* Portföy Seçimi ve Otomatik Başlık */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-slate-700 font-mono text-[11px] font-bold">
-                    Kayıtlı Portföyden Çek (Otomatik Doldurur):
+                    Kapatılacak Portföyü Seçin *
                   </label>
                   <button
                     type="button"
@@ -638,30 +690,46 @@ export function AddDealModal({
                   </button>
                 </div>
                 <select
+                  required
                   value={formPropertyId}
                   onChange={(e) => handleSelectProperty(e.target.value)}
-                  className="sharp-input w-full p-2 bg-white"
+                  className="sharp-input w-full p-2 bg-white text-xs font-mono font-medium text-slate-800"
                 >
-                  <option value="">-- Portföy havuzundan seçin veya aşağıya yazın --</option>
-                  {properties.filter((p) => !p.deletedAt).map((p) => (
+                  <option value="">
+                    {formDealType === "sale"
+                      ? "-- Satılık portföy havuzundan seçiniz * --"
+                      : "-- Kiralık portföy havuzundan seçiniz * --"}
+                  </option>
+                  {filteredProperties.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency}) - {p.region}
                     </option>
                   ))}
                 </select>
+                {filteredProperties.length === 0 && (
+                  <p className="text-[10px] text-amber-700 mt-1 font-mono">
+                    ⚠ Bu işlem türünde ({formDealType === "sale" ? "Satılık" : "Kiralık"}) henüz kayıtlı portföy bulunmuyor. &quot;+ Yeni Portföy&quot; butonuyla ekleyebilirsiniz.
+                  </p>
+                )}
               </div>
 
               <div>
-                <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                  İşlem Başlığı / Portföy Tanımı *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-slate-700 font-mono text-[11px] font-bold">
+                    İşlem Başlığı (Portföyden Otomatik)
+                  </label>
+                  {formTitle && (
+                    <span className="text-[10px] font-mono font-semibold text-[#00adb5] bg-cyan-50 px-1.5 py-0.5 border border-cyan-200">
+                      ✓ Portföyden Çekildi
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
-                  required
+                  readOnly
                   value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Örn: Girne Alsancak 2+1 Lüks Bahçeli Daire Satışı"
-                  className="sharp-input w-full p-2"
+                  placeholder="Portföy seçildiğinde otomatik doldurulur..."
+                  className="sharp-input w-full p-2 bg-slate-50 font-semibold text-slate-700 border-slate-200 cursor-default"
                 />
               </div>
             </div>
@@ -1474,6 +1542,8 @@ export function AddDealModal({
       <AddCustomerModal
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
+        initialCategory={customerModalTarget === "landlord" ? "SELLER" : formDealType === "rent" ? "TENANT" : "BUYER"}
+        zIndex={80}
         onSuccess={(newCust) => {
           if (customerModalTarget === "landlord") {
             setFormLandlordId(newCust.id);
@@ -1491,6 +1561,8 @@ export function AddDealModal({
       <AddPropertyModal
         isOpen={isAddPropertyModalOpen}
         onClose={() => setIsAddPropertyModalOpen(false)}
+        initialListingType={formDealType}
+        zIndex={80}
         onSuccess={(newProperty) => {
           handleSelectProperty(newProperty.id);
           setIsAddPropertyModalOpen(false);

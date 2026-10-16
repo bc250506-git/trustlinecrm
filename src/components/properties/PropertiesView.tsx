@@ -1409,32 +1409,54 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
 
                 <div className="flex items-center gap-2">
                   {canManageProperty(activePropertyDetail) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const p = activePropertyDetail;
-                        setActivePropertyDetail(null);
-                        setDealCloseProperty(p);
-                        setIsDealCloseModalOpen(true);
-                      }}
-                      className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-white ${
-                        activePropertyDetail.listingType === "sale"
-                          ? "bg-amber-600 hover:bg-amber-700"
-                          : "bg-blue-600 hover:bg-blue-700"
-                      }`}
-                      title={
-                        activePropertyDetail.listingType === "sale"
-                          ? "Portföy Satıldı (İşlem Kapat)"
-                          : "Portföy Kiralandı (İşlem Kapat)"
-                      }
-                    >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>
-                        {activePropertyDetail.listingType === "sale"
-                          ? "Portföy Satıldı (İşlem Kapat)"
-                          : "Portföy Kiralandı (İşlem Kapat)"}
-                      </span>
-                    </button>
+                    !isActive(activePropertyDetail) ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = activePropertyDetail;
+                          if (
+                            confirm(
+                              `"${p.title}" portföyünü yeniden aktife almak ve canlı ilan havuzuna çekmek istiyor musunuz?`
+                            )
+                          ) {
+                            reactivateProperty(p.id);
+                            setActivePropertyDetail(null);
+                          }
+                        }}
+                        className="px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-white bg-emerald-600 hover:bg-emerald-700 transition"
+                        title="Portföyü tek tıkla canlı ilan havuzuna geri döndür"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Portföyü Aktifleştir</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const p = activePropertyDetail;
+                          setActivePropertyDetail(null);
+                          setDealCloseProperty(p);
+                          setIsDealCloseModalOpen(true);
+                        }}
+                        className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs text-white ${
+                          activePropertyDetail.listingType === "sale"
+                            ? "bg-amber-600 hover:bg-amber-700"
+                            : "bg-blue-600 hover:bg-blue-700"
+                        }`}
+                        title={
+                          activePropertyDetail.listingType === "sale"
+                            ? "Portföy Satıldı (İşlem Kapat)"
+                            : "Portföy Kiralandı (İşlem Kapat)"
+                        }
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>
+                          {activePropertyDetail.listingType === "sale"
+                            ? "Portföy Satıldı (İşlem Kapat)"
+                            : "Portföy Kiralandı (İşlem Kapat)"}
+                        </span>
+                      </button>
+                    )
                   )}
 
                   {canManageProperty(activePropertyDetail) && (
@@ -2570,36 +2592,58 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
 
               {/* Aksiyon Butonları */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const p = editingProperty;
-                    setEditingProperty(null);
-                    setDealCloseProperty(p);
-                    setIsDealCloseModalOpen(true);
-                  }}
-                  className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 border shadow-2xs cursor-pointer ${
-                    editingProperty.listingType === "sale"
-                      ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
-                      : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
-                  }`}
-                  title={
-                    editingProperty.listingType === "sale"
-                      ? "Portföy Satıldı (İşlem Kapat)"
-                      : "Portföy Kiralandı (İşlem Kapat)"
-                  }
-                >
-                  <CheckCircle2
-                    className={`w-3.5 h-3.5 ${
-                      editingProperty.listingType === "sale" ? "text-amber-600" : "text-blue-600"
+                {!isActive(editingProperty) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = editingProperty;
+                      if (
+                        confirm(
+                          `"${editTitle || p.title}" portföyünü yeniden aktife almak ve canlı ilan havuzuna çekmek istiyor musunuz?`
+                        )
+                      ) {
+                        reactivateProperty(p.id);
+                        setEditingProperty(null);
+                      }
+                    }}
+                    className="px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-400 shadow-2xs cursor-pointer transition"
+                    title="Portföyü tek tıkla canlı ilan havuzuna geri döndür"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Portföyü Aktifleştir</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const p = editingProperty;
+                      setEditingProperty(null);
+                      setDealCloseProperty(p);
+                      setIsDealCloseModalOpen(true);
+                    }}
+                    className={`px-3.5 py-1.5 font-mono text-xs font-bold flex items-center gap-1.5 border shadow-2xs cursor-pointer ${
+                      editingProperty.listingType === "sale"
+                        ? "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300"
+                        : "bg-blue-50 hover:bg-blue-100 text-blue-800 border-blue-300"
                     }`}
-                  />
-                  <span>
-                    {editingProperty.listingType === "sale"
-                      ? "Portföy Satıldı (İşlem Kapat)"
-                      : "Portföy Kiralandı (İşlem Kapat)"}
-                  </span>
-                </button>
+                    title={
+                      editingProperty.listingType === "sale"
+                        ? "Portföy Satıldı (İşlem Kapat)"
+                        : "Portföy Kiralandı (İşlem Kapat)"
+                    }
+                  >
+                    <CheckCircle2
+                      className={`w-3.5 h-3.5 ${
+                        editingProperty.listingType === "sale" ? "text-amber-600" : "text-blue-600"
+                      }`}
+                    />
+                    <span>
+                      {editingProperty.listingType === "sale"
+                        ? "Portföy Satıldı (İşlem Kapat)"
+                        : "Portföy Kiralandı (İşlem Kapat)"}
+                    </span>
+                  </button>
+                )}
 
                 <div className="flex items-center gap-2">
                   <button

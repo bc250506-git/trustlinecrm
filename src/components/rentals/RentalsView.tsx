@@ -500,16 +500,24 @@ export function RentalsView() {
       (u) => u.id === (isBroker ? formData.assignedToId : currentUser.id)
     );
 
+    const targetProp = properties.find(
+      (p) =>
+        (formData.selectedPropertyId && p.id === formData.selectedPropertyId) ||
+        (formData.propertyTitle &&
+          p.title.trim().toLowerCase() === formData.propertyTitle.trim().toLowerCase())
+    );
+    const resolvedPropId = targetProp ? targetProp.id : (formData.selectedPropertyId || undefined);
+
     addRentalContract({
-      propertyId: formData.selectedPropertyId || undefined,
-      propertyTitle: formData.propertyTitle,
-      region: formData.region || "KKTC",
+      propertyId: resolvedPropId,
+      propertyTitle: targetProp ? targetProp.title : formData.propertyTitle,
+      region: formData.region || targetProp?.region || "KKTC",
       tenantCustomerId: formData.selectedTenantId || undefined,
       tenantName: formData.tenantName,
       tenantPhone: formData.tenantPhone || "-",
-      landlordCustomerId: formData.selectedLandlordId || undefined,
-      landlordName: formData.landlordName || "Mülk Sahibi",
-      landlordPhone: formData.landlordPhone || "-",
+      landlordCustomerId: formData.selectedLandlordId || targetProp?.ownerCustomerId || undefined,
+      landlordName: formData.landlordName || targetProp?.ownerName || "Mülk Sahibi",
+      landlordPhone: formData.landlordPhone || targetProp?.ownerPhone || "-",
       monthlyRent: rentAmount,
       currency: formData.currency,
       dueDay: Number(formData.dueDay) || 5,
@@ -521,6 +529,11 @@ export function RentalsView() {
       assignedToId: isBroker ? formData.assignedToId : currentUser.id,
       assignedToName: assignedUser ? assignedUser.name : currentUser.name,
     });
+
+    setActionFeedback(
+      `✓ Kira sözleşmesi başarıyla oluşturuldu. "${formData.propertyTitle}" portföyü 'KİRALANDI' (Pasif) durumuna çekildi.`
+    );
+    setTimeout(() => setActionFeedback(null), 5000);
 
     setIsAddModalOpen(false);
   };

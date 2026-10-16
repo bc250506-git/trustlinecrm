@@ -419,7 +419,13 @@ export function AddDealModal({
       formTitle.trim() ||
       `${formAddress || formPropertyType} — ${finalCustomerName} İşlem Kapama`;
 
-    const selectedProp = properties.find((p) => p.id === formPropertyId);
+    const selectedProp = properties.find(
+      (p) =>
+        (formPropertyId && p.id === formPropertyId) ||
+        (formTitle && p.title.trim().toLowerCase() === formTitle.trim().toLowerCase()) ||
+        (formAddress && p.address && p.address.trim().toLowerCase() === formAddress.trim().toLowerCase())
+    );
+    const resolvedPropertyId = selectedProp ? selectedProp.id : (formPropertyId || undefined);
 
     addDeal({
       title: titleToUse,
@@ -428,7 +434,7 @@ export function AddDealModal({
       customerId: formCustomerId || "custom-cst",
       customerName: finalCustomerName,
       customerPhone: finalCustomerPhone,
-      propertyId: formPropertyId,
+      propertyId: resolvedPropertyId || formPropertyId || "",
       propertyTitle: selectedProp ? selectedProp.title : formAddress || "Gayrimenkul",
       address: formAddress,
       propertyType: formPropertyType,
@@ -479,23 +485,24 @@ export function AddDealModal({
       notes: formNotes || "İşlem kapama formu üzerinden kaydedildi.",
     });
 
-    // Portföy Durumu ve Mal Sahibi Güncellemesi
-    if (formPropertyId) {
+    // Portföy Durumu ve Mal Sahibi Güncellemesi (Aktiften Pasife Çekme)
+    const propToUpdateId = resolvedPropertyId || formPropertyId;
+    if (propToUpdateId) {
       if (formDealType === "sale") {
         if (keepActiveForNewOwner) {
-          updateProperty(formPropertyId, {
+          updateProperty(propToUpdateId, {
             ownerCustomerId: formCustomerId || undefined,
             ownerName: formCustomerName || undefined,
             ownerPhone: formCustomerPhone || undefined,
             status: "AVAILABLE",
           });
         } else {
-          updateProperty(formPropertyId, {
+          updateProperty(propToUpdateId, {
             status: "SOLD",
           });
         }
       } else if (formDealType === "rent") {
-        updateProperty(formPropertyId, {
+        updateProperty(propToUpdateId, {
           status: "RENTED",
         });
       }

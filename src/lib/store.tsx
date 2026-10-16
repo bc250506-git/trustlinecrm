@@ -14,6 +14,7 @@ import {
   AutomationRule,
   MandateContract,
   Currency,
+  PropertyStatus,
 } from "./types";
 import {
   initialUsers,
@@ -1626,7 +1627,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const updateProperty = (id: string, updates: Partial<Property>): boolean => {
     const prop = properties.find((p) => p.id === id);
     if (!prop) return false;
-    if (!canManageProperty(prop)) {
+    const isStatusClosing = updates.status === "SOLD" || updates.status === "RENTED";
+    if (!isStatusClosing && !canManageProperty(prop)) {
       alert("Bu portföy başka bir danışmana aittir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
@@ -1892,6 +1894,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return updated;
       })
     );
+
+    // EĞER İŞLEM KAZANILDIYSA (WON) BAĞLI PORTFÖYÜ PASİFE ÇEK
+    if (newStage === "won") {
+      const deal = deals.find((d) => d.id === id);
+      if (deal) {
+        const targetPropId = deal.propertyId;
+        const targetPropTitle = (deal.propertyTitle || deal.title)?.trim().toLowerCase();
+        const newStatus: PropertyStatus = deal.dealType === "rent" ? "RENTED" : "SOLD";
+
+        setProperties((prev) =>
+          prev.map((p) => {
+            const isMatch =
+              (targetPropId && p.id === targetPropId) ||
+              (targetPropTitle &&
+                (p.title.trim().toLowerCase() === targetPropTitle ||
+                  targetPropTitle.includes(p.title.trim().toLowerCase())));
+
+            if (isMatch && p.status !== newStatus) {
+              const updatedP: Property = {
+                ...p,
+                status: newStatus,
+                updatedAt: new Date().toISOString(),
+              };
+              saveProperty(updatedP).catch(() => {});
+              return updatedP;
+            }
+            return p;
+          })
+        );
+      }
+    }
   };
 
   const addDeal = (dealData: Omit<Deal, "id" | "createdAt"> & { createdAt?: string }) => {
@@ -1905,6 +1938,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
     setDeals((prev) => [newDeal, ...prev]);
     saveDeal(newDeal).catch(() => {});
+
+    // İŞLEM KAPANDIĞINDA BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (SOLD veya RENTED)
+    const targetPropId = dealData.propertyId;
+    const targetPropTitle = (dealData.propertyTitle || dealData.title)?.trim().toLowerCase();
+    const newStatus: PropertyStatus = dealData.dealType === "rent" ? "RENTED" : "SOLD";
+
+    if (dealData.stage === "won" || !dealData.stage) {
+      setProperties((prev) =>
+        prev.map((p) => {
+          const isMatch =
+            (targetPropId && p.id === targetPropId) ||
+            (targetPropTitle &&
+              (p.title.trim().toLowerCase() === targetPropTitle ||
+                targetPropTitle.includes(p.title.trim().toLowerCase())));
+
+          if (isMatch && p.status !== newStatus) {
+            const updatedP: Property = {
+              ...p,
+              status: newStatus,
+              updatedAt: new Date().toISOString(),
+            };
+            saveProperty(updatedP).catch(() => {});
+            return updatedP;
+          }
+          return p;
+        })
+      );
+    }
 
     // Eğer iç paylaşımlı bir işlemse ve 2. Danışman seçildiyse anlık bildirim oluştur
     if (newDeal.sharingType === "internal" && newDeal.partnerAdvisorId) {
@@ -1983,6 +2044,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((d) => (d.id === id ? updatedDeal : d))
     );
     saveDeal(updatedDeal).catch(() => {});
+
+    // EĞER İŞLEM WON AŞAMASINA GEÇTİYSE BAĞLI PORTFÖYÜ PASİFE ÇEK
+    const finalStage = updates.stage || deal.stage;
+    if (finalStage === "won") {
+      const targetPropId = updates.propertyId || deal.propertyId;
+      const targetPropTitle = (updates.propertyTitle || deal.propertyTitle || updates.title || deal.title)?.trim().toLowerCase();
+      const finalDealType = updates.dealType || deal.dealType;
+      const newStatus: PropertyStatus = finalDealType === "rent" ? "RENTED" : "SOLD";
+
+      setProperties((prev) =>
+        prev.map((p) => {
+          const isMatch =
+            (targetPropId && p.id === targetPropId) ||
+            (targetPropTitle &&
+              (p.title.trim().toLowerCase() === targetPropTitle ||
+                targetPropTitle.includes(p.title.trim().toLowerCase())));
+
+          if (isMatch && p.status !== newStatus) {
+            const updatedP: Property = {
+              ...p,
+              status: newStatus,
+              updatedAt: new Date().toISOString(),
+            };
+            saveProperty(updatedP).catch(() => {});
+            return updatedP;
+          }
+          return p;
+        })
+      );
+    }
+
     return true;
   };
 
@@ -2111,6 +2203,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     setRentals((prev) => [newContract, ...prev]);
     saveRental(newContract).catch(() => {});
+
+    // BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (RENTED)
+    const targetPropId = contractData.propertyId;
+    const targetPropTitle = contractData.propertyTitle?.trim().toLowerCase();
+
+    if (contractData.active !== false) {
+      setProperties((prev) =>
+        prev.map((p) => {
+          const isMatch =
+            (targetPropId && p.id === targetPropId) ||
+            (targetPropTitle && p.title.trim().toLowerCase() === targetPropTitle);
+
+          if (isMatch && p.status !== "RENTED") {
+            const updatedP: Property = {
+              ...p,
+              status: "RENTED",
+              updatedAt: new Date().toISOString(),
+            };
+            saveProperty(updatedP).catch(() => {});
+            return updatedP;
+          }
+          return p;
+        })
+      );
+    }
+
     return newContract;
   };
 

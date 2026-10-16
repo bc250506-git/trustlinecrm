@@ -127,7 +127,7 @@ export async function getProperties(): Promise<Property[]> {
   try {
     const { data, error } = await supabase
       .from("properties")
-      .select("*, photos:property_photos(*)")
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (error || !data || data.length === 0) {
@@ -449,11 +449,18 @@ export async function seedAllDataToSupabase(data: {
   deals: Deal[];
   rentals: RentalContract[];
   mandates: MandateContract[];
+  followUps?: FollowUp[];
+  users?: User[];
 }): Promise<{ success: boolean; message: string }> {
   try {
     let insertedCounts = 0;
-
     const errors: string[] = [];
+
+    if (data.users && data.users.length > 0) {
+      const { error: userErr } = await supabase.from("users").upsert(data.users);
+      if (userErr) errors.push(`users: ${userErr.message}`);
+      else insertedCounts += data.users.length;
+    }
 
     if (data.customers.length > 0) {
       const { error: custErr } = await supabase.from("customers").upsert(data.customers);
@@ -485,16 +492,22 @@ export async function seedAllDataToSupabase(data: {
       else insertedCounts += data.mandates.length;
     }
 
+    if (data.followUps && data.followUps.length > 0) {
+      const { error: followErr } = await supabase.from("follow_ups").upsert(data.followUps);
+      if (followErr) errors.push(`follow_ups: ${followErr.message}`);
+      else insertedCounts += data.followUps.length;
+    }
+
     if (errors.length > 0) {
       return {
         success: false,
-        message: `Kayıt başarısız: Tablolar henüz veritabanında mevcut değil (${errors[0]}). Lütfen önce SQL Editor'de şemayı çalıştırın.`,
+        message: `Kayıt uyarısı: Bazı tablolar aktarılamadı (${errors[0]}). Lütfen SQL Editor'de şemanın güncel olduğundan emin olun.`,
       };
     }
 
     return {
       success: true,
-      message: `Veriler başarıyla bulut PostgreSQL veritabanına aktarıldı (${insertedCounts} kayıt işlendi).`,
+      message: `Tüm CRM verileri başarıyla Supabase bulut veritabanına aktarıldı (${insertedCounts} kayıt işlendi).`,
     };
   } catch (err: any) {
     return {

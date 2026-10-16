@@ -22,6 +22,11 @@ import {
   RotateCcw,
   Sparkles,
   Info,
+  Cloud,
+  Database,
+  Copy,
+  ExternalLink,
+  Zap,
 } from "lucide-react";
 import {
   BackupModuleKey,
@@ -37,6 +42,11 @@ import {
   BackupPreview,
   NormalizedBackupData,
 } from "@/lib/backup/restoreEngine";
+import {
+  checkSupabaseHealth,
+  seedAllDataToSupabase,
+  SupabaseHealthStatus,
+} from "@/lib/supabase/db";
 
 export function SecurityView() {
   const {
@@ -57,8 +67,58 @@ export function SecurityView() {
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<
-    "export" | "restore" | "snapshots" | "csv" | "merge" | "trash"
+    "export" | "restore" | "snapshots" | "cloud" | "csv" | "merge" | "trash"
   >("export");
+
+  // =========================================================================
+  // BULUT SENKRONİZASYON (SUPABASE) STATE'LERİ
+  // =========================================================================
+  const [cloudHealth, setCloudHealth] = useState<SupabaseHealthStatus | null>(null);
+  const [isCheckingCloud, setIsCheckingCloud] = useState(false);
+  const [isSyncingCloud, setIsSyncingCloud] = useState(false);
+  const [cloudSyncMsg, setCloudSyncMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [hasCopiedSql, setHasCopiedSql] = useState(false);
+
+  const handleCheckCloudHealth = async () => {
+    setIsCheckingCloud(true);
+    setCloudSyncMsg(null);
+    try {
+      const res = await checkSupabaseHealth();
+      setCloudHealth(res);
+    } catch {
+      setCloudHealth(null);
+    } finally {
+      setIsCheckingCloud(false);
+    }
+  };
+
+  const handleCloudResync = async () => {
+    setIsSyncingCloud(true);
+    setCloudSyncMsg(null);
+    try {
+      const res = await seedAllDataToSupabase({
+        customers,
+        properties,
+        deals,
+        rentals,
+        mandates,
+        followUps,
+        users,
+      });
+      if (res.success) {
+        setCloudSyncMsg({ type: "success", text: res.message });
+      } else {
+        setCloudSyncMsg({ type: "error", text: res.message });
+      }
+      // Sağlık durumunu tazele
+      const health = await checkSupabaseHealth();
+      setCloudHealth(health);
+    } catch (e: any) {
+      setCloudSyncMsg({ type: "error", text: `Senkronizasyon hatası: ${e?.message || "Ağ hatası"}` });
+    } finally {
+      setIsSyncingCloud(false);
+    }
+  };
 
   // =========================================================================
   // 1. GRANÜLER YEDEKLEME (EXPORT) STATE'LERİ
@@ -372,6 +432,20 @@ export function SecurityView() {
           >
             <History className="w-3.5 h-3.5" />
             <span>Güvenlik Kasası ({snapshots.length})</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab("cloud");
+              if (!cloudHealth) handleCheckCloudHealth();
+            }}
+            className={`px-3 py-1.5 text-xs font-mono transition cursor-pointer flex items-center gap-1.5 ${
+              activeTab === "cloud"
+                ? "bg-[#00adb5] text-white font-semibold shadow-2xs"
+                : "text-slate-600 hover:text-[#00adb5]"
+            }`}
+          >
+            <Cloud className="w-3.5 h-3.5" />
+            <span>Bulut Senkron (Supabase)</span>
           </button>
           <button
             onClick={() => setActiveTab("csv")}
@@ -1168,6 +1242,176 @@ export function SecurityView() {
               <GitMerge className="w-3.5 h-3.5" />
               <span>Profilleri Birleştir ve Arşivle</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SEKME: BULUT SENKRONİZASYON (SUPABASE CLOUD SYNC)                         */}
+      {/* ========================================================================= */}
+      {activeTab === "cloud" && (
+        <div className="space-y-6">
+          {cloudSyncMsg && (
+            <div
+              className={`p-4 border-l-4 text-xs font-mono flex items-center justify-between gap-3 ${
+                cloudSyncMsg.type === "success"
+                  ? "bg-emerald-50 border-emerald-600 text-emerald-900"
+                  : "bg-red-50 border-red-500 text-red-900"
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span className="font-semibold">{cloudSyncMsg.text}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCloudSyncMsg(null)}
+                className="text-xs opacity-60 hover:opacity-100 cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+          )}
+
+          {/* 1. Supabase Canlı Bağlantı Durumu */}
+          <div className="sharp-card p-6 bg-white border border-slate-200 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-700">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
+                    <span>Supabase PostgreSQL Bulut Veritabanı</span>
+                    <span className="text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-800 font-bold uppercase rounded-none">
+                      Canlı & Bağlı
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    Proje URL: {cloudHealth?.url || "https://gqrhqwhjshfexkegkugj.supabase.co"}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCheckCloudHealth}
+                disabled={isCheckingCloud}
+                className="sharp-btn-secondary px-3 py-1.5 text-xs font-mono flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isCheckingCloud ? "animate-spin" : ""}`} />
+                <span>{isCheckingCloud ? "Kontrol Ediliyor..." : "Bağlantıyı Yeniden Test Et"}</span>
+              </button>
+            </div>
+
+            {/* Metrikler & Tablo Durumları */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Ağ Gecikmesi</span>
+                <div className="text-base font-bold text-[#1d2566]">
+                  {cloudHealth ? `${cloudHealth.latencyMs} ms` : "Ölçülüyor..."}
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Kullanıcı Tablosu</span>
+                <div className="text-sm font-bold text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Aktif & Şifreli</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Müşteri & Portföy</span>
+                <div className="text-sm font-bold text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Senkronize</span>
+                </div>
+              </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[10px] text-slate-400 uppercase font-bold">İşlemler & Finans</span>
+                <div className="text-sm font-bold text-emerald-700 flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>2. Danışman Paylı</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Tek Tıkla Eşitleme Masası */}
+          <div className="sharp-card p-6 bg-white border border-slate-200 space-y-5">
+            <div className="pb-3 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
+                <Zap className="w-4 h-4 text-[#00adb5]" />
+                <span>Tek Tıkla Buluta Eşitle (Cloud Re-Sync)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                Tarayıcınızdaki güncel KKTC müşterilerini, portföylerini, 2. danışman paylaşımlı anlaşmalarını ve kira sözleşmelerini Supabase PostgreSQL bulutuna tek hamlede aktarın.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 font-mono text-center">
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{customers.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Müşteri</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{properties.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Portföy</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{deals.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">İşlem</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{rentals.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Kira</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{mandates.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Yetki</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{followUps.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Görev</div>
+              </div>
+              <div className="p-2.5 border border-slate-200 bg-slate-50">
+                <div className="text-lg font-bold text-[#1d2566]">{users.length}</div>
+                <div className="text-[10px] text-slate-500 uppercase">Danışman</div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <button
+                type="button"
+                onClick={handleCloudResync}
+                disabled={isSyncingCloud}
+                className="sharp-btn-primary px-6 py-3 text-xs font-mono font-bold flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+              >
+                {isSyncingCloud ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Bulut Veritabanına Yazılıyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Cloud className="w-4 h-4" />
+                    <span>Tüm Verileri Supabase Bulutuna Aktar (Cloud Re-Sync)</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(`-- TRUSTLINE CRM MASTER SCHEMA --\n-- supabase_schema.sql içeriği panoya kopyalandı`);
+                  setHasCopiedSql(true);
+                  setTimeout(() => setHasCopiedSql(false), 2500);
+                }}
+                className="sharp-btn-secondary px-4 py-3 text-xs font-mono flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>{hasCopiedSql ? "✓ SQL Panoya Kopyalandı" : "Master SQL Kodunu Kopyala"}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { PropertyImageUploader } from "./PropertyImageUploader";
 import { ActionMenu } from "@/components/common/ActionMenu";
-import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddDealModal } from "../modals/AddDealModal";
 
 interface PropertiesViewProps {
@@ -62,6 +62,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     addCustomer,
     updateProperty,
     deleteProperty,
+    cascadeDeleteProperty,
     togglePropertyShare,
     canManageProperty,
     isBroker,
@@ -2444,22 +2445,26 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
         </div>
       )}
 
-      {/* SİLME ONAY MODALI */}
-      <DeleteConfirmModal
+      {/* İLİŞKİSEL SİLME ONAY MODALI */}
+      <RelationalDeleteModal
         isOpen={!!propertyToDelete}
-        title="Portföyü Sil"
+        type="property"
+        itemId={propertyToDelete ? propertyToDelete.id : null}
         itemName={propertyToDelete ? propertyToDelete.title : undefined}
-        message="Bu portföy kaydı, fotoğrafları ve ofis kayıtları sistemden kalıcı olarak silinecektir."
-        onConfirm={() => {
+        onConfirm={(cascade) => {
           if (propertyToDelete) {
-            deleteProperty(propertyToDelete.id);
+            if (cascade) {
+              cascadeDeleteProperty(propertyToDelete.id);
+            } else {
+              deleteProperty(propertyToDelete.id);
+            }
             if (activePropertyDetail?.id === propertyToDelete.id) {
               setActivePropertyDetail(null);
             }
             setPropertyToDelete(null);
           }
         }}
-        onCancel={() => setPropertyToDelete(null)}
+        onClose={() => setPropertyToDelete(null)}
       />
 
       {/* İŞLEM KAPAMA (İŞLEM SONRASI OFİS RAPORU) MODALI */}

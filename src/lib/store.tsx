@@ -114,12 +114,14 @@ interface StoreContextType {
   addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "updatedAt">) => Customer;
   updateCustomer: (id: string, updates: Partial<Customer>) => void;
   deleteCustomer: (id: string) => boolean;
+  cascadeDeleteCustomer: (id: string) => boolean;
   restoreCustomer: (id: string) => boolean;
   permanentDeleteCustomer: (id: string) => boolean;
   toggleCustomerShare: (id: string) => void;
   addProperty: (property: Omit<Property, "id" | "createdAt" | "updatedAt">) => Property;
   updateProperty: (id: string, updates: Partial<Property>) => boolean;
   deleteProperty: (id: string) => boolean;
+  cascadeDeleteProperty: (id: string) => boolean;
   restoreProperty: (id: string) => boolean;
   permanentDeleteProperty: (id: string) => boolean;
   emptyTrash: () => Promise<void>;
@@ -1390,6 +1392,135 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const cascadeDeleteCustomer = (id: string): boolean => {
+    const cust = customers.find((c) => c.id === id);
+    if (!cust) return false;
+    if (!canManageCustomer(cust)) {
+      alert("Bu müşteri başka bir danışmana aittir. Yalnızca sahibi veya ofis silebilir.");
+      return false;
+    }
+    const nowIso = new Date().toISOString();
+
+    // 1. Müşteriyi soft-delete yap
+    const updatedCustomer: Customer = {
+      ...cust,
+      deletedAt: nowIso,
+      updatedAt: nowIso,
+    };
+    setCustomers((prev) => prev.map((c) => (c.id === id ? updatedCustomer : c)));
+    saveCustomer(updatedCustomer).catch(() => {});
+
+    // 2. Bu müşteriye ait portföyleri bul
+    const custNameNorm = cust.fullName ? cust.fullName.trim().toLowerCase() : "";
+    const ownedProps = properties.filter((p) => {
+      if (p.deletedAt) return false;
+      if (p.ownerCustomerId === id) return true;
+      if (custNameNorm && p.ownerName && p.ownerName.trim().toLowerCase() === custNameNorm) return true;
+      return false;
+    });
+    const ownedPropIds = new Set(ownedProps.map((p) => p.id));
+
+    // Portföyleri soft-delete yap
+    if (ownedProps.length > 0) {
+      setProperties((prev) =>
+        prev.map((p) => {
+          if (ownedPropIds.has(p.id)) {
+            const upd: Property = { ...p, deletedAt: nowIso, updatedAt: nowIso };
+            saveProperty(upd).catch(() => {});
+            return upd;
+          }
+          return p;
+        })
+      );
+    }
+
+    // 3. İlgili kira sözleşmelerini pasife al / sonlandır
+    setRentals((prev) =>
+      prev.map((r) => {
+        const isDirectTenant =
+          r.tenantCustomerId === id ||
+          (custNameNorm && r.tenantName && r.tenantName.trim().toLowerCase() === custNameNorm);
+        const isDirectLandlord =
+          r.landlordCustomerId === id ||
+          (custNameNorm && r.landlordName && r.landlordName.trim().toLowerCase() === custNameNorm);
+        const isOwnedPropertyRental = r.propertyId ? ownedPropIds.has(r.propertyId) : false;
+
+        if (r.active && (isDirectTenant || isDirectLandlord || isOwnedPropertyRental)) {
+          const upd: RentalContract = { ...r, active: false };
+          saveRental(upd).catch(() => {});
+          return upd;
+        }
+        return r;
+      })
+    );
+
+    // 4. İlgili yetki sözleşmelerini iptal et
+    setMandates((prev) =>
+      prev.map((m) => {
+        const isDirectOwner =
+          m.ownerCustomerId === id ||
+          (custNameNorm && m.ownerName && m.ownerName.trim().toLowerCase() === custNameNorm);
+        const isOwnedPropertyMandate = m.propertyId ? ownedPropIds.has(m.propertyId) : false;
+
+        if (m.status !== "cancelled" && (isDirectOwner || isOwnedPropertyMandate)) {
+          const upd: MandateContract = { ...m, status: "cancelled" };
+          saveMandate(upd).catch(() => {});
+          return upd;
+        }
+        return m;
+      })
+    );
+
+    // 5. İlgili anlaşma / fırsatları (Deals) iptal et
+    setDeals((prev) =>
+      prev.map((d) => {
+        const isDirectCust =
+          d.customerId === id ||
+          (custNameNorm && d.customerName && d.customerName.trim().toLowerCase() === custNameNorm);
+        const isOwnedPropertyDeal = d.propertyId ? ownedPropIds.has(d.propertyId) : false;
+
+        if (d.stage !== "lost" && (isDirectCust || isOwnedPropertyDeal)) {
+          const upd: Deal = {
+            ...d,
+            stage: "lost",
+            closingNotes: d.closingNotes
+              ? `${d.closingNotes} (Müşteri silinmesi nedeniyle sistemce iptal edildi)`
+              : "Müşteri silinmesi nedeniyle sistemce iptal edildi",
+          };
+          saveDeal(upd).catch(() => {});
+          return upd;
+        }
+        return d;
+      })
+    );
+
+    // 6. Açık randevu ve takipleri kapat
+    setFollowUps((prev) =>
+      prev.map((f) => {
+        const isDirectCust =
+          f.customerId === id ||
+          (custNameNorm && f.customerName && f.customerName.trim().toLowerCase() === custNameNorm);
+        const isOwnedPropertyFollowUp = f.propertyId ? ownedPropIds.has(f.propertyId) : false;
+
+        if (f.status === "open" && (isDirectCust || isOwnedPropertyFollowUp)) {
+          const upd: FollowUp = {
+            ...f,
+            status: "cancelled",
+            outcome: "uninterested",
+            feedback: f.feedback
+              ? `${f.feedback} (Müşteri silinmesi nedeniyle kapatıldı)`
+              : "Müşteri silinmesi nedeniyle kapatıldı",
+          };
+          saveFollowUp(upd).catch(() => {});
+          return upd;
+        }
+        return f;
+      })
+    );
+
+    return true;
+  };
+
   const restoreCustomer = (id: string): boolean => {
     const cust = customers.find((c) => c.id === id);
     if (!cust) return false;
@@ -1527,6 +1658,88 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((p) => (p.id === id ? updatedProperty : p))
     );
     saveProperty(updatedProperty).catch(() => {});
+    return true;
+  };
+
+  const cascadeDeleteProperty = (id: string): boolean => {
+    const prop = properties.find((p) => p.id === id);
+    if (!prop) return false;
+    if (!canManageProperty(prop)) {
+      alert("Bu portföy başka bir danışmana aittir. Yalnızca sahibi veya ofis silebilir.");
+      return false;
+    }
+    const nowIso = new Date().toISOString();
+
+    // 1. Portföyü soft-delete yap
+    const updatedProperty: Property = {
+      ...prop,
+      deletedAt: nowIso,
+      updatedAt: nowIso,
+    };
+    setProperties((prev) => prev.map((p) => (p.id === id ? updatedProperty : p)));
+    saveProperty(updatedProperty).catch(() => {});
+
+    // 2. Bu portföye bağlı aktif kira sözleşmelerini pasife al
+    setRentals((prev) =>
+      prev.map((r) => {
+        if (r.active && r.propertyId === id) {
+          const upd: RentalContract = { ...r, active: false };
+          saveRental(upd).catch(() => {});
+          return upd;
+        }
+        return r;
+      })
+    );
+
+    // 3. Bu portföye bağlı yetki sözleşmelerini iptal et
+    setMandates((prev) =>
+      prev.map((m) => {
+        if (m.status !== "cancelled" && m.propertyId === id) {
+          const upd: MandateContract = { ...m, status: "cancelled" };
+          saveMandate(upd).catch(() => {});
+          return upd;
+        }
+        return m;
+      })
+    );
+
+    // 4. Bu portföye bağlı fırsat/işlemleri iptal et
+    setDeals((prev) =>
+      prev.map((d) => {
+        if (d.stage !== "lost" && d.propertyId === id) {
+          const upd: Deal = {
+            ...d,
+            stage: "lost",
+            closingNotes: d.closingNotes
+              ? `${d.closingNotes} (Portföy silinmesi nedeniyle sistemce iptal edildi)`
+              : "Portföy silinmesi nedeniyle sistemce iptal edildi",
+          };
+          saveDeal(upd).catch(() => {});
+          return upd;
+        }
+        return d;
+      })
+    );
+
+    // 5. Bu portföye bağlı açık randevu ve takipleri kapat
+    setFollowUps((prev) =>
+      prev.map((f) => {
+        if (f.status === "open" && f.propertyId === id) {
+          const upd: FollowUp = {
+            ...f,
+            status: "cancelled",
+            outcome: "uninterested",
+            feedback: f.feedback
+              ? `${f.feedback} (Portföy silinmesi nedeniyle kapatıldı)`
+              : "Portföy silinmesi nedeniyle kapatıldı",
+          };
+          saveFollowUp(upd).catch(() => {});
+          return upd;
+        }
+        return f;
+      })
+    );
+
     return true;
   };
 
@@ -2391,12 +2604,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        cascadeDeleteCustomer,
         restoreCustomer,
         permanentDeleteCustomer,
         toggleCustomerShare,
         addProperty,
         updateProperty,
         deleteProperty,
+        cascadeDeleteProperty,
         restoreProperty,
         permanentDeleteProperty,
         emptyTrash,

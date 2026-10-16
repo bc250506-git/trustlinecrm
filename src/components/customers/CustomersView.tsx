@@ -31,7 +31,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
-import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
 
 interface CustomersViewProps {
@@ -50,6 +50,7 @@ export function CustomersView({
     addCustomer,
     updateCustomer,
     deleteCustomer,
+    cascadeDeleteCustomer,
     toggleCustomerShare,
     canManageCustomer,
     isBroker,
@@ -715,22 +716,26 @@ export function CustomersView({
         </div>
       )}
 
-      {/* SİLME ONAY MODALI */}
-      <DeleteConfirmModal
+      {/* İLİŞKİSEL SİLME ONAY MODALI */}
+      <RelationalDeleteModal
         isOpen={!!customerToDelete}
-        title="Müşteri Kaydını Sil"
+        type="customer"
+        itemId={customerToDelete ? customerToDelete.id : null}
         itemName={customerToDelete ? customerToDelete.fullName : undefined}
-        message="Bu müşteri kaydı, iletişim bilgileri ve talep geçmişi sistemden kalıcı olarak silinecektir."
-        onConfirm={() => {
+        onConfirm={(cascade) => {
           if (customerToDelete) {
-            deleteCustomer(customerToDelete.id);
+            if (cascade) {
+              cascadeDeleteCustomer(customerToDelete.id);
+            } else {
+              deleteCustomer(customerToDelete.id);
+            }
             if (activeCustomerDetail?.id === customerToDelete.id) {
               setActiveCustomerDetail(null);
             }
             setCustomerToDelete(null);
           }
         }}
-        onCancel={() => setCustomerToDelete(null)}
+        onClose={() => setCustomerToDelete(null)}
       />
     </div>
   );

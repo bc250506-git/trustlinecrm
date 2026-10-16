@@ -25,7 +25,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
-import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
+import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 
@@ -47,6 +47,7 @@ export function PipelineView() {
     myCustomers,
     updateCustomer,
     deleteCustomer,
+    cascadeDeleteCustomer,
     canManageCustomer,
     isBroker,
     users,
@@ -892,19 +893,23 @@ export function PipelineView() {
         }}
       />
 
-      {/* SİLME ONAY MODALI */}
-      <DeleteConfirmModal
+      {/* İLİŞKİSEL SİLME ONAY MODALI */}
+      <RelationalDeleteModal
         isOpen={!!customerToDelete}
-        title="Satış Süreci Kaydını Sil"
+        type="customer"
+        itemId={customerToDelete ? customerToDelete.id : null}
         itemName={customerToDelete ? customerToDelete.fullName : undefined}
-        message="Bu müşteri ve bağlı olduğu tüm satış süreci kayıtları sistemden kalıcı olarak silinecektir."
-        onConfirm={() => {
+        onConfirm={(cascade) => {
           if (customerToDelete) {
-            deleteCustomer(customerToDelete.id);
+            if (cascade) {
+              cascadeDeleteCustomer(customerToDelete.id);
+            } else {
+              deleteCustomer(customerToDelete.id);
+            }
             setCustomerToDelete(null);
           }
         }}
-        onCancel={() => setCustomerToDelete(null)}
+        onClose={() => setCustomerToDelete(null)}
       />
     </div>
   );

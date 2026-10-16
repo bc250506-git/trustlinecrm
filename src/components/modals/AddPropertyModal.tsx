@@ -14,8 +14,10 @@ import {
   ExternalLink,
   Share2,
   Lock,
+  UserPlus,
 } from "lucide-react";
 import { PropertyImageUploader } from "../properties/PropertyImageUploader";
+import { AddCustomerModal } from "./AddCustomerModal";
 
 interface AddPropertyModalProps {
   isOpen: boolean;
@@ -58,6 +60,7 @@ export function AddPropertyModal({
   const [formListingUrl, setFormListingUrl] = useState("");
   const [formIsShared, setFormIsShared] = useState(false);
   const [formIsOffMarket, setFormIsOffMarket] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
 
   const prevIsOpenRef = React.useRef(false);
 
@@ -317,24 +320,42 @@ export function AddPropertyModal({
             </div>
           </div>
 
-          {/* Mülk Sahibi Seçimi */}
-          <div>
-            <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold flex items-center gap-1">
-              <User className="w-3 h-3 text-[#00adb5]" />
-              <span>Mülk Sahibi (Müşteri Havuzundan)</span>
-            </label>
-            <select
-              value={formOwnerCustomerId}
-              onChange={(e) => setFormOwnerCustomerId(e.target.value)}
-              className="sharp-input w-full p-2 bg-white"
-            >
-              <option value="">-- Müşteri havuzundan seçin --</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} ({c.phone || "Tel yok"}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
-                </option>
-              ))}
-            </select>
+          {/* Mülk Sahibi / Satıcı Seçimi & Hızlı Ekle */}
+          <div className="p-3 bg-amber-50/70 border border-amber-200 space-y-2">
+            <div className="flex items-center justify-between border-b border-amber-200/80 pb-2">
+              <label className="text-[11px] font-mono text-amber-900 font-bold flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-700" />
+                <span>Mal Sahibi / Müşteri (Zorunlu Alan) *</span>
+              </label>
+
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerModalOpen(true)}
+                className="px-2.5 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white text-[11px] font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>+ Yeni Müşteri Ekle</span>
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-mono text-[10px] mb-1 font-semibold">
+                Müşteri Havuzundan Mal Sahibi Seçin *
+              </label>
+              <select
+                required
+                value={formOwnerCustomerId}
+                onChange={(e) => setFormOwnerCustomerId(e.target.value)}
+                className="sharp-input w-full p-2 bg-white text-xs font-mono font-bold text-[#1d2566]"
+              >
+                <option value="">-- Müşteri havuzundan mal sahibi seçin (Zorunlu) --</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.fullName} ({c.phone || "Telefon yok"} - {c.category === "SELLER" ? "Satıcı" : "Müşteri"})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -453,6 +474,18 @@ export function AddPropertyModal({
           </div>
         </form>
       </div>
+
+      {/* CANONICAL MÜŞTERİ / SATICI OLUŞTURMA MODALI */}
+      <AddCustomerModal
+        isOpen={isAddCustomerModalOpen}
+        onClose={() => setIsAddCustomerModalOpen(false)}
+        initialCategory="SELLER"
+        zIndex={(zIndex || 70) + 40}
+        onSuccess={(newCust) => {
+          setFormOwnerCustomerId(newCust.id);
+          setIsAddCustomerModalOpen(false);
+        }}
+      />
     </div>
   );
 }

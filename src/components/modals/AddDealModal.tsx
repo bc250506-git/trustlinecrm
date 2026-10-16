@@ -1541,7 +1541,7 @@ export function AddDealModal({
         isOpen={isAddCustomerModalOpen}
         onClose={() => setIsAddCustomerModalOpen(false)}
         initialCategory={customerModalTarget === "landlord" ? "SELLER" : formDealType === "rent" ? "TENANT" : "BUYER"}
-        zIndex={80}
+        zIndex={120}
         onSuccess={(newCust) => {
           if (customerModalTarget === "landlord") {
             setFormLandlordId(newCust.id);
@@ -1560,7 +1560,7 @@ export function AddDealModal({
         isOpen={isAddPropertyModalOpen}
         onClose={() => setIsAddPropertyModalOpen(false)}
         initialListingType={formDealType}
-        zIndex={80}
+        zIndex={100}
         onSuccess={(newProperty) => {
           handleSelectProperty(newProperty.id);
           setIsAddPropertyModalOpen(false);

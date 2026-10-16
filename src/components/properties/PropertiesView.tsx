@@ -2481,7 +2481,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
         isOpen={isAddSellerSubModalOpen}
         onClose={() => setIsAddSellerSubModalOpen(false)}
         initialCategory="SELLER"
-        zIndex={80}
+        zIndex={130}
         onSuccess={(newCustomer) => {
           setIsAddSellerSubModalOpen(false);
           if (newCustomer) {

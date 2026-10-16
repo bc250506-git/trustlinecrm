@@ -271,7 +271,18 @@ export async function getMandates(): Promise<MandateContract[]> {
 
 export async function saveMandate(mandate: Partial<MandateContract>): Promise<boolean> {
   try {
-    const { error } = await supabase.from("mandates").upsert(mandate);
+    const payload = {
+      ...mandate,
+      region: (mandate as any).region || "Girne",
+      ownerName: mandate.ownerName || "Bilinmiyor",
+      propertyType: (mandate as any).propertyType || "Daire",
+      listingPrice: (mandate as any).listingPrice || 0,
+      currency: mandate.currency || "GBP",
+      status: mandate.status || "active",
+      mandateType: mandate.mandateType || "exclusive",
+      commissionRate: mandate.commissionRate ?? 5,
+    };
+    const { error } = await supabase.from("mandates").upsert(payload);
     return !error;
   } catch {
     return false;

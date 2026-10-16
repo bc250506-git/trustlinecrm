@@ -392,9 +392,9 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     return rentals.some((r) => {
       if (r.active === false) return false;
       if (r.propertyId && r.propertyId === p.id) return true;
-      if (r.propertyTitle && pTitleNorm) {
+      if (!r.propertyId && r.propertyTitle && pTitleNorm) {
         const rTitleNorm = norm(r.propertyTitle);
-        return rTitleNorm === pTitleNorm || rTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(rTitleNorm);
+        return rTitleNorm === pTitleNorm && rTitleNorm.length >= 6;
       }
       return false;
     });
@@ -408,9 +408,9 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     const wonDeal = deals.find((d) => {
       if (d.stage !== "won") return false;
       if (d.propertyId && d.propertyId === p.id) return true;
-      const dTitleNorm = norm(d.propertyTitle || d.title);
-      if (dTitleNorm && pTitleNorm) {
-        return dTitleNorm === pTitleNorm || dTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(dTitleNorm);
+      if (!d.propertyId && (d.propertyTitle || d.title) && pTitleNorm) {
+        const dTitleNorm = norm(d.propertyTitle || d.title);
+        return dTitleNorm === pTitleNorm && dTitleNorm.length >= 6;
       }
       return false;
     });

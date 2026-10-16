@@ -206,14 +206,51 @@ const MANDATES_STORAGE_KEY = "trustline_crm_mandates_kktc_v1";
 const FOLLOWUPS_STORAGE_KEY = "trustline_crm_followups_kktc_v1";
 const CURRENT_USER_STORAGE_KEY = "trustline_crm_current_user_kktc_v1";
 const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
+const DELETED_DEALS_KEY = "trustline_crm_deleted_deals_v1";
+const DELETED_MANDATES_KEY = "trustline_crm_deleted_mandates_v1";
+
+function getDeletedIds(key: string): Set<string> {
+  if (typeof window !== "undefined") {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+  }
+  return new Set();
+}
+
+function addDeletedId(key: string, id: string) {
+  if (typeof window !== "undefined") {
+    try {
+      const set = getDeletedIds(key);
+      set.add(id);
+      localStorage.setItem(key, JSON.stringify(Array.from(set)));
+    } catch {}
+  }
+}
+
+function removeDeletedId(key: string, id: string) {
+  if (typeof window !== "undefined") {
+    try {
+      const set = getDeletedIds(key);
+      if (set.has(id)) {
+        set.delete(id);
+        localStorage.setItem(key, JSON.stringify(Array.from(set)));
+      }
+    } catch {}
+  }
+}
 
 function loadFromStorage<T>(key: string, fallback: T[]): T[] {
   if (typeof window !== "undefined") {
     try {
       const saved = localStorage.getItem(key);
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
@@ -274,24 +311,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     loadFromStorage(FOLLOWUPS_STORAGE_KEY, initialFollowUps)
   );
 
-  const [deals, setDeals] = useState<Deal[]>(() =>
-    loadFromStorage(DEALS_STORAGE_KEY, initialDeals)
-  );
+  const [deals, setDeals] = useState<Deal[]>(() => {
+    const raw = loadFromStorage(DEALS_STORAGE_KEY, initialDeals);
+    const deleted = getDeletedIds(DELETED_DEALS_KEY);
+    return raw.filter((d) => !deleted.has(d.id));
+  });
 
   const [rentals, setRentals] = useState<RentalContract[]>(() =>
     loadFromStorage(RENTALS_STORAGE_KEY, initialRentals)
   );
 
-  const [mandates, setMandates] = useState<MandateContract[]>(() =>
-    loadFromStorage(MANDATES_STORAGE_KEY, initialMandates)
-  );
+  const [mandates, setMandates] = useState<MandateContract[]>(() => {
+    const raw = loadFromStorage(MANDATES_STORAGE_KEY, initialMandates);
+    const deleted = getDeletedIds(DELETED_MANDATES_KEY);
+    return raw.filter((m) => !deleted.has(m.id));
+  });
 
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
 
   // Otomatik LocalStorage Senkronizasyonları (Sayfa Yenilendiğinde Asla Veri Kaybolmaz)
   useEffect(() => {
-    if (typeof window !== "undefined" && customers.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(customers));
       } catch (e) {}
@@ -299,7 +340,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [customers]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && properties.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(properties));
       } catch (e) {}
@@ -307,7 +348,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [properties]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && deals.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(deals));
       } catch (e) {}
@@ -315,7 +356,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [deals]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && rentals.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(rentals));
       } catch (e) {}
@@ -323,7 +364,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [rentals]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && mandates.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(mandates));
       } catch (e) {}
@@ -331,7 +372,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [mandates]);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && followUps.length > 0) {
+    if (typeof window !== "undefined") {
       try {
         localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(followUps));
       } catch (e) {}
@@ -388,12 +429,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ])
       .then(([cloudCust, cloudProp, cloudDeals, cloudRent, cloudMand, cloudFollow]) => {
         if (!isMounted) return;
-        // Asla boş dizi ile var olan yerel veriyi sıfırlama! Sadece dolu veri varsa güncelle
+        const deletedDealIds = getDeletedIds(DELETED_DEALS_KEY);
+        const deletedMandateIds = getDeletedIds(DELETED_MANDATES_KEY);
+
         if (cloudCust && cloudCust.length > 0) setCustomers(cloudCust);
         if (cloudProp && cloudProp.length > 0) setProperties(cloudProp);
-        if (cloudDeals && cloudDeals.length > 0) setDeals(cloudDeals);
+
+        if (Array.isArray(cloudDeals)) {
+          const filteredDeals = cloudDeals.filter((d) => !deletedDealIds.has(d.id));
+          setDeals(filteredDeals);
+          try {
+            localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(filteredDeals));
+          } catch {}
+          // Silinmiş eski bulut kayıtlarını temizle
+          cloudDeals.forEach((d) => {
+            if (deletedDealIds.has(d.id)) {
+              deleteDealFromDb(d.id).catch(() => {});
+            }
+          });
+        }
+
         if (cloudRent && cloudRent.length > 0) setRentals(cloudRent);
-        if (cloudMand && cloudMand.length > 0) setMandates(cloudMand);
+
+        if (Array.isArray(cloudMand)) {
+          const filteredMand = cloudMand.filter((m) => !deletedMandateIds.has(m.id));
+          setMandates(filteredMand);
+          try {
+            localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(filteredMand));
+          } catch {}
+          // Silinmiş eski bulut kayıtlarını temizle
+          cloudMand.forEach((m) => {
+            if (deletedMandateIds.has(m.id)) {
+              deleteMandateFromDb(m.id).catch(() => {});
+            }
+          });
+        }
+
         if (cloudFollow && cloudFollow.length > 0) setFollowUps(cloudFollow);
       })
       .catch((err) => {
@@ -445,6 +516,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : [newRecord, ...prev];
           });
         } else if (table === "deals" && newRecord) {
+          const deletedDealIds = getDeletedIds(DELETED_DEALS_KEY);
+          if (deletedDealIds.has(newRecord.id)) {
+            deleteDealFromDb(newRecord.id).catch(() => {});
+            return;
+          }
           setDeals((prev) => {
             const exists = prev.some((d) => d.id === newRecord.id);
             return exists
@@ -459,6 +535,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : [newRecord, ...prev];
           });
         } else if (table === "mandates" && newRecord) {
+          const deletedMandateIds = getDeletedIds(DELETED_MANDATES_KEY);
+          if (deletedMandateIds.has(newRecord.id)) {
+            deleteMandateFromDb(newRecord.id).catch(() => {});
+            return;
+          }
           setMandates((prev) => {
             const exists = prev.some((m) => m.id === newRecord.id);
             return exists
@@ -507,13 +588,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       const pTitleNorm = norm(p.title);
 
-      // Aktif kira sözleşmesi var mı?
+      // Aktif kira sözleşmesi var mı? (Öncelikli olarak propertyId ile, yoksa tam başlık eşleşmesi)
       const activeRental = rentals.find((r) => {
         if (r.active === false) return false;
         if (r.propertyId && r.propertyId === p.id) return true;
-        if (r.propertyTitle && pTitleNorm) {
+        if (!r.propertyId && r.propertyTitle && pTitleNorm) {
           const rTitleNorm = norm(r.propertyTitle);
-          return rTitleNorm === pTitleNorm || rTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(rTitleNorm);
+          return rTitleNorm === pTitleNorm && rTitleNorm.length >= 6;
         }
         return false;
       });
@@ -529,13 +610,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return updated;
       }
 
-      // Kazanılmış (Won) işlem var mı?
+      // Kazanılmış (Won) işlem var mı? (Öncelikli olarak propertyId ile, yoksa tam başlık eşleşmesi)
       const wonDeal = deals.find((d) => {
         if (d.stage !== "won") return false;
         if (d.propertyId && d.propertyId === p.id) return true;
-        const dTitleNorm = norm(d.propertyTitle || d.title);
-        if (dTitleNorm && pTitleNorm) {
-          return dTitleNorm === pTitleNorm || dTitleNorm.includes(pTitleNorm) || pTitleNorm.includes(dTitleNorm);
+        if (!d.propertyId && (d.propertyTitle || d.title) && pTitleNorm) {
+          const dTitleNorm = norm(d.propertyTitle || d.title);
+          return dTitleNorm === pTitleNorm && dTitleNorm.length >= 6;
         }
         return false;
       });
@@ -552,6 +633,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           saveProperty(updated).catch(() => {});
           return updated;
         }
+      }
+
+      // Eğer portföy daha önce bir işlem/kira ile pasife çekilmiş fakat artık bağlı aktif kira veya won işlem kalmamışsa aktife (AVAILABLE) geri al:
+      if (!activeRental && !wonDeal && (p.status === "RENTED" || p.status === "SOLD") && !p.deletedAt) {
+        hasChanges = true;
+        const updated: Property = {
+          ...p,
+          status: "AVAILABLE",
+          updatedAt: new Date().toISOString(),
+        };
+        saveProperty(updated).catch(() => {});
+        return updated;
       }
 
       return p;
@@ -1938,7 +2031,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu takip görevi size ait değildir. Yalnızca sahibi veya ofis silebilir.");
       return false;
     }
-    setFollowUps((prev) => prev.filter((f) => f.id !== id));
+    setFollowUps((prev) => {
+      const updated = prev.filter((f) => f.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     deleteFollowUpFromDb(id).catch(() => {});
     return true;
   };
@@ -1976,11 +2077,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         setProperties((prev) =>
           prev.map((p) => {
+            const pTitleNorm = p.title.trim().toLowerCase();
             const isMatch =
-              (targetPropId && p.id === targetPropId) ||
-              (targetPropTitle &&
-                (p.title.trim().toLowerCase() === targetPropTitle ||
-                  targetPropTitle.includes(p.title.trim().toLowerCase())));
+              Boolean(targetPropId && p.id === targetPropId) ||
+              Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
 
             if (isMatch && p.status !== newStatus) {
               const updatedP: Property = {
@@ -2007,7 +2107,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: `deal-${Date.now()}`,
       createdAt: dealData.createdAt || dealDateIso,
     };
-    setDeals((prev) => [newDeal, ...prev]);
+    removeDeletedId(DELETED_DEALS_KEY, newDeal.id);
+    setDeals((prev) => {
+      const updated = [newDeal, ...prev.filter((d) => d.id !== newDeal.id)];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     saveDeal(newDeal).catch(() => {});
 
     // İŞLEM KAPANDIĞINDA BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (SOLD veya RENTED)
@@ -2018,11 +2127,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (dealData.stage === "won" || !dealData.stage) {
       setProperties((prev) =>
         prev.map((p) => {
+          const pTitleNorm = p.title.trim().toLowerCase();
           const isMatch =
-            (targetPropId && p.id === targetPropId) ||
-            (targetPropTitle &&
-              (p.title.trim().toLowerCase() === targetPropTitle ||
-                targetPropTitle.includes(p.title.trim().toLowerCase())));
+            Boolean(targetPropId && p.id === targetPropId) ||
+            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
 
           if (isMatch && p.status !== newStatus) {
             const updatedP: Property = {
@@ -2126,11 +2234,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       setProperties((prev) =>
         prev.map((p) => {
+          const pTitleNorm = p.title.trim().toLowerCase();
           const isMatch =
-            (targetPropId && p.id === targetPropId) ||
-            (targetPropTitle &&
-              (p.title.trim().toLowerCase() === targetPropTitle ||
-                targetPropTitle.includes(p.title.trim().toLowerCase())));
+            Boolean(targetPropId && p.id === targetPropId) ||
+            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
 
           if (isMatch && p.status !== newStatus) {
             const updatedP: Property = {
@@ -2156,7 +2263,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu satış/komisyon anlaşması size ait değildir. Yalnızca sahibi veya ofis silebilir.");
       return false;
     }
-    setDeals((prev) => prev.filter((d) => d.id !== id));
+    addDeletedId(DELETED_DEALS_KEY, id);
+    setDeals((prev) => {
+      const updated = prev.filter((d) => d.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     deleteDealFromDb(id).catch(() => {});
     return true;
   };
@@ -2286,11 +2402,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         prev.map((p) => {
           const pTitleNorm = norm(p.title);
           const isMatch =
-            (targetPropId && p.id === targetPropId) ||
-            (targetPropTitle &&
-              (pTitleNorm === targetPropTitle ||
-                pTitleNorm.includes(targetPropTitle) ||
-                targetPropTitle.includes(pTitleNorm)));
+            Boolean(targetPropId && p.id === targetPropId) ||
+            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
 
           if (isMatch && p.status !== "RENTED") {
             const updatedP: Property = {
@@ -2362,7 +2475,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu kira sözleşmesi size ait değildir. Yalnızca sahibi veya ofis silebilir.");
       return false;
     }
-    setRentals((prev) => prev.filter((r) => r.id !== id));
+    setRentals((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     deleteRentalFromDb(id).catch(() => {});
     return true;
   };
@@ -2601,7 +2722,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       id: `mnd-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
-    setMandates((prev) => [newMandate, ...prev]);
+    removeDeletedId(DELETED_MANDATES_KEY, newMandate.id);
+    setMandates((prev) => {
+      const updated = [newMandate, ...prev.filter((m) => m.id !== newMandate.id)];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     saveMandate(newMandate).catch(() => {});
 
     // İlişkili portföyü senkronize et
@@ -2636,9 +2766,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     const updatedMandate: MandateContract = { ...mandate, ...updates };
-    setMandates((prev) =>
-      prev.map((m) => (m.id === id ? updatedMandate : m))
-    );
+    setMandates((prev) => {
+      const updated = prev.map((m) => (m.id === id ? updatedMandate : m));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     saveMandate(updatedMandate).catch(() => {});
     return true;
   };
@@ -2650,7 +2786,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu yetki sözleşmesi size ait değildir. Yalnızca sahibi veya ofis silebilir.");
       return false;
     }
-    setMandates((prev) => prev.filter((m) => m.id !== id));
+    addDeletedId(DELETED_MANDATES_KEY, id);
+    setMandates((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
     deleteMandateFromDb(id).catch(() => {});
     return true;
   };

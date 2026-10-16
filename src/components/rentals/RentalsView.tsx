@@ -29,6 +29,7 @@ import {
   ChevronRight,
   SlidersHorizontal,
   RotateCcw,
+  Stamp,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
@@ -56,6 +57,7 @@ export function RentalsView() {
     renewRentalContract,
     relistRentalProperty,
     loseRentalProperty,
+    toggleRentalStamp,
   } = useStore();
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
@@ -104,6 +106,7 @@ export function RentalsView() {
     contractEnd: `${new Date().getFullYear()}-12-31`,
     depositAmount: "",
     assignedToId: currentUser.id,
+    isStamped: false,
     notes: "",
   });
 
@@ -214,6 +217,7 @@ export function RentalsView() {
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [visibleStartMonth, setVisibleStartMonth] = useState<string>("Ocak 2026");
   const [visibleEndMonth, setVisibleEndMonth] = useState<string>("Aralık 2026");
+  const [stampFilter, setStampFilter] = useState<"ALL" | "STAMPED" | "UNSTAMPED">("ALL");
 
   // Tablo kaydıkça sliderı ve ekranda görünen ay aralığını kesintisiz senkronize et
   const handleTableScroll = () => {
@@ -300,6 +304,7 @@ export function RentalsView() {
     contractStart: "",
     contractEnd: "",
     depositAmount: "",
+    isStamped: false,
     notes: "",
   });
 
@@ -316,6 +321,7 @@ export function RentalsView() {
       contractStart: r.contractStart,
       contractEnd: r.contractEnd,
       depositAmount: String(r.depositAmount || 0),
+      isStamped: !!r.isStamped,
       notes: r.notes || "",
     });
   };
@@ -338,6 +344,10 @@ export function RentalsView() {
       contractStart: editRentalForm.contractStart,
       contractEnd: editRentalForm.contractEnd,
       depositAmount: Number(editRentalForm.depositAmount) || 0,
+      isStamped: editRentalForm.isStamped,
+      stampedAt: editRentalForm.isStamped
+        ? editingRental.stampedAt || new Date().toISOString().split("T")[0]
+        : undefined,
       notes: editRentalForm.notes,
     });
     setEditingRental(null);
@@ -537,6 +547,8 @@ export function RentalsView() {
       contractEnd: formData.contractEnd || `${new Date().getFullYear()}-12-31`,
       depositAmount: Number(formData.depositAmount) || rentAmount * 2,
       active: true,
+      isStamped: formData.isStamped,
+      stampedAt: formData.isStamped ? new Date().toISOString().split("T")[0] : undefined,
       notes: formData.notes,
       assignedToId: isBroker ? formData.assignedToId : currentUser.id,
       assignedToName: assignedUser ? assignedUser.name : currentUser.name,
@@ -566,6 +578,14 @@ export function RentalsView() {
     ? expiredRentals
     : expiredRentals.filter((r) => r.assignedToId === currentUser.id);
 
+  const stampedCount = rentals.filter((r) => !!r.isStamped).length;
+  const unstampedCount = rentals.length - stampedCount;
+  const displayedRentals = rentals.filter((r) => {
+    if (stampFilter === "STAMPED") return !!r.isStamped;
+    if (stampFilter === "UNSTAMPED") return !r.isStamped;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       {/* Üst Bilgi Başlığı */}
@@ -592,7 +612,48 @@ export function RentalsView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono font-bold">
+          {/* KKTC Vergi Dairesi Damga Pulu Filtresi */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setStampFilter("ALL")}
+              className={`px-2.5 py-1 text-xs font-mono font-bold transition cursor-pointer ${
+                stampFilter === "ALL"
+                  ? "bg-[#1d2566] text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
+              }`}
+            >
+              Tümü ({rentals.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStampFilter("STAMPED")}
+              className={`px-2.5 py-1 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                stampFilter === "STAMPED"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "text-emerald-700 hover:bg-emerald-100 border border-emerald-300 bg-white"
+              }`}
+              title="KKTC Vergi Dairesi Pulu Onaylı Sözleşmeleri Filtrele"
+            >
+              <Stamp className="w-3.5 h-3.5" />
+              <span>Pullatıldı ({stampedCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStampFilter("UNSTAMPED")}
+              className={`px-2.5 py-1 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                stampFilter === "UNSTAMPED"
+                  ? "bg-amber-600 text-white shadow-xs"
+                  : "text-amber-800 hover:bg-amber-100 border border-amber-300 bg-white"
+              }`}
+              title="Henüz pullatılmamış (pul bekleyen) sözleşmeleri filtrele"
+            >
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span>Pullatılmadı ({unstampedCount})</span>
+            </button>
+          </div>
+
+          <div className="hidden lg:flex items-center gap-2 text-xs font-mono font-bold">
             <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300">
               Ödendi
             </span>
@@ -623,6 +684,7 @@ export function RentalsView() {
                 contractEnd: `${new Date().getFullYear()}-12-31`,
                 depositAmount: "",
                 assignedToId: currentUser.id,
+                isStamped: false,
                 notes: "",
               });
               setIsAddModalOpen(true);
@@ -867,10 +929,10 @@ export function RentalsView() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                <th className="py-3 px-4 min-w-[270px] w-[270px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                <th className="py-3 px-4 min-w-[300px] w-[300px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                   Mülk & Kiracı / Vade Günü
                 </th>
-                <th className="py-3 px-3 text-right sticky left-[270px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[95px] w-[95px]">
+                <th className="py-3 px-3 text-right sticky left-[300px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[95px] w-[95px]">
                   Aylık Kira
                 </th>
                 {allTimelineMonths.map((m) => {
@@ -900,15 +962,26 @@ export function RentalsView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rentals.map((r) => {
+              {displayedRentals.length === 0 ? (
+                <tr>
+                  <td colSpan={allTimelineMonths.length + 3} className="py-10 text-center text-slate-500 font-mono text-xs">
+                    Seçilen filtreleme kriterine ({stampFilter === "STAMPED" ? "Pullatıldı" : "Pullatılmadı"}) uygun kira sözleşmesi bulunamadı.
+                  </td>
+                </tr>
+              ) : (
+                displayedRentals.map((r) => {
                 const reminderStatus = getRentalReminderStatus(r);
                 const startPeriodKey = r.contractStart ? r.contractStart.slice(0, 7) : "";
                 const endPeriodKey = r.contractEnd ? r.contractEnd.slice(0, 7) : "";
 
                 return (
                   <tr key={r.id} className="group hover:bg-slate-50/80 transition">
-                    {/* Mülk & Kiracı Bilgisi (Sticky Sol) */}
-                    <td className="py-3 px-4 sticky left-0 bg-white group-hover:bg-slate-50/95 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                    {/* Mülk & Kiracı Bilgisi (Sticky Sol) - Pullatılmış / Pullatılmamış Renk Farkı */}
+                    <td className={`py-3 px-4 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                      r.isStamped
+                        ? "bg-white group-hover:bg-emerald-50/30 border-l-4 border-l-emerald-500"
+                        : "bg-white group-hover:bg-amber-50/30 border-l-4 border-l-amber-400"
+                    }`}>
                       <div className="font-bold text-[#1d2566] flex items-center gap-2 flex-wrap">
                         <span>{r.propertyTitle}</span>
                         {isBroker && r.assignedToName && (
@@ -932,6 +1005,43 @@ export function RentalsView() {
                       </div>
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                         Ev Sahibi: {r.landlordName} {r.landlordPhone && r.landlordPhone !== "-" ? `(${r.landlordPhone})` : ""}
+                      </div>
+
+                      {/* KKTC Vergi Dairesi PULLATILDI Butonu ve Rozeti */}
+                      <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                        {r.isStamped ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => toggleRentalStamp(r.id)}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-mono text-[10px] font-bold flex items-center gap-1 transition shadow-xs cursor-pointer group/stamp"
+                              title="KKTC Vergi Dairesi Damga Pulu ile Pullatıldı. (Durumu değiştirmek için tıklayın)"
+                            >
+                              <Stamp className="w-3.5 h-3.5 text-emerald-200" />
+                              <span>✓ PULLATILDI</span>
+                            </button>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 text-[10px] font-mono font-bold">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              <span>Resmi Pul Onaylı {r.stampedAt ? `(${formatDateTR(r.stampedAt)})` : ""}</span>
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => toggleRentalStamp(r.id)}
+                              className="px-2.5 py-1 bg-amber-100 hover:bg-emerald-600 text-amber-900 hover:text-white border border-amber-300 hover:border-emerald-700 font-mono text-[10px] font-bold flex items-center gap-1 transition shadow-xs cursor-pointer group/stamp"
+                              title="Bu sözleşme henüz Vergi Dairesi damga pulu ile pullatılmadı! 'PULLATILDI' olarak işaretlemek için tek tıkla buraya tıklayın."
+                            >
+                              <Stamp className="w-3.5 h-3.5 text-amber-700 group-hover/stamp:text-white" />
+                              <span>PULLAT</span>
+                            </button>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-300 text-[10px] font-mono font-bold">
+                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>⚠️ PULLATILMADI (Pul Bekliyor)</span>
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {reminderStatus ? (
@@ -974,7 +1084,7 @@ export function RentalsView() {
                     </td>
 
                     {/* Aylık Kira Tutarı (Sticky Sol 2) */}
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[270px] bg-white group-hover:bg-slate-50/95 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] bg-white group-hover:bg-slate-50/95 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                       {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
                     </td>
 
@@ -1108,7 +1218,7 @@ export function RentalsView() {
                     </td>
                   </tr>
                 );
-              })}
+              }))}
             </tbody>
           </table>
         </div>
@@ -1508,6 +1618,30 @@ export function RentalsView() {
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* KKTC Vergi Dairesi Damga Pulu */}
+              <div className="p-3 bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                    <Stamp className="w-4 h-4 text-emerald-600" />
+                    <span>KKTC Vergi Dairesi Damga Pulu (Pullatıldı)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Sözleşme vergi dairesinde resmi damga pulu yapıştırılarak onaylatıldı mı?
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
+                  <input
+                    type="checkbox"
+                    checked={formData.isStamped}
+                    onChange={(e) => setFormData({ ...formData, isStamped: e.target.checked })}
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer rounded-none"
+                  />
+                  <span className={formData.isStamped ? "text-emerald-700 font-bold" : "text-slate-600"}>
+                    {formData.isStamped ? "✓ Pullatıldı" : "Pullatılmadı"}
+                  </span>
+                </label>
               </div>
 
               {/* 5. NOTLAR */}
@@ -1951,6 +2085,32 @@ export function RentalsView() {
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* KKTC Vergi Dairesi Damga Pulu */}
+              <div className="p-3 bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
+                <div>
+                  <div className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                    <Stamp className="w-4 h-4 text-emerald-600" />
+                    <span>KKTC Vergi Dairesi Damga Pulu (Pullatıldı)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Sözleşme vergi dairesinde resmi damga pulu yapıştırılarak onaylatıldı mı?
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
+                  <input
+                    type="checkbox"
+                    checked={editRentalForm.isStamped}
+                    onChange={(e) =>
+                      setEditRentalForm((prev) => ({ ...prev, isStamped: e.target.checked }))
+                    }
+                    className="w-4 h-4 accent-emerald-600 cursor-pointer rounded-none"
+                  />
+                  <span className={editRentalForm.isStamped ? "text-emerald-700 font-bold" : "text-slate-600"}>
+                    {editRentalForm.isStamped ? "✓ Pullatıldı" : "Pullatılmadı"}
+                  </span>
+                </label>
               </div>
 
               {/* Notlar */}

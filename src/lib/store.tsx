@@ -145,6 +145,7 @@ interface StoreContextType {
   relistRentalProperty: (rentalId: string) => boolean;
   loseRentalProperty: (rentalId: string) => boolean;
   reactivateProperty: (propertyId: string) => boolean;
+  toggleRentalStamp: (rentalId: string) => void;
   // Permissions & Role
   canManageCustomer: (customer: Customer) => boolean;
   canManageProperty: (property: Property) => boolean;
@@ -2543,6 +2544,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const toggleRentalStamp = (rentalId: string) => {
+    setRentals((prev) =>
+      prev.map((r) => {
+        if (r.id !== rentalId) return r;
+        if (!canManageRental(r)) {
+          alert("Bu kira sözleşmesi için yetkiniz bulunmuyor.");
+          return r;
+        }
+        const nextStamped = !r.isStamped;
+        const updatedRental: RentalContract = {
+          ...r,
+          isStamped: nextStamped,
+          stampedAt: nextStamped ? new Date().toISOString().split("T")[0] : undefined,
+        };
+        saveRental(updatedRental).catch(() => {});
+        return updatedRental;
+      })
+    );
+  };
+
   const reactivateProperty = (propertyId: string): boolean => {
     const prop = properties.find((p) => p.id === propertyId);
     if (!prop) return false;
@@ -2828,6 +2849,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         relistRentalProperty,
         loseRentalProperty,
         reactivateProperty,
+        toggleRentalStamp,
         canManageCustomer,
         canManageProperty,
         canManageFollowUp,

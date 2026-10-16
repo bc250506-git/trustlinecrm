@@ -248,6 +248,8 @@ export interface RentalContract {
   contractEnd: string;
   depositAmount: number;
   active: boolean;
+  isStamped?: boolean; // KKTC Vergi Dairesi Damga Pulu ile Pullatıldı mı?
+  stampedAt?: string; // Pullatılma tarihi (YYYY-MM-DD)
   notes?: string;
   assignedToId?: string;
   assignedToName?: string;

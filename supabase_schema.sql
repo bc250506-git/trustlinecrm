@@ -1,17 +1,19 @@
 -- ==============================================================================
--- TRUSTLINE REAL ESTATE CRM — MASTER POSTGRESQL VERİTABANI ŞEMASI (V4.0 ULTIMATE)
+-- TRUSTLINE REAL ESTATE CRM — MASTER POSTGRESQL VERİTABANI ŞEMASI (V4.1 PRODUCTION CLEAN)
 -- ==============================================================================
--- Bu betik, Trustline CRM sisteminin tüm tablolarını, ilişkilerini, kolonlarını,
--- güvenlik kurallarını (RLS) ve başlangıç KKTC verilerini sıfırdan ve eksiksiz kurar.
+-- Bu betik, Trustline CRM sisteminin tüm tablolarını, güvenlik kurallarını (RLS),
+-- gerçek danışman kadrosunu ve canlı gerçek kullanıma hazır BOMBOŞ temiz tabloları kurar.
+--
+-- Mock/sahte veri İÇERMEZ. Sistem sıfırdan sizin gerçek kullanımınıza hazırdır.
 --
 -- ÇALIŞTIRMA TALİMATI:
--- 1. Supabase Dashboard -> Projenize girin.
+-- 1. Supabase Dashboard -> Projenize girin (https://supabase.com/dashboard)
 -- 2. Sol menüden "SQL Editor" sekmesine tıklayın.
 -- 3. "New Query" butonuna basın.
--- 4. Aşağıdaki tüm SQL kodunu yapıştırın ve "RUN" butonuna tıklayın.
+-- 4. Aşağıdaki tüm SQL kodunu yapıştırın ve "RUN" (Çalıştır) butonuna tıklayın.
 -- ==============================================================================
 
--- 0. TEMİZ BAŞLANGIÇ (ESKİ TABLOLARI VE ŞEMA ÖNBELLEĞİNİ SIFIRLA)
+-- 0. TEMİZ BAŞLANGIÇ (ESKİ TABLOLARI SIFIRLA)
 DROP TABLE IF EXISTS deals CASCADE;
 DROP TABLE IF EXISTS rentals CASCADE;
 DROP TABLE IF EXISTS mandates CASCADE;
@@ -27,7 +29,7 @@ CREATE TABLE users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     username TEXT UNIQUE NOT NULL,
-    email TEXT,
+    email TEXT DEFAULT '',
     role TEXT DEFAULT 'AGENT', -- ADMIN (Broker) | AGENT (Danışman)
     title TEXT,
     "passwordHash" TEXT,
@@ -38,9 +40,9 @@ CREATE TABLE users (
     active BOOLEAN DEFAULT TRUE,
     "mustChangePassword" BOOLEAN DEFAULT TRUE,
     must_change_password BOOLEAN DEFAULT TRUE,
-    "avatarUrl" TEXT,
-    avatar_url TEXT,
-    phone TEXT,
+    "avatarUrl" TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT '',
+    phone TEXT DEFAULT '',
     permissions JSONB DEFAULT '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb,
     "createdAt" TIMESTAMPTZ DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ DEFAULT NOW()
@@ -88,18 +90,18 @@ CREATE TABLE properties (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     region TEXT NOT NULL, -- Girne, Lefkoşa, İskele, Gazimağusa, vb.
-    "propertyType" TEXT DEFAULT 'Daire', -- Daire, Villa, Arsa, vb.
+    "propertyType" TEXT DEFAULT 'Daire', -- Daire, Villa, Arsa, Ticari, vb.
     "listingType" TEXT DEFAULT 'sale', -- sale (Satılık) | rent (Kiralık)
     price NUMERIC(15,2) NOT NULL DEFAULT 0,
     currency TEXT DEFAULT 'GBP',
     area NUMERIC(10,2) DEFAULT 0,
     rooms TEXT, -- 1+1, 2+1, 3+1, vb.
-    status TEXT DEFAULT 'AVAILABLE', -- AVAILABLE, RESERVED, SOLD, RENTED, PASSIVE
+    status TEXT DEFAULT 'AVAILABLE', -- AVAILABLE, RESERVED, SOLD, RENTED, PASSIVE, ARCHIVED
     address TEXT,
     "ownerCustomerId" TEXT,
     "ownerName" TEXT,
     "ownerPhone" TEXT,
-    "keyHolder" TEXT, -- Ofis Kasası, Danışmanda, Kapıcıda, vb.
+    "keyHolder" TEXT, -- Ofis Kasası, Danışmanda, Mal Sahibinde, vb.
     location TEXT,
     "mandateStart" TEXT,
     "mandateEnd" TEXT,
@@ -148,7 +150,7 @@ CREATE TABLE follow_ups (
 CREATE TABLE deals (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
-    "dealNumber" TEXT, -- TR-2026-001 vb.
+    "dealNumber" TEXT,
     "dealType" TEXT DEFAULT 'sale', -- sale | rent
     "customerId" TEXT,
     "customerName" TEXT,
@@ -164,7 +166,7 @@ CREATE TABLE deals (
     "mandateDate" TEXT,
     "depositDate" TEXT,
     "durationText" TEXT,
-    "leadChannel" TEXT, -- Branda, Tavsiye, YouTube, vb.
+    "leadChannel" TEXT,
     currency TEXT DEFAULT 'GBP',
     stage TEXT DEFAULT 'offer', -- offer, won, lost
     "askingPrice" NUMERIC(15,2) DEFAULT 0,
@@ -174,7 +176,7 @@ CREATE TABLE deals (
     "commissionRate" NUMERIC(5,2),
     "commissionExpected" NUMERIC(15,2) DEFAULT 0,
     "commissionReceived" NUMERIC(15,2) DEFAULT 0,
-    "paymentMethod" TEXT, -- Nakit, Havale/EFT, Çek
+    "paymentMethod" TEXT,
     "collectionDate" TEXT,
     "portfolioOrigin" TEXT DEFAULT 'advisor', -- advisor | office
     "sharingType" TEXT DEFAULT 'none', -- none | internal | external
@@ -244,11 +246,11 @@ CREATE TABLE mandates (
     "ownerCustomerId" TEXT,
     "ownerName" TEXT NOT NULL,
     "ownerPhone" TEXT,
-    "mandateType" TEXT DEFAULT 'exclusive', -- exclusive | general
+    "mandateType" TEXT DEFAULT 'exclusive', -- exclusive | open
     "commissionRate" NUMERIC(5,2) DEFAULT 5.0,
     "startDate" TEXT NOT NULL,
     "endDate" TEXT NOT NULL,
-    status TEXT DEFAULT 'active', -- active, expired, cancelled
+    status TEXT DEFAULT 'active', -- active, expiring_soon, expired, cancelled
     "contractNumber" TEXT,
     notes TEXT,
     "assignedToId" TEXT,
@@ -279,184 +281,109 @@ GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
 
 -- ==============================================================================
--- 9. BAŞLANGIÇ EKİP KADROSU (USERS)
+-- 9. GERÇEK TRUSTLINE EKİP KADROSU (MAİLLER BOŞ, GÜNCEL TELEFONLAR)
 -- ==============================================================================
-INSERT INTO users (id, name, username, email, role, title, phone, "commissionSplitRatio", "mustChangePassword", must_change_password, permissions)
-VALUES 
-    ('usr-volkan', 'Volkan Affan Kanıgür', 'volkan.kanigur', 'volkan@trustline.com.tr', 'ADMIN', 'Yönetici Ortak (Broker)', '+90 533 860 00 00', 0.60, TRUE, TRUE, '{"scope":"all","customers":true,"properties":true,"followups":true,"pipeline":true,"import":true,"finance":true,"rentals":true,"audit":true}'::jsonb),
-    ('usr-bora', 'Bora Boran', 'bora.boran', 'bora@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 532 111 22 33', 0.60, TRUE, TRUE, '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
-    ('usr-hasan', 'Hasan Yoldağ', 'hasan.yoldag', 'hasan@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 533 444 55 66', 0.60, TRUE, TRUE, '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
-    ('usr-anil', 'Anıl Özkan', 'anil.ozkan', 'anil@trustline.com.tr', 'AGENT', 'Gayrimenkul Danışmanı', '+90 535 777 88 99', 0.60, TRUE, TRUE, '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb),
-    ('usr-berk', 'Berk Çiftçi', 'berk.ciftci', 'berk@trustline.com.tr', 'AGENT', 'Asistan', '+90 533 888 99 00', 0.60, TRUE, TRUE, '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb)
+INSERT INTO users (
+    id, name, username, email, role, title, phone, "commissionSplitRatio", "mustChangePassword", must_change_password, permissions
+) VALUES 
+    (
+        'usr-volkan',
+        'Volkan Affan Kanıgür',
+        'volkan.kanigur',
+        '',
+        'ADMIN',
+        'Yönetici Ortak (Broker)',
+        '+905338460080',
+        1.00,
+        TRUE,
+        TRUE,
+        '{"scope":"all","customers":true,"properties":true,"followups":true,"pipeline":true,"import":true,"finance":true,"rentals":true,"audit":true}'::jsonb
+    ),
+    (
+        'usr-ofis',
+        'Ofis Yönetimi (Broker)',
+        'ofis.yonetim',
+        '',
+        'ADMIN',
+        'Ofis Yönetimi & Broker',
+        '+905428889002',
+        0.60,
+        TRUE,
+        TRUE,
+        '{"scope":"all","customers":true,"properties":true,"followups":true,"pipeline":true,"import":true,"finance":true,"rentals":true,"audit":true}'::jsonb
+    ),
+    (
+        'usr-berk',
+        'Berk Çiftçi',
+        'berk.ciftci',
+        '',
+        'AGENT',
+        'Asistan',
+        '+905428823560',
+        0.60,
+        TRUE,
+        TRUE,
+        '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb
+    ),
+    (
+        'usr-bora',
+        'Bora Boran',
+        'bora.boran',
+        '',
+        'AGENT',
+        'Kıdemli Danışman',
+        '+905338352910',
+        0.60,
+        TRUE,
+        TRUE,
+        '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb
+    ),
+    (
+        'usr-hasan',
+        'Hasan Yoldağ',
+        'hasan.yoldag',
+        '',
+        'AGENT',
+        'Gayrimenkul Danışmanı',
+        '+905338737104',
+        0.60,
+        TRUE,
+        TRUE,
+        '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb
+    ),
+    (
+        'usr-anil',
+        'Anıl Özkan',
+        'anil.ozkan',
+        '',
+        'AGENT',
+        'Gayrimenkul Danışmanı',
+        '+905488357779',
+        0.60,
+        TRUE,
+        TRUE,
+        '{"scope":"own","customers":true,"properties":true,"followups":true,"pipeline":true,"import":false,"finance":false,"rentals":false,"audit":false}'::jsonb
+    )
 ON CONFLICT (id) DO UPDATE SET 
     name = EXCLUDED.name, 
     role = EXCLUDED.role, 
     title = EXCLUDED.title,
+    email = EXCLUDED.email,
     phone = EXCLUDED.phone;
 
 -- ==============================================================================
--- 10. BAŞLANGIÇ KKTC MÜŞTERİ HAVUZU (CUSTOMERS)
+-- 10. REALTIME (ANLIK SENKRONİZASYON) YAYINI ETKİNLEŞTİRME
 -- ==============================================================================
-INSERT INTO customers (id, "fullName", phone, whatsapp, email, source, category, temperature, "isVip", region, "propertyType", rooms, budget, "budgetCurrency", stage, "assignedToId", "assignedToName", notes)
-VALUES
-    ('cust-1', 'Mehmet Demir', '+90 533 850 11 22', '+90 533 850 11 22', 'mehmet.demir@gmail.com', 'meta', 'BUYER', 'hot', TRUE, 'Girne Merkez', 'Daire', '2+1', 145000, 'GBP', 'OFFER', 'usr-volkan', 'Volkan Affan Kanıgür', 'Yatırımlık kira getirisi yüksek daire arıyor.'),
-    ('cust-2', 'Alexander Petrov', '+7 916 555 44 33', '+7 916 555 44 33', 'petrov.alex@yandex.ru', 'portal', 'BUYER', 'hot', TRUE, 'İskele Long Beach', 'Daire', '1+1', 95000, 'GBP', 'SHOWING', 'usr-bora', 'Bora Boran', 'Denize sıfır sitede tatil evi ve oturum izni planlıyor.'),
-    ('cust-3', 'Fatma Yılmaz', '+90 542 888 77 66', '+90 542 888 77 66', 'fatmayilmaz@kktc.net', 'manual', 'SELLER', 'warm', FALSE, 'Alsancak', 'Villa', '3+1', 320000, 'GBP', 'CONTACTED', 'usr-hasan', 'Hasan Yoldağ', 'Alsancak dağ manzaralı müstakil villasını satmak istiyor.'),
-    ('cust-4', 'John Smith', '+44 7700 900123', '+44 7700 900123', 'john.smith@ukmail.co.uk', 'meta', 'BUYER', 'warm', TRUE, 'Esentepe', 'Villa', '3+1', 450000, 'GBP', 'SHOWING', 'usr-anil', 'Anıl Özkan', 'Golf sahasına yakın havuzlu lüks villa arayışında.'),
-    ('cust-5', 'Ayşe Güven', '+90 533 812 34 56', '+90 533 812 34 56', 'ayseguven@hotmail.com', 'manual', 'TENANT', 'hot', FALSE, 'Lefkoşa Gönyeli', 'Daire', '2+1', 650, 'GBP', 'NEW', 'usr-berk', 'Berk Çiftçi', 'Üniversiteye ve anayola yakın kiralık daire bakıyor.')
-ON CONFLICT (id) DO NOTHING;
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE users, customers, properties, follow_ups, deals, rentals, mandates;
+  EXCEPTION WHEN duplicate_object THEN
+    NULL;
+  END;
+END $$;
 
 -- ==============================================================================
--- 11. BAŞLANGIÇ KKTC PORTFÖY ENVANTERİ (PROPERTIES)
--- ==============================================================================
-INSERT INTO properties (id, title, region, "propertyType", "listingType", price, currency, area, rooms, status, address, "ownerName", "ownerPhone", "keyHolder", "assignedToId", "assignedToName", "isShared", "isOffMarket", "publicDescription")
-VALUES
-    ('prop-1', 'Girne Kaşgar Mah. 2+1 Deniz Manzaralı Lüks Daire', 'Girne Merkez', 'Daire', 'sale', 135000, 'GBP', 95, '2+1', 'AVAILABLE', 'Kaşgar Court No:4 Girne', 'Mustafa Kara', '+90 533 870 99 88', 'Ofis Kasasında', 'usr-volkan', 'Volkan Affan Kanıgür', FALSE, FALSE, 'Denize sıfır, eşyalı, tapusu hazır, Türk koçanlı fırsat daire.'),
-    ('prop-2', 'İskele Long Beach 1+1 Rezidans Havuzlu Sitede', 'İskele Long Beach', 'Daire', 'sale', 89000, 'GBP', 60, '1+1', 'AVAILABLE', 'Grand Sapphire Resort B Blok D:45', 'Dmitry Ivanov', '+7 903 111 22 33', 'Site Güvenliğinde', 'usr-bora', 'Bora Boran', TRUE, FALSE, 'Yüksek kira getirili, otel konseptli sitede tatil evi.'),
-    ('prop-3', 'Alsancak Dağ ve Deniz Manzaralı Özel Havuzlu Müstakil Villa', 'Alsancak', 'Villa', 'sale', 295000, 'GBP', 220, '3+1', 'AVAILABLE', 'Yeşiltepe Sokak No:12 Alsancak', 'Fatma Yılmaz', '+90 542 888 77 66', 'Danışmanda (Hasan)', 'usr-hasan', 'Hasan Yoldağ', FALSE, FALSE, 'Müstakil 600m2 arsa içinde, taş şömineli, özel otoparklı villa.'),
-    ('prop-4', 'Esentepe Denize Sıfır Bahçeli Lüks 3+1 Villa', 'Esentepe', 'Villa', 'sale', 420000, 'GBP', 280, '3+1', 'AVAILABLE', 'Sea Breeze Sitesi No:7 Esentepe', 'David Brown', '+44 7911 123456', 'Ofis Kasasında', 'usr-anil', 'Anıl Özkan', FALSE, TRUE, 'İlansız (Off-market) özel portföy, sonsuzluk havuzlu lüks mülk.'),
-    ('prop-5', 'Lefkoşa Yenikent 2+1 Sıfır Geniş Kiralık Daire', 'Lefkoşa Gönyeli', 'Daire', 'rent', 600, 'GBP', 105, '2+1', 'AVAILABLE', 'Belediye Blv. Huzur Apt. No:3 Gönyeli', 'Kemal Tan', '+90 533 844 55 66', 'Mal Sahibinde', 'usr-berk', 'Berk Çiftçi', FALSE, FALSE, 'Asansörlü, kapalı otoparklı, anayola ve marketlere yürüme mesafesinde.')
-ON CONFLICT (id) DO NOTHING;
-
--- ==============================================================================
--- 12. BAŞLANGIÇ FİNANS & ORTAKLIK İŞLEMLERİ (DEALS)
--- ==============================================================================
-INSERT INTO deals (
-    id, title, "dealNumber", "dealType", "customerId", "customerName", "customerPhone",
-    "propertyId", "propertyTitle", currency, stage, "agreedPrice", deposit, "commissionRate",
-    "commissionReceived", "paymentMethod", "portfolioOrigin", "sharingType",
-    "partnerAdvisorId", "partnerAdvisorName", "partnerShareRate", "partnerShareAmount",
-    "advisorShareRate", "advisorShareAmount", "officeShareRate", "officeShareAmount",
-    "brokerApproval", "brokerApprovedAt", "brokerApprovedBy", "closingDate", "createdById", "createdByName"
-) VALUES
-    (
-        'deal-1',
-        'Girne Kaşgar 2+1 Satış İşlemi (Ofis İçi Ortak Danışman Paylaşımlı)',
-        'TR-2026-001',
-        'sale',
-        'cust-1',
-        'Mehmet Demir',
-        '+90 533 850 11 22',
-        'prop-1',
-        'Girne Kaşgar Mah. 2+1 Deniz Manzaralı Lüks Daire',
-        'GBP',
-        'won',
-        135000,
-        15000,
-        5.0,
-        6750,
-        'Havale/EFT',
-        'office',
-        'internal',
-        'usr-bora',
-        'Bora Boran',
-        25.0,
-        1687.50,
-        35.0,
-        2362.50,
-        40.0,
-        2700.00,
-        TRUE,
-        NOW(),
-        'Volkan Affan Kanıgür',
-        '2026-03-25',
-        'usr-volkan',
-        'Volkan Affan Kanıgür'
-    ),
-    (
-        'deal-2',
-        'İskele Long Beach Rezidans Tek Danışman Satışı',
-        'TR-2026-002',
-        'sale',
-        'cust-2',
-        'Alexander Petrov',
-        '+7 916 555 44 33',
-        'prop-2',
-        'İskele Long Beach 1+1 Rezidans Havuzlu Sitede',
-        'GBP',
-        'won',
-        89000,
-        10000,
-        5.0,
-        4450,
-        'Nakit',
-        'advisor',
-        'none',
-        NULL,
-        NULL,
-        0,
-        0,
-        60.0,
-        2670.00,
-        40.0,
-        1780.00,
-        TRUE,
-        NOW(),
-        'Volkan Affan Kanıgür',
-        '2026-04-02',
-        'usr-bora',
-        'Bora Boran'
-    )
-ON CONFLICT (id) DO NOTHING;
-
--- ==============================================================================
--- 13. BAŞLANGIÇ KİRA VE YETKİ SÖZLEŞMELERİ (RENTALS & MANDATES)
--- ==============================================================================
-INSERT INTO rentals (
-    id, "propertyId", "propertyTitle", region, "tenantName", "tenantPhone",
-    "landlordName", "landlordPhone", "monthlyRent", currency, "dueDay",
-    "contractStart", "contractEnd", "depositAmount", active, "assignedToId", "assignedToName", payments
-) VALUES (
-    'rent-1',
-    'prop-5',
-    'Lefkoşa Yenikent 2+1 Sıfır Geniş Kiralık Daire',
-    'Lefkoşa Gönyeli',
-    'Ayşe Güven',
-    '+90 533 812 34 56',
-    'Kemal Tan',
-    '+90 533 844 55 66',
-    600,
-    'GBP',
-    5,
-    '2026-01-01',
-    '2026-12-31',
-    1200,
-    TRUE,
-    'usr-berk',
-    'Berk Çiftçi',
-    '[
-        {"month": 1, "year": 2026, "dueDate": "2026-01-05", "amount": 600, "paidAmount": 600, "status": "paid", "currency": "GBP"},
-        {"month": 2, "year": 2026, "dueDate": "2026-02-05", "amount": 600, "paidAmount": 600, "status": "paid", "currency": "GBP"},
-        {"month": 3, "year": 2026, "dueDate": "2026-03-05", "amount": 600, "paidAmount": 600, "status": "paid", "currency": "GBP"},
-        {"month": 4, "year": 2026, "dueDate": "2026-04-05", "amount": 600, "paidAmount": 600, "status": "paid", "currency": "GBP"},
-        {"month": 5, "year": 2026, "dueDate": "2026-05-05", "amount": 600, "paidAmount": 0, "status": "unpaid", "currency": "GBP"}
-    ]'::jsonb
-) ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO mandates (
-    id, "propertyId", "propertyTitle", "propertyType", region, "listingPrice", currency,
-    "ownerName", "ownerPhone", "mandateType", "commissionRate", "startDate", "endDate", status, "contractNumber", "assignedToId", "assignedToName"
-) VALUES (
-    'mand-1',
-    'prop-1',
-    'Girne Kaşgar Mah. 2+1 Deniz Manzaralı Lüks Daire',
-    'Daire',
-    'Girne Merkez',
-    135000,
-    'GBP',
-    'Mustafa Kara',
-    '+90 533 870 99 88',
-    'exclusive',
-    5.0,
-    '2026-01-10',
-    '2026-07-10',
-    'active',
-    'YTK-2026-001',
-    'usr-volkan',
-    'Volkan Affan Kanıgür'
-) ON CONFLICT (id) DO NOTHING;
-
--- ==============================================================================
--- 14. SUPABASE POSTGREST ŞEMA ÖNBELLEĞİNİ (SCHEMA CACHE) ANINDA YENİLE
+-- 11. SUPABASE POSTGREST ŞEMA ÖNBELLEĞİNİ (SCHEMA CACHE) ANINDA YENİLE
 -- ==============================================================================
 NOTIFY pgrst, 'reload schema';

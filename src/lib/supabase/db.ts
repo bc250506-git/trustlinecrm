@@ -93,12 +93,12 @@ export async function getCustomers(): Promise<Customer[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return initialCustomers;
+    if (error || !data) {
+      return [];
     }
     return data as Customer[];
   } catch {
-    return initialCustomers;
+    return [];
   }
 }
 
@@ -130,12 +130,12 @@ export async function getProperties(): Promise<Property[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return initialProperties;
+    if (error || !data) {
+      return [];
     }
     return data as Property[];
   } catch {
-    return initialProperties;
+    return [];
   }
 }
 
@@ -167,18 +167,27 @@ export async function getFollowUps(): Promise<FollowUp[]> {
       .select("*")
       .order("due_at", { ascending: true });
 
-    if (error || !data || data.length === 0) {
-      return initialFollowUps;
+    if (error || !data) {
+      return [];
     }
     return data as FollowUp[];
   } catch {
-    return initialFollowUps;
+    return [];
   }
 }
 
 export async function saveFollowUp(followUp: Partial<FollowUp>): Promise<boolean> {
   try {
     const { error } = await supabase.from("follow_ups").upsert(followUp);
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function deleteFollowUpFromDb(id: string): Promise<boolean> {
+  try {
+    const { error } = await supabase.from("follow_ups").delete().eq("id", id);
     return !error;
   } catch {
     return false;
@@ -195,12 +204,12 @@ export async function getDeals(): Promise<Deal[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return initialDeals;
+    if (error || !data) {
+      return [];
     }
     return data as Deal[];
   } catch {
-    return initialDeals;
+    return [];
   }
 }
 
@@ -232,12 +241,12 @@ export async function getRentals(): Promise<RentalContract[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return initialRentals;
+    if (error || !data) {
+      return [];
     }
     return data as RentalContract[];
   } catch {
-    return initialRentals;
+    return [];
   }
 }
 
@@ -269,12 +278,12 @@ export async function getMandates(): Promise<MandateContract[]> {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error || !data || data.length === 0) {
-      return initialMandates;
+    if (error || !data) {
+      return [];
     }
     return data as MandateContract[];
   } catch {
-    return initialMandates;
+    return [];
   }
 }
 
@@ -414,7 +423,7 @@ export async function upsertUserToSupabase(user: User): Promise<boolean> {
 // 8. REALTIME WEBSOCKET DİNLEYİCİSİ (SENKRONİZASYON)
 // ==========================================
 export function setupRealtimeSync(
-  onDatabaseChange: (payload: { table: string; eventType: string; newRecord: any }) => void
+  onDatabaseChange: (payload: { table: string; eventType: string; newRecord: any; oldRecord?: any }) => void
 ) {
   try {
     const channel = supabase
@@ -427,6 +436,7 @@ export function setupRealtimeSync(
             table: payload.table,
             eventType: payload.eventType,
             newRecord: payload.new,
+            oldRecord: payload.old,
           });
         }
       )

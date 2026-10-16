@@ -28,10 +28,23 @@ import {
 } from "./mockData";
 import {
   saveCustomer,
+  deleteCustomerFromDb,
   saveProperty,
+  deletePropertyFromDb,
   saveDeal,
+  deleteDealFromDb,
   saveRental,
+  deleteRentalFromDb,
   saveMandate,
+  deleteMandateFromDb,
+  saveFollowUp,
+  deleteFollowUpFromDb,
+  getCustomers,
+  getProperties,
+  getDeals,
+  getRentals,
+  getMandates,
+  getFollowUps,
   setupRealtimeSync,
   getUsersFromSupabase,
   saveUserCredentialsToSupabase,
@@ -283,8 +296,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
 
-    // 2. Realtime WebSocket Dinleyicisi (Çoklu cihaz anında senkronizasyon)
-    const cleanup = setupRealtimeSync(({ table, eventType, newRecord }) => {
+    // 2. Canlı veritabanındaki tüm güncel operasyonel verileri (müşteriler, portföyler, işlemler, kiralar vb.) otomatik çek
+    Promise.all([
+      getCustomers(),
+      getProperties(),
+      getDeals(),
+      getRentals(),
+      getMandates(),
+      getFollowUps(),
+    ])
+      .then(([cloudCust, cloudProp, cloudDeals, cloudRent, cloudMand, cloudFollow]) => {
+        if (!isMounted) return;
+        if (cloudCust) setCustomers(cloudCust);
+        if (cloudProp) setProperties(cloudProp);
+        if (cloudDeals) setDeals(cloudDeals);
+        if (cloudRent) setRentals(cloudRent);
+        if (cloudMand) setMandates(cloudMand);
+        if (cloudFollow) setFollowUps(cloudFollow);
+      })
+      .catch(() => {});
+
+    // 3. Realtime WebSocket Dinleyicisi (Çoklu cihaz anında senkronizasyon)
+    const cleanup = setupRealtimeSync(({ table, eventType, newRecord, oldRecord }) => {
       if (eventType === "INSERT" || eventType === "UPDATE") {
         if (table === "users" && newRecord) {
           setUsers((prev) => {
@@ -334,6 +367,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               ? prev.map((d) => (d.id === newRecord.id ? { ...d, ...newRecord } : d))
               : [newRecord, ...prev];
           });
+        } else if (table === "rentals" && newRecord) {
+          setRentals((prev) => {
+            const exists = prev.some((r) => r.id === newRecord.id);
+            return exists
+              ? prev.map((r) => (r.id === newRecord.id ? { ...r, ...newRecord } : r))
+              : [newRecord, ...prev];
+          });
         } else if (table === "mandates" && newRecord) {
           setMandates((prev) => {
             const exists = prev.some((m) => m.id === newRecord.id);
@@ -341,6 +381,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               ? prev.map((m) => (m.id === newRecord.id ? { ...m, ...newRecord } : m))
               : [newRecord, ...prev];
           });
+        } else if (table === "follow_ups" && newRecord) {
+          setFollowUps((prev) => {
+            const exists = prev.some((f) => f.id === newRecord.id);
+            return exists
+              ? prev.map((f) => (f.id === newRecord.id ? { ...f, ...newRecord } : f))
+              : [newRecord, ...prev];
+          });
+        }
+      } else if (eventType === "DELETE") {
+        const deletedId = (oldRecord as any)?.id;
+        if (deletedId) {
+          if (table === "customers") setCustomers((prev) => prev.filter((c) => c.id !== deletedId));
+          else if (table === "properties") setProperties((prev) => prev.filter((p) => p.id !== deletedId));
+          else if (table === "deals") setDeals((prev) => prev.filter((d) => d.id !== deletedId));
+          else if (table === "rentals") setRentals((prev) => prev.filter((r) => r.id !== deletedId));
+          else if (table === "mandates") setMandates((prev) => prev.filter((m) => m.id !== deletedId));
+          else if (table === "follow_ups") setFollowUps((prev) => prev.filter((f) => f.id !== deletedId));
         }
       }
     });
@@ -1214,9 +1271,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu müşteri başka bir danışmana aittir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+    const updatedCustomer: Customer = {
+      ...cust,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
     setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates, updatedAt: new Date().toISOString() } : c))
+      prev.map((c) => (c.id === id ? updatedCustomer : c))
     );
+    saveCustomer(updatedCustomer).catch(() => {});
     return true;
   };
 
@@ -1228,15 +1291,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setCustomers((prev) => prev.filter((c) => c.id !== id));
+    deleteCustomerFromDb(id).catch(() => {});
     return true;
   };
 
   const toggleCustomerShare = (id: string) => {
+    const cust = customers.find((c) => c.id === id);
+    if (!cust) return;
+    const updatedCustomer: Customer = {
+      ...cust,
+      isShared: !cust.isShared,
+      updatedAt: new Date().toISOString(),
+    };
     setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === id ? { ...c, isShared: !c.isShared, updatedAt: new Date().toISOString() } : c
-      )
+      prev.map((c) => (c.id === id ? updatedCustomer : c))
     );
+    saveCustomer(updatedCustomer).catch(() => {});
   };
 
   // Property handlers
@@ -1244,11 +1314,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // Mülk sahibi customer havuzunda ise otomatik satıcı kategorisine senkronize et
     if (propData.ownerCustomerId) {
       setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === propData.ownerCustomerId
-            ? { ...c, category: "SELLER", updatedAt: new Date().toISOString() }
-            : c
-        )
+        prev.map((c) => {
+          if (c.id === propData.ownerCustomerId) {
+            const upd = { ...c, category: "SELLER" as const, updatedAt: new Date().toISOString() };
+            saveCustomer(upd).catch(() => {});
+            return upd;
+          }
+          return c;
+        })
       );
     }
 
@@ -1304,9 +1377,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu portföy başka bir danışmana aittir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+    const updatedProperty: Property = {
+      ...prop,
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
     setProperties((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p))
+      prev.map((p) => (p.id === id ? updatedProperty : p))
     );
+    saveProperty(updatedProperty).catch(() => {});
     return true;
   };
 
@@ -1318,15 +1397,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setProperties((prev) => prev.filter((p) => p.id !== id));
+    deletePropertyFromDb(id).catch(() => {});
     return true;
   };
 
   const togglePropertyShare = (id: string) => {
+    const prop = properties.find((p) => p.id === id);
+    if (!prop) return;
+    const updatedProperty: Property = {
+      ...prop,
+      isShared: !prop.isShared,
+      updatedAt: new Date().toISOString(),
+    };
     setProperties((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, isShared: !p.isShared, updatedAt: new Date().toISOString() } : p
-      )
+      prev.map((p) => (p.id === id ? updatedProperty : p))
     );
+    saveProperty(updatedProperty).catch(() => {});
   };
 
   // FollowUp handlers
@@ -1337,6 +1423,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setFollowUps((prev) => [newFollowUp, ...prev]);
+    saveFollowUp(newFollowUp).catch(() => {});
 
     // Eğer Ofis Etkinliği ise tüm ekibe sistem bildirimi oluştur
     if (newFollowUp.isOfficeEvent) {
@@ -1356,6 +1443,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateFollowUp = (id: string, updates: Partial<FollowUp>) => {
+    const existing = followUps.find((f) => f.id === id);
+    if (existing) {
+      const updated = { ...existing, ...updates };
+      saveFollowUp(updated).catch(() => {});
+    }
     setFollowUps((prev) =>
       prev.map((f) => (f.id === id ? { ...f, ...updates } : f))
     );
@@ -1370,27 +1462,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(currentDue.getHours() || 10, currentDue.getMinutes() || 0, 0, 0);
-        return {
+        const updated: FollowUp = {
           ...f,
           dueAt: tomorrow.toISOString(),
           status: "open",
         };
+        saveFollowUp(updated).catch(() => {});
+        return updated;
       })
     );
   };
 
   const completeFollowUp = (id: string, outcome: string, feedback?: string) => {
     setFollowUps((prev) =>
-      prev.map((f) =>
-        f.id === id
-          ? {
-              ...f,
-              status: "done",
-              outcome: outcome as any,
-              feedback: feedback || f.feedback,
-            }
-          : f
-      )
+      prev.map((f) => {
+        if (f.id !== id) return f;
+        const updated: FollowUp = {
+          ...f,
+          status: "done",
+          outcome: outcome as any,
+          feedback: feedback || f.feedback,
+        };
+        saveFollowUp(updated).catch(() => {});
+        return updated;
+      })
     );
   };
 
@@ -1402,6 +1497,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setFollowUps((prev) => prev.filter((f) => f.id !== id));
+    deleteFollowUpFromDb(id).catch(() => {});
     return true;
   };
 
@@ -1412,19 +1508,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     closingNotes?: string
   ) => {
     setDeals((prev) =>
-      prev.map((d) =>
-        d.id === id
-          ? {
-              ...d,
-              stage: newStage,
-              closingNotes: closingNotes || d.closingNotes,
-              closingDate:
-                newStage === "won" || newStage === "lost"
-                  ? new Date().toISOString().split("T")[0]
-                  : d.closingDate,
-            }
-          : d
-      )
+      prev.map((d) => {
+        if (d.id !== id) return d;
+        const updated: Deal = {
+          ...d,
+          stage: newStage,
+          closingNotes: closingNotes || d.closingNotes,
+          closingDate:
+            newStage === "won" || newStage === "lost"
+              ? new Date().toISOString().split("T")[0]
+              : d.closingDate,
+        };
+        saveDeal(updated).catch(() => {});
+        return updated;
+      })
     );
   };
 
@@ -1438,6 +1535,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createdAt: dealData.createdAt || dealDateIso,
     };
     setDeals((prev) => [newDeal, ...prev]);
+    saveDeal(newDeal).catch(() => {});
 
     // Eğer iç paylaşımlı bir işlemse ve 2. Danışman seçildiyse anlık bildirim oluştur
     if (newDeal.sharingType === "internal" && newDeal.partnerAdvisorId) {
@@ -1511,9 +1609,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
+    const updatedDeal: Deal = { ...deal, ...updates };
     setDeals((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, ...updates } : d))
+      prev.map((d) => (d.id === id ? updatedDeal : d))
     );
+    saveDeal(updatedDeal).catch(() => {});
     return true;
   };
 
@@ -1525,6 +1625,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setDeals((prev) => prev.filter((d) => d.id !== id));
+    deleteDealFromDb(id).catch(() => {});
     return true;
   };
 
@@ -1640,6 +1741,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
 
     setRentals((prev) => [newContract, ...prev]);
+    saveRental(newContract).catch(() => {});
     return newContract;
   };
 
@@ -1676,17 +1778,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           )
         : (updates.payments ?? rental.payments);
 
+    const updatedRental: RentalContract = {
+      ...rental,
+      ...updates,
+      payments: newPayments,
+    };
+
     setRentals((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              ...updates,
-              payments: newPayments,
-            }
-          : r
-      )
+      prev.map((r) => (r.id === id ? updatedRental : r))
     );
+    saveRental(updatedRental).catch(() => {});
     return true;
   };
 
@@ -1698,6 +1799,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setRentals((prev) => prev.filter((r) => r.id !== id));
+    deleteRentalFromDb(id).catch(() => {});
     return true;
   };
 
@@ -1711,7 +1813,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((r) => {
         if (r.id !== rentalId) return r;
         if (!isBroker && r.assignedToId !== currentUser.id) return r;
-        return {
+        const updatedRental: RentalContract = {
           ...r,
           payments: r.payments.map((p) => {
             const matches =
@@ -1738,6 +1840,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             };
           }),
         };
+        saveRental(updatedRental).catch(() => {});
+        return updatedRental;
       })
     );
   };
@@ -1752,7 +1856,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev.map((r) => {
         if (r.id !== rentalId) return r;
         if (!isBroker && r.assignedToId !== currentUser.id) return r;
-        return {
+        const updatedRental: RentalContract = {
           ...r,
           payments: r.payments.map((p) => {
             const matches =
@@ -1769,6 +1873,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             };
           }),
         };
+        saveRental(updatedRental).catch(() => {});
+        return updatedRental;
       })
     );
   };
@@ -1853,6 +1959,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Kira sözleşmesini sistemden kaldır
     setRentals((prev) => prev.filter((r) => r.id !== rentalId));
+    deleteRentalFromDb(rentalId).catch(() => {});
 
     // Bağlı portföyü sistemden tamamen kaldır
     const prop = properties.find(
@@ -1913,22 +2020,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setMandates((prev) => [newMandate, ...prev]);
     saveMandate(newMandate).catch(() => {});
 
-
     // İlişkili portföyü senkronize et
     if (newMandate.propertyId) {
       setProperties((prev) =>
-        prev.map((p) =>
-          p.id === newMandate.propertyId
-            ? {
-                ...p,
-                mandateStart: newMandate.startDate,
-                mandateEnd: newMandate.endDate,
-                ownerCustomerId: newMandate.ownerCustomerId || p.ownerCustomerId,
-                ownerName: newMandate.ownerName || p.ownerName,
-                ownerPhone: newMandate.ownerPhone || p.ownerPhone,
-              }
-            : p
-        )
+        prev.map((p) => {
+          if (p.id === newMandate.propertyId) {
+            const updatedP: Property = {
+              ...p,
+              mandateStart: newMandate.startDate,
+              mandateEnd: newMandate.endDate,
+              ownerCustomerId: newMandate.ownerCustomerId || p.ownerCustomerId,
+              ownerName: newMandate.ownerName || p.ownerName,
+              ownerPhone: newMandate.ownerPhone || p.ownerPhone,
+            };
+            saveProperty(updatedP).catch(() => {});
+            return updatedP;
+          }
+          return p;
+        })
       );
     }
 
@@ -1942,9 +2051,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu yetki sözleşmesi size ait değildir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+    const updatedMandate: MandateContract = { ...mandate, ...updates };
     setMandates((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...updates } : m))
+      prev.map((m) => (m.id === id ? updatedMandate : m))
     );
+    saveMandate(updatedMandate).catch(() => {});
     return true;
   };
 
@@ -1956,6 +2067,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
     setMandates((prev) => prev.filter((m) => m.id !== id));
+    deleteMandateFromDb(id).catch(() => {});
     return true;
   };
 

@@ -58,6 +58,11 @@ export function RentalsView() {
   } = useStore();
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [currentDate, setCurrentDate] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activeReceiptModal, setActiveReceiptModal] = useState<{
@@ -94,8 +99,8 @@ export function RentalsView() {
     monthlyRent: "",
     currency: "GBP" as Currency,
     dueDay: 5,
-    contractStart: "2026-01-01",
-    contractEnd: "2026-12-31",
+    contractStart: `${new Date().getFullYear()}-01-01`,
+    contractEnd: `${new Date().getFullYear()}-12-31`,
     depositAmount: "",
     assignedToId: currentUser.id,
     notes: "",
@@ -148,10 +153,14 @@ export function RentalsView() {
     { num: 12, name: "Ara", full: "Aralık" },
   ];
 
-  // Min ve Max yılları sözleşmelerden dinamik tespit et (en az 2025-2027 kapsar)
+  // Min ve Max yılları sözleşmelerden dinamik tespit et (en az 2025-2030 kapsar, sözleşme daha ilerideyse otomatik genişler)
   const timelineYears = React.useMemo(() => {
+    const now = currentDate || new Date();
+    const currentYear = now.getFullYear();
+
     let minYear = 2025;
-    let maxYear = 2027;
+    // Kullanıcı talebi: 2030'a kadar kesintisiz akış; ayrıca her zaman cari yıl + 3 yıl ilerisini kapsasın
+    let maxYear = Math.max(2030, currentYear + 3);
 
     rentals.forEach((r) => {
       if (r.contractStart) {
@@ -169,7 +178,7 @@ export function RentalsView() {
       years.push(y);
     }
     return years;
-  }, [rentals]);
+  }, [rentals, currentDate]);
 
   // Zaman çizelgesindeki tüm aylar
   const allTimelineMonths = React.useMemo(() => {
@@ -264,10 +273,12 @@ export function RentalsView() {
     el.scrollBy({ left: monthDelta * monthColWidth, behavior: "smooth" });
   };
 
-  // İlk açılışta cari aya (Ekim 2026) otomatik ve akıcı şekilde konumlan
+  // İlk açılışta cari aya dinamik ve akıcı şekilde konumlan
   useEffect(() => {
     const timer = setTimeout(() => {
-      scrollToMonthKey("2026-10", false);
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      scrollToMonthKey(currentMonthKey, false);
     }, 150);
     return () => clearTimeout(timer);
   }, [allTimelineMonths]);
@@ -356,12 +367,6 @@ export function RentalsView() {
     rentalToDelete,
     editingRental,
   ]);
-
-  const [currentDate, setCurrentDate] = useState<Date | null>(null);
-
-  useEffect(() => {
-    setCurrentDate(new Date());
-  }, []);
 
   // Yalnızca kira tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
   const getRentalReminderStatus = (r: RentalContract) => {
@@ -522,8 +527,8 @@ export function RentalsView() {
       monthlyRent: rentAmount,
       currency: formData.currency,
       dueDay: Number(formData.dueDay) || 5,
-      contractStart: formData.contractStart || "2026-01-01",
-      contractEnd: formData.contractEnd || "2026-12-31",
+      contractStart: formData.contractStart || `${new Date().getFullYear()}-01-01`,
+      contractEnd: formData.contractEnd || `${new Date().getFullYear()}-12-31`,
       depositAmount: Number(formData.depositAmount) || rentAmount * 2,
       active: true,
       notes: formData.notes,
@@ -604,8 +609,8 @@ export function RentalsView() {
                 monthlyRent: "",
                 currency: "GBP",
                 dueDay: 5,
-                contractStart: "2026-01-01",
-                contractEnd: "2026-12-31",
+                contractStart: `${new Date().getFullYear()}-01-01`,
+                contractEnd: `${new Date().getFullYear()}-12-31`,
                 depositAmount: "",
                 assignedToId: currentUser.id,
                 notes: "",
@@ -778,14 +783,22 @@ export function RentalsView() {
                 </button>
               ))}
 
-              <button
-                type="button"
-                onClick={() => scrollToMonthKey("2026-10", true)}
-                className="px-2.5 py-0.5 bg-[#1d2566] hover:bg-[#151c4f] text-white border border-[#1d2566] text-[11px] font-bold cursor-pointer transition shadow-xs"
-                title="Cari aya (Ekim 2026) git"
-              >
-                🎯 Bugün (Eki &apos;26)
-              </button>
+              {(() => {
+                const now = currentDate || new Date();
+                const curM = TURKISH_MONTHS.find((m) => m.num === now.getMonth() + 1)?.name || "Bugün";
+                const curY = String(now.getFullYear()).slice(-2);
+                const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+                return (
+                  <button
+                    type="button"
+                    onClick={() => scrollToMonthKey(curKey, true)}
+                    className="px-2.5 py-0.5 bg-[#1d2566] hover:bg-[#151c4f] text-white border border-[#1d2566] text-[11px] font-bold cursor-pointer transition shadow-xs"
+                    title={`Cari aya (${curM} '${curY}) git`}
+                  >
+                    🎯 Bugün ({curM} &apos;{curY})
+                  </button>
+                );
+              })()}
             </div>
           </div>
 
@@ -1407,7 +1420,7 @@ export function RentalsView() {
                         key={preset.months}
                         type="button"
                         onClick={() => {
-                          const start = formData.contractStart || "2026-01-01";
+                          const start = formData.contractStart || `${new Date().getFullYear()}-01-01`;
                           const newEnd = addMonthsToDate(start, preset.months);
                           setFormData((prev) => ({ ...prev, contractEnd: newEnd }));
                         }}
@@ -1656,7 +1669,7 @@ export function RentalsView() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Örn: Garanti_Banka_Dekont_Ekim_2026.pdf"
+                  placeholder={`Örn: Garanti_Banka_Dekont_${activeReceiptModal?.monthName?.replace(/\s+/g, "_") || "Dekont"}.pdf`}
                   value={simulatedFileName}
                   onChange={(e) => setSimulatedFileName(e.target.value)}
                   className="sharp-input w-full p-2 font-mono text-xs"
@@ -1862,7 +1875,7 @@ export function RentalsView() {
                         key={preset.months}
                         type="button"
                         onClick={() => {
-                          const start = editRentalForm.contractStart || "2026-01-01";
+                          const start = editRentalForm.contractStart || `${new Date().getFullYear()}-01-01`;
                           const newEnd = addMonthsToDate(start, preset.months);
                           setEditRentalForm((prev) => ({ ...prev, contractEnd: newEnd }));
                         }}

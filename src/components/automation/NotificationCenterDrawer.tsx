@@ -31,6 +31,7 @@ import {
   ShieldAlert,
   Hourglass,
   FileWarning,
+  Users,
 } from "lucide-react";
 
 interface NotificationCenterDrawerProps {
@@ -88,7 +89,8 @@ export function NotificationCenterDrawer({
         (res.dealCollectionAlerts || 0) +
         (res.brokerApprovalAlerts || 0) +
         (res.staleAlerts || 0) +
-        (res.missingMandateAlerts || 0);
+        (res.missingMandateAlerts || 0) +
+        (res.internalDealAlerts || 0);
       setScanResult(
         totalNew > 0
           ? `✓ Tarama tamamlandı: ${totalNew} yeni otomasyon bildirimi oluşturuldu.`
@@ -133,6 +135,10 @@ export function NotificationCenterDrawer({
         return <Hourglass className="w-4 h-4 text-orange-500" />;
       case "missing_mandate":
         return <FileWarning className="w-4 h-4 text-rose-500" />;
+      case "deal_approved":
+        return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
+      case "deal_shared":
+        return <Users className="w-4 h-4 text-indigo-600" />;
       default:
         return <Bell className="w-4 h-4 text-slate-500" />;
     }
@@ -174,6 +180,10 @@ export function NotificationCenterDrawer({
         return <span className="bg-orange-50 text-orange-800 border border-orange-300 px-2 py-0.5 text-[10px] font-mono font-bold">⏳ HAREKETSİZ PORTFÖY</span>;
       case "missing_mandate":
         return <span className="bg-red-50 text-red-800 border border-red-300 px-2 py-0.5 text-[10px] font-mono font-bold">📄 YETKİ BELGESİZ</span>;
+      case "deal_approved":
+        return <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 text-[10px] font-mono font-bold">✅ İŞLEM ONAYLANDI</span>;
+      case "deal_shared":
+        return <span className="bg-indigo-50 text-indigo-800 border border-indigo-300 px-2 py-0.5 text-[10px] font-mono font-bold">🤝 ORTAK İŞLEM (2. GD)</span>;
       default:
         return <span className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 text-[10px] font-mono font-bold">BİLDİRİM</span>;
     }

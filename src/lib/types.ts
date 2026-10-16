@@ -293,6 +293,8 @@ export interface WorkflowNotification {
     | "overdue_appointment"
     | "deal_collection_due"
     | "pending_broker_approval"
+    | "deal_approved"
+    | "deal_shared"
     | "stale_property"
     | "missing_mandate";
   title: string;

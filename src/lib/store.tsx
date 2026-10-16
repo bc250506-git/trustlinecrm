@@ -89,6 +89,7 @@ interface StoreContextType {
     overdueAlerts?: number;
     dealCollectionAlerts?: number;
     brokerApprovalAlerts?: number;
+    internalDealAlerts?: number;
     staleAlerts?: number;
     missingMandateAlerts?: number;
   };
@@ -383,6 +384,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let overdueAlerts = 0;
     let dealCollectionAlerts = 0;
     let brokerApprovalAlerts = 0;
+    let internalDealAlerts = 0;
     let staleAlerts = 0;
     let missingMandateAlerts = 0;
     const newNotifications: WorkflowNotification[] = [];
@@ -727,6 +729,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    // 9.5 Şirket İçi Ortak İşlem & Komisyon Paylaşım Bildirimi (2. Danışman Hak Ediş Teyidi)
+    if (isRuleEnabled("rule-internal-deal-notify")) {
+      deals.forEach((deal) => {
+        if (deal.sharingType === "internal" && deal.partnerAdvisorId) {
+          const isTargetUser =
+            currentUser.role === "ADMIN" ||
+            currentUser.id === deal.partnerAdvisorId ||
+            currentUser.id === deal.createdById;
+          if (!isTargetUser) return;
+
+          const notifId = `notif-internal-shared-${deal.id}`;
+          const alreadyNotified = notifications.some(
+            (n) => n.targetId === deal.id && n.id.startsWith("notif-internal-")
+          );
+
+          if (!alreadyNotified) {
+            internalDealAlerts++;
+            const isApproved = Boolean(deal.brokerApproval);
+            newNotifications.push({
+              id: notifId,
+              type: isApproved ? "deal_approved" : "deal_shared",
+              title: isApproved
+                ? `🤝 Ortak İşlem Onaylandı: ${deal.title}`
+                : `🤝 Ortak İşlem (Onay Bekliyor): ${deal.title}`,
+              message: `${deal.createdByName || "Danışman"} ile yürüttüğünüz ortak işlemde (${deal.agreedPrice?.toLocaleString("tr-TR")} ${deal.currency}) 2. Danışman (Müşteri Bacağı) olarak kayıtlısınız. ${
+                isApproved
+                  ? `Broker onayladı! Hak edişiniz: ${deal.partnerShareAmount?.toLocaleString("tr-TR")} ${deal.currency} (%${deal.partnerShareRate || 25}).`
+                  : `Broker onayı bekleniyor. Onaylandığında hak edişiniz: ${deal.partnerShareAmount?.toLocaleString("tr-TR")} ${deal.currency} olarak yansıyacaktır.`
+              }`,
+              targetTab: "finance",
+              targetId: deal.id,
+              read: false,
+              createdAt: "Aktif İşlem",
+              urgency: isApproved ? "medium" : "high",
+            });
+          }
+        }
+      });
+    }
+
     // 10. Hareketsiz / Yaşlanan Portföy Alarmı (30+ Gün)
     if (isRuleEnabled("rule-stale-property")) {
       properties.forEach((p) => {
@@ -825,6 +867,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       overdueAlerts,
       dealCollectionAlerts,
       brokerApprovalAlerts,
+      internalDealAlerts,
       staleAlerts,
       missingMandateAlerts,
     };
@@ -1113,10 +1156,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ? followUps
     : followUps.filter((f) => f.assignedToId === currentUser.id || f.isOfficeEvent);
 
-  // Danışmanın kendi satış süreci/kanbanı (Kimse birbirininkini göremez)
+  // Danışmanın kendi satış süreci/kanbanı (Kimse birbirininkini göremez, ancak iç paylaşımlı ortak işlemler her iki danışmanda da görünür)
   const visibleDeals = isBroker
     ? deals
-    : deals.filter((d) => d.createdById === currentUser.id);
+    : deals.filter(
+        (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
+      );
 
   // Customer handlers
   const addCustomer = (customerData: Omit<Customer, "id" | "createdAt" | "updatedAt">): Customer => {
@@ -1136,7 +1181,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const canManageCustomer = (c: Customer) => isBroker || c.assignedToId === currentUser.id;
   const canManageProperty = (p: Property) => isBroker || p.assignedToId === currentUser.id;
   const canManageFollowUp = (f: FollowUp) => isBroker || f.assignedToId === currentUser.id || f.createdById === currentUser.id;
-  const canManageDeal = (d: Deal) => isBroker || d.createdById === currentUser.id;
+  const canManageDeal = (d: Deal) => isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id;
   const canManageRental = (r: RentalContract) => isBroker || r.assignedToId === currentUser.id;
 
   const updateCustomer = (id: string, updates: Partial<Customer>): boolean => {
@@ -1370,6 +1415,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       createdAt: dealData.createdAt || dealDateIso,
     };
     setDeals((prev) => [newDeal, ...prev]);
+
+    // Eğer iç paylaşımlı bir işlemse ve 2. Danışman seçildiyse anlık bildirim oluştur
+    if (newDeal.sharingType === "internal" && newDeal.partnerAdvisorId) {
+      const isApproved = Boolean(newDeal.brokerApproval);
+      const notif: WorkflowNotification = {
+        id: `notif-internal-shared-${newDeal.id}`,
+        type: isApproved ? "deal_approved" : "deal_shared",
+        title: isApproved
+          ? `🤝 Yeni Ortak İşlem (Onaylandı): ${newDeal.title}`
+          : `🤝 Yeni Ortak İşlem Eklendi: ${newDeal.title}`,
+        message: `${newDeal.createdByName || "Danışman"} sizi "${newDeal.title}" işleminde 2. Danışman (Müşteri Bacağı) olarak belirledi.${
+          isApproved
+            ? ` İşlem Broker tarafından onaylanmıştır. Hak edişiniz: ${newDeal.partnerShareAmount?.toLocaleString("tr-TR")} ${newDeal.currency}.`
+            : ` Broker onayı sonrası hak edişiniz: ${newDeal.partnerShareAmount?.toLocaleString("tr-TR")} ${newDeal.currency} olarak hesabınıza yansıyacaktır.`
+        }`,
+        targetTab: "finance",
+        targetId: newDeal.id,
+        read: false,
+        createdAt: "Az önce",
+        urgency: "high",
+      };
+      setNotifications((prev) => [notif, ...prev]);
+    }
   };
 
   const updateDeal = (id: string, updates: Partial<Deal>): boolean => {
@@ -1379,6 +1447,47 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu satış/komisyon anlaşması size ait değildir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+
+    // Broker onayı verildiğinde (önceden onaysızken şimdi onaylandıysa)
+    if (updates.brokerApproval === true && !deal.brokerApproval) {
+      const mergedDeal = { ...deal, ...updates };
+      const newNotifs: WorkflowNotification[] = [];
+
+      // 1. İkinci Danışmana (İç Paylaşım Müşteri Bacağı) otomatik onay & hak ediş bildirimi
+      if (mergedDeal.sharingType === "internal" && mergedDeal.partnerAdvisorId) {
+        newNotifs.push({
+          id: `notif-internal-approved-${mergedDeal.id}-${Date.now()}`,
+          type: "deal_approved",
+          title: `🤝 Ortak İşlem Onaylandı: ${mergedDeal.title}`,
+          message: `${mergedDeal.createdByName || "Danışman"} ile yürüttüğünüz iç paylaşımlı işlem Broker (${currentUser.name}) tarafından incelenip onaylandı. Hesabınıza yansıyan hak edişiniz: ${mergedDeal.partnerShareAmount?.toLocaleString("tr-TR")} ${mergedDeal.currency} (%${mergedDeal.partnerShareRate || 25}).`,
+          targetTab: "finance",
+          targetId: mergedDeal.id,
+          read: false,
+          createdAt: "Az önce",
+          urgency: "high",
+        });
+      }
+
+      // 2. Birinci Danışmana (Portföy Sahibi) onay bildirimi
+      if (mergedDeal.createdById && mergedDeal.createdById !== currentUser.id) {
+        newNotifs.push({
+          id: `notif-deal-approved-${mergedDeal.id}-${Date.now()}`,
+          type: "deal_approved",
+          title: `✅ İşlem Onaylandı: ${mergedDeal.title}`,
+          message: `Kapatmış olduğunuz "${mergedDeal.title}" satışı Broker (${currentUser.name}) tarafından onaylandı. Hak edişiniz: ${mergedDeal.advisorShareAmount?.toLocaleString("tr-TR")} ${mergedDeal.currency}.`,
+          targetTab: "finance",
+          targetId: mergedDeal.id,
+          read: false,
+          createdAt: "Az önce",
+          urgency: "high",
+        });
+      }
+
+      if (newNotifs.length > 0) {
+        setNotifications((prev) => [...newNotifs, ...prev]);
+      }
+    }
+
     setDeals((prev) =>
       prev.map((d) => (d.id === id ? { ...d, ...updates } : d))
     );

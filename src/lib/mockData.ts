@@ -1751,9 +1751,28 @@ export const initialAutomationRules: AutomationRule[] = [
     category: "mandate",
     lastTriggeredAt: "Bugün 09:00",
   },
+  {
+    id: "rule-internal-deal-notify",
+    name: "Şirket İçi Ortak İşlem & Komisyon Paylaşım Bildirimi",
+    description: "Şirket içi 2. danışman ile ortak kapatılan işlemlerde broker onayı çıktığında 2. danışmanın sistemine otomatik işlem ve komisyon hak ediş teyidi düşürür.",
+    enabled: true,
+    category: "finance",
+    lastTriggeredAt: "Bugün 09:00",
+  },
 ];
 
 export const initialNotifications: WorkflowNotification[] = [
+  {
+    id: "notif-internal-deal-3",
+    type: "deal_approved",
+    title: "🤝 Ortak İşlem Onaylandı: İskele Long Beach Sea Pearl 1+1 Satışı",
+    message: "Hasan Yoldağ ile ortak olduğunuz iç paylaşımlı satış işlemi Broker tarafından resmi olarak onaylandı. Hesabınıza yansıyan hak edişiniz: 1.562 GBP (%25 pay).",
+    targetTab: "finance",
+    targetId: "deal-3",
+    read: false,
+    createdAt: "1 saat önce",
+    urgency: "high",
+  },
   {
     id: "notif-1",
     type: "match",

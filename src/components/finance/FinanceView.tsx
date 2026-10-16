@@ -92,9 +92,13 @@ export function FinanceView() {
   const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
 
-  // Danışman hesabı ise sadece kendi işlemlerini görür; Ofis / Broker hesabı ise tüm ofisin işlemlerini görür.
+  // Danışman hesabı ise sadece kendi işlemlerini ve 2. danışman olarak dahil olduğu ortak işlemleri görür; Ofis / Broker hesabı ise tüm ofisin işlemlerini görür.
   const visibleDeals = useMemo(() => {
-    return isBroker ? deals : deals.filter((d) => d.createdById === currentUser.id);
+    return isBroker
+      ? deals
+      : deals.filter(
+          (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
+        );
   }, [deals, isBroker, currentUser.id]);
 
   // Yardımcı: İşlemin tarihini alma
@@ -229,10 +233,30 @@ export function FinanceView() {
   const totalAgreedGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.agreedPrice, 0);
   const totalCommissionGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.commissionExpected, 0);
   const totalAdvisorGbp = gbpFilteredDeals.reduce((sum, d) => {
-    if (d.advisorShareAmount !== undefined) return sum + d.advisorShareAmount;
-    const isVolkan = d.createdById === "usr-volkan";
-    const rate = isVolkan ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
-    return sum + Math.round(d.commissionExpected * rate);
+    if (!isBroker) {
+      // Eğer kullanıcı 2. danışman ise kendi payı d.partnerShareAmount'tur
+      if (d.partnerAdvisorId === currentUser.id) {
+        return (
+          sum +
+          (d.partnerShareAmount !== undefined
+            ? d.partnerShareAmount
+            : Math.round(d.commissionExpected * 0.25))
+        );
+      }
+      if (d.advisorShareAmount !== undefined) return sum + d.advisorShareAmount;
+      const isVolkan = d.createdById === "usr-volkan";
+      const rate = isVolkan ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
+      return sum + Math.round(d.commissionExpected * rate);
+    } else {
+      // Broker tüm danışmanlara ödenecek toplam danışman hakedişini görür (Danışman 1 + Danışman 2)
+      const advShare =
+        d.advisorShareAmount !== undefined
+          ? d.advisorShareAmount
+          : Math.round(d.commissionExpected * (d.portfolioOrigin === "advisor" ? 0.6 : 0.5));
+      const internalPartShare =
+        d.sharingType === "internal" ? (d.partnerShareAmount || 0) : 0;
+      return sum + advShare + internalPartShare;
+    }
   }, 0);
   const totalOfficeGbp = gbpFilteredDeals.reduce((sum, d) => {
     if (d.officeShareAmount !== undefined) return sum + d.officeShareAmount;
@@ -241,7 +265,11 @@ export function FinanceView() {
     return sum + Math.round(d.commissionExpected * rate);
   }, 0);
   const totalPartnerGbp = gbpFilteredDeals.reduce((sum, d) => {
-    return sum + (d.partnerShareAmount || 0);
+    // Dış şirket ortaklığı payı
+    if (d.sharingType === "external") {
+      return sum + (d.partnerShareAmount || 0);
+    }
+    return sum;
   }, 0);
 
   // Filtreleri sıfırlama
@@ -524,7 +552,9 @@ export function FinanceView() {
               </div>
               <div className="space-y-1 mt-1 font-mono text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Danışman Payı:</span>
+                  <span className="text-slate-500">
+                    {isBroker ? "Danışman Payları:" : "Hakediş Payım:"}
+                  </span>
                   <span className="text-[#00adb5] font-bold">
                     {totalAdvisorGbp.toLocaleString("tr-TR")} GBP
                   </span>
@@ -921,16 +951,22 @@ export function FinanceView() {
                             </div>
                           </div>
                         ) : d.sharingType === "internal" ? (
-                          <div className="space-y-0.5">
+                          <div className="space-y-1">
                             <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-indigo-50 text-indigo-700 border-indigo-200 inline-flex items-center gap-1">
                               <Users className="w-3 h-3 text-indigo-600" />
                               İç Paylaşım (%25)
                             </span>
+                            {d.partnerAdvisorId === currentUser.id && (
+                              <div className="inline-block px-1.5 py-0.5 text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                ★ Siz 2. Danışmansınız (Müşteri)
+                              </div>
+                            )}
                             <div className="text-[11px] text-slate-700 font-medium font-mono">
-                              2. GD: {d.partnerAdvisorName || "Danışman"}
+                              <div>Portföy (GD1): <span className="font-semibold">{d.createdByName || "Danışman 1"}</span></div>
+                              <div>Müşteri (GD2): <span className="font-semibold text-indigo-700">{d.partnerAdvisorName || "Danışman 2"}</span></div>
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono">
-                              {d.portfolioOrigin === "advisor" ? "Kendi Portföyü (%30 GD1)" : "Ofis Portföyü (%25 GD1)"}
+                              {d.portfolioOrigin === "advisor" ? "Portföy %30 / Müşteri %25" : "Portföy %25 / Müşteri %25"}
                             </div>
                           </div>
                         ) : (
@@ -965,8 +1001,14 @@ export function FinanceView() {
 
                       {/* 7. Hakediş Dağılımı */}
                       <td className="py-3 px-4 font-mono text-[11px] space-y-0.5">
-                        <div className="text-[#00adb5] font-bold">
-                          GD: {advShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                        <div
+                          className={
+                            d.createdById === currentUser.id
+                              ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
+                              : "text-[#00adb5] font-bold"
+                          }
+                        >
+                          GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advShare.toLocaleString("tr-TR")} {d.currency}{" "}
                           <span className="text-[10px] font-normal text-slate-500">(%{advRate})</span>
                         </div>
                         <div className="text-[#1d2566] font-bold">
@@ -974,8 +1016,17 @@ export function FinanceView() {
                           <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
                         </div>
                         {partShare > 0 && (
-                          <div className="text-purple-600 font-bold">
-                            Ortak: {partShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                          <div
+                            className={
+                              d.partnerAdvisorId === currentUser.id
+                                ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
+                                : "text-purple-600 font-bold"
+                            }
+                          >
+                            {d.sharingType === "internal"
+                              ? `GD2 ${d.partnerAdvisorId === currentUser.id ? "(Siz)" : ""}: `
+                              : "Ortak: "}
+                            {partShare.toLocaleString("tr-TR")} {d.currency}{" "}
                             <span className="text-[10px] font-normal text-slate-500">(%{partRate})</span>
                           </div>
                         )}

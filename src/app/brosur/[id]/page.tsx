@@ -3,7 +3,7 @@
 import React, { use, useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { Property } from "@/lib/types";
-import { initialProperties, initialMandates } from "@/lib/mockData";
+import { initialProperties, initialMandates, initialUsers } from "@/lib/mockData";
 import {
   MapPin,
   Maximize2,
@@ -312,7 +312,11 @@ function BrosurContent({ params }: PageProps) {
   const handleContactWhatsApp = () => {
     if (!property) return;
     const msg = `Merhaba Trustline, "${property.title}" (${property.region} - ${property.price.toLocaleString("tr-TR")} ${property.currency}) portföyünüz hakkında detaylı bilgi almak ve randevu oluşturmak istiyorum.`;
-    window.open(`https://wa.me/902128004040?text=${encodeURIComponent(msg)}`, "_blank");
+    const advisor = initialUsers.find(
+      (a) => a.id === property.assignedToId || a.name === property.assignedToName
+    );
+    const targetPhone = (advisor?.phone || "+90 533 846 00 80").replace(/[^0-9]/g, "");
+    window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   if (loading) {

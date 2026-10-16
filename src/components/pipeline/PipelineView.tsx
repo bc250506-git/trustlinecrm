@@ -461,8 +461,8 @@ export function PipelineView() {
       {/* SATIŞ SÜRECİ DÜZENLEME MODALI */}
       {editingCustomer && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-lg bg-white border border-slate-300 shadow-2xl">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden bg-white border border-slate-300 shadow-2xl">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#00adb5]" />
                 <h3 className="text-xs font-bold text-[#1d2566]">
@@ -478,7 +478,7 @@ export function PipelineView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomerEdit} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSaveCustomerEdit} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               <div className="p-2.5 bg-slate-50 border border-slate-200">
                 <span className="text-[10px] text-slate-500 font-mono block">Müşteri:</span>
                 <span className="font-bold text-[#1d2566] text-xs">{editingCustomer.fullName}</span>
@@ -608,8 +608,8 @@ export function PipelineView() {
       {/* YENİ SATIŞ SÜRECİ BAŞLAT MODALI */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="sharp-card w-full max-w-xl bg-white border border-slate-300 shadow-2xl my-8">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden bg-white border border-slate-300 shadow-2xl my-auto">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Kanban className="w-4 h-4 text-[#00adb5]" />
                 <h3 className="text-sm font-bold text-[#1d2566]">
@@ -625,7 +625,7 @@ export function PipelineView() {
               </button>
             </div>
 
-            <form onSubmit={handleCreatePipelineDeal} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleCreatePipelineDeal} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* Müşteri Seçimi & Hızlı Ekle */}
               <div>
                 <div className="flex items-center justify-between mb-1">

@@ -350,9 +350,9 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
 
   return (
     <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="brochure-modal-container sharp-card w-full max-w-3xl bg-white border border-slate-200 shadow-2xl my-8">
+      <div className="brochure-modal-container sharp-card w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden bg-white border border-slate-200 shadow-2xl my-auto">
         {/* Güvenlik & İşlem Başlığı (Sadece 3 Net Aksiyon: WP PAYLAŞ, YAZDIR, İNDİR) */}
-        <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+        <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
             <div className="flex flex-col">
@@ -418,7 +418,8 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
         </div>
 
         {/* Müşterinin Göreceği Profesyonel Broşür Alanı (Ferah Beyaz) */}
-        <div id="printable-brochure-content" className="printable-brochure p-8 space-y-6 text-slate-800 bg-white">
+        <div className="flex-1 overflow-y-auto">
+          <div id="printable-brochure-content" className="printable-brochure p-8 space-y-6 text-slate-800 bg-white">
           {/* Broşür Üst Başlığı & Orijinal Logo */}
           <div className="flex items-center justify-between border-b border-slate-200 pb-5">
             <div>
@@ -559,6 +560,7 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
               ) : null}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>

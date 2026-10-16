@@ -191,8 +191,8 @@ export function AddCustomerModal({
       style={{ zIndex: zIndex || 70 }}
       className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
     >
-      <div className="sharp-card w-full max-w-xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl my-auto">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+      <div className="sharp-card w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#00adb5]" />
             <h2 className="text-sm font-bold text-[#1d2566]">
@@ -202,13 +202,13 @@ export function AddCustomerModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+            className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
           {duplicateError && (
             <div className="p-3 bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-center gap-2 font-mono">
               <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />

@@ -99,8 +99,8 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl my-auto">
-        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+      <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+        <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-[#00adb5]" />
             <h2 className="text-sm font-bold text-[#1d2566]">
@@ -110,13 +110,13 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+            className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
           {/* 1. Mülk / Portföy Seçimi */}
           <div>
             <div className="flex items-center justify-between mb-1">

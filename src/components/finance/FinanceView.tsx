@@ -1119,8 +1119,8 @@ export function FinanceView() {
       {/* DÜZENLEME MODALI */}
       {editingDeal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
+          <div className="sharp-card w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#00adb5]" />
                 <div>
@@ -1140,7 +1140,7 @@ export function FinanceView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditDeal} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSaveEditDeal} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* İşlem Başlığı & Tür */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">

@@ -569,9 +569,9 @@ export function MandatesView() {
       {/* YENİ YETKİ EKLE / DÜZENLE MODALI */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
+          <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
             {/* Modal Başlığı */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <FileCheck className="w-4 h-4 text-[#00adb5]" />
                 <h2 className="text-sm font-bold text-[#1d2566]">
@@ -586,7 +586,7 @@ export function MandatesView() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmitMandate} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSubmitMandate} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {subNotice && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />

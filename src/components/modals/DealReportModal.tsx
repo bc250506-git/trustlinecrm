@@ -130,9 +130,9 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
         }
       `}</style>
 
-      <div className="bg-white w-full max-w-4xl border border-slate-300 shadow-2xl flex flex-col max-h-[95vh] my-auto">
+      <div className="bg-white w-full max-w-4xl border border-slate-300 shadow-2xl flex flex-col max-h-[95vh] my-auto overflow-hidden">
         {/* Üst Modal Kontrol Başlığı (Yazdırmada görünmez) */}
-        <div className="no-print bg-[#1d2566] text-white px-5 py-3 flex items-center justify-between shrink-0">
+        <div className="no-print bg-[#1d2566] text-white px-5 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md">
           <div className="flex items-center gap-2.5">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
             <div>

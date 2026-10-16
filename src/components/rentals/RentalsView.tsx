@@ -1081,8 +1081,8 @@ export function RentalsView() {
       {isAddModalOpen && (
         <>
           <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="sharp-card w-full max-w-2xl bg-white border border-slate-300 shadow-2xl my-8">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden bg-white border border-slate-300 shadow-2xl my-auto">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-[#00adb5]" />
                 <h3 className="text-sm font-bold text-[#1d2566]">
@@ -1091,13 +1091,13 @@ export function RentalsView() {
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="text-slate-400 hover:text-slate-700 p-1"
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateRental} className="p-6 space-y-4 text-xs">
+            <form onSubmit={handleCreateRental} className="p-6 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* Alt Modallardan Başarılı Kayıt Bildirimi */}
               {subNotice && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center gap-2">
@@ -1688,8 +1688,8 @@ export function RentalsView() {
       {/* KİRA SÖZLEŞMESİ DÜZENLEME MODALI */}
       {editingRental && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#00adb5]" />
                 <h2 className="text-sm font-bold text-[#1d2566]">
@@ -1705,7 +1705,7 @@ export function RentalsView() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveRentalEdit} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSaveRentalEdit} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* Portföy Bilgisi */}
               <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-700">
                 <span className="text-[10px] text-slate-500 font-mono block">İlgili Portföy:</span>

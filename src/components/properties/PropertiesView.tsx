@@ -1102,9 +1102,9 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       {/* Portföy Kartı Detayı Pop-up Modal */}
       {activePropertyDetail && (
         <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-2xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
+          <div className="sharp-card w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
             {/* Modal Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Building className="w-4 h-4 text-[#00adb5]" />
                 <h2 className="text-sm font-bold text-[#1d2566]">
@@ -1119,7 +1119,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 flex-1 overflow-y-auto">
               {/* Portföy Fotoğrafı */}
               {(activePropertyDetail.imageUrl || activePropertyDetail.photos?.[0]?.url) && (
                 <div className="relative h-64 w-full overflow-hidden border border-slate-200 bg-slate-100">
@@ -1472,8 +1472,8 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       {/* 4. KURAL: Backdrop-blur-md ile ferah blur efekti */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl relative">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl relative">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Building className="w-4 h-4 text-[#00adb5]" />
                 <h2 className="text-sm font-bold text-[#1d2566]">
@@ -1488,7 +1488,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               </button>
             </div>
 
-            <form onSubmit={handleCreateProperty} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleCreateProperty} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* 2. KURAL: "Portföy Başlığı" */}
               <div>
                 <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
@@ -1927,9 +1927,9 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       {/* PORTFÖY DÜZENLEME MODALI */}
       {editingProperty && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl">
+          <div className="sharp-card w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
             {/* Modal Başlığı */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between sticky top-0 z-10">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#00adb5]" />
                 <div>
@@ -1950,7 +1950,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               </button>
             </div>
 
-            <form onSubmit={handleSavePropertyEdit} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSavePropertyEdit} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* Portföy Başlığı */}
               <div>
                 <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">

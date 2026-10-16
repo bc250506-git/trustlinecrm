@@ -519,9 +519,9 @@ export function AddDealModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-4xl max-h-[92vh] overflow-y-auto border border-slate-300 bg-white shadow-2xl my-auto">
+      <div className="sharp-card w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
         {/* ÜST RESMİ OFİS FORMU BAŞLIĞI */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3">
+        <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] tracking-widest text-[#00adb5] uppercase font-bold">
@@ -544,14 +544,14 @@ export function AddDealModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 p-1.5 cursor-pointer transition hover:bg-slate-200/50"
+            className="text-slate-400 hover:text-slate-700 p-1.5 cursor-pointer transition hover:bg-slate-200/50 shrink-0"
             title="Kapat"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 text-xs">
           {/* ÜST REFERANS VE DANIŞMAN ŞERİDİ */}
           <div className="bg-slate-50/80 p-3.5 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>

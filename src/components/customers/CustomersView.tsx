@@ -526,8 +526,8 @@ export function CustomersView({
       {/* Müşteri Detay Modalı / Yan Kartı */}
       {activeCustomerDetail && (
         <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-lg border border-slate-300 bg-white shadow-2xl">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="sharp-card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div>
                 <div className="text-[10px] font-mono text-[#00adb5] uppercase font-bold">
                   Müşteri Kartı Detayı
@@ -544,7 +544,7 @@ export function CustomersView({
               </button>
             </div>
 
-            <div className="p-5 space-y-4 text-xs">
+            <div className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
               <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 border border-slate-200 font-mono">
                 <div>
                   <span className="text-slate-500 block text-[10px]">TELEFON:</span>

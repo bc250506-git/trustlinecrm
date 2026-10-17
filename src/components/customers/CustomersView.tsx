@@ -29,6 +29,7 @@ import {
   Lock,
   Cake,
   MessageCircle,
+  Edit3,
 } from "lucide-react";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
@@ -64,6 +65,7 @@ export function CustomersView({
   const [temperatureFilter, setTemperatureFilter] = useState<string>("ALL");
   const [vipOnly, setVipOnly] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
   const [activeCustomerDetail, setActiveCustomerDetail] = useState<Customer | null>(
     selectedCustomerId
       ? customers.find((c) => c.id === selectedCustomerId) || null
@@ -76,7 +78,7 @@ export function CustomersView({
   // Popuplar açıkken arkaplan asla scroll yapılamasın
   useEffect(() => {
     const hasOpenModal =
-      isAddModalOpen || activeCustomerDetail !== null || customerToDelete !== null;
+      isAddModalOpen || customerToEdit !== null || activeCustomerDetail !== null || customerToDelete !== null;
     if (hasOpenModal) {
       document.body.style.overflow = "hidden";
     } else {
@@ -85,7 +87,7 @@ export function CustomersView({
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isAddModalOpen, activeCustomerDetail, customerToDelete]);
+  }, [isAddModalOpen, customerToEdit, activeCustomerDetail, customerToDelete]);
 
   // Filtreleme fonksiyonu
   const filterList = (list: Customer[]) => {
@@ -349,7 +351,7 @@ export function CustomersView({
 
                     {canManageCustomer(c) && (
                       <ActionMenu
-                        onEdit={() => setActiveCustomerDetail(c)}
+                        onEdit={() => setCustomerToEdit(c)}
                         onDelete={() => setCustomerToDelete(c)}
                         canEdit={canManageCustomer(c)}
                         canDelete={canManageCustomer(c)}
@@ -528,10 +530,19 @@ export function CustomersView({
         </div>
       )}
 
-      {/* Standardize Yeni Müşteri Modal */}
+      {/* Standardize Müşteri Ekle / Düzenle Modal */}
       <AddCustomerModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        isOpen={isAddModalOpen || !!customerToEdit}
+        customerToEdit={customerToEdit}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setCustomerToEdit(null);
+        }}
+        onSuccess={(savedCustomer) => {
+          if (activeCustomerDetail && activeCustomerDetail.id === savedCustomer.id) {
+            setActiveCustomerDetail(savedCustomer);
+          }
+        }}
       />
 
       {/* Müşteri Detay Modalı / Yan Kartı */}
@@ -547,12 +558,25 @@ export function CustomersView({
                   {activeCustomerDetail.fullName}
                 </h3>
               </div>
-              <button
-                onClick={() => setActiveCustomerDetail(null)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {canManageCustomer(activeCustomerDetail) && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomerToEdit(activeCustomerDetail)}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-bold flex items-center gap-1 cursor-pointer shadow-2xs transition"
+                    title="Müşteri Bilgilerini Düzenle"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#00adb5]" />
+                    <span>Düzenle</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setActiveCustomerDetail(null)}
+                  className="text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
@@ -705,18 +729,32 @@ export function CustomersView({
                         <Sparkles className="w-3.5 h-3.5" /> Eşleşen Portföyleri Aç
                       </button>
 
-                      {canManageActive && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustomerToDelete(activeCustomerDetail);
-                          }}
-                          className="sharp-btn-danger px-3 py-1.5 text-[11px] font-mono cursor-pointer shadow-2xs flex items-center gap-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Müşteriyi Sil</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {canManageActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomerToEdit(activeCustomerDetail);
+                            }}
+                            className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-[#00adb5]" />
+                            <span>Bilgileri Düzenle</span>
+                          </button>
+                        )}
+                        {canManageActive && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomerToDelete(activeCustomerDetail);
+                            }}
+                            className="sharp-btn-danger px-3 py-1.5 text-[11px] font-mono cursor-pointer shadow-2xs flex items-center gap-1"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Müşteriyi Sil</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </>
                 );

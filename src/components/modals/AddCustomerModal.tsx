@@ -13,6 +13,7 @@ import {
   Plus,
   MapPin,
   Cake,
+  Check,
 } from "lucide-react";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
@@ -20,9 +21,10 @@ import { DateInput } from "@/components/common/DateInput";
 interface AddCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (newCustomer: Customer) => void;
+  onSuccess?: (savedCustomer: Customer) => void;
   zIndex?: number;
   initialCategory?: CustomerCategory;
+  customerToEdit?: Customer | null;
 }
 
 export function AddCustomerModal({
@@ -31,6 +33,7 @@ export function AddCustomerModal({
   onSuccess,
   zIndex,
   initialCategory,
+  customerToEdit,
 }: AddCustomerModalProps) {
   const {
     currentUser,
@@ -38,6 +41,7 @@ export function AddCustomerModal({
     customers,
     users,
     addCustomer,
+    updateCustomer,
   } = useStore();
 
   const [formName, setFormName] = useState("");
@@ -65,31 +69,78 @@ export function AddCustomerModal({
   const prevIsOpenRef = React.useRef(false);
 
   useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
-      setFormName("");
-      setFormPhone("");
-      setFormWhatsapp("");
-      setFormInstagram("");
-      setFormEmail("");
-      setFormBirthDate("");
-      setFormCategory(initialCategory || "BUYER");
-      setIsAlsoBuyer(false);
-      setFormTemperature("warm");
-      setCustomerDistrict(KKTC_DISTRICTS[0] || "Girne");
-      setCustomerSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0] || "Girne")[0] || "");
-      setSelectedRegions([]);
-      setSelectedTypes([]);
-      setSelectedRooms([]);
-      setFormBudget("");
-      setFormCurrency("GBP");
-      setFormNotes("");
-      setFormIsShared(false);
-      setFormVip(false);
-      setFormAssigneeId(currentUser.id);
-      setDuplicateError(null);
+    if (isOpen) {
+      if (customerToEdit) {
+        setFormName(customerToEdit.fullName || "");
+        setFormPhone(customerToEdit.phone || "");
+        setFormWhatsapp(customerToEdit.whatsapp || "");
+        setFormInstagram(customerToEdit.instagramHandle || "");
+        setFormEmail(customerToEdit.email || "");
+        setFormBirthDate(customerToEdit.birthDate || "");
+
+        const isDual =
+          customerToEdit.category === "SELLER_AND_BUYER" || !!customerToEdit.isAlsoBuyer;
+        setFormCategory(isDual ? "SELLER" : customerToEdit.category || "BUYER");
+        setIsAlsoBuyer(isDual);
+        setFormTemperature(customerToEdit.temperature || "warm");
+
+        const parsedRegs =
+          customerToEdit.regions && customerToEdit.regions.length > 0
+            ? customerToEdit.regions
+            : customerToEdit.region
+            ? customerToEdit.region.split(",").map((s) => s.trim()).filter(Boolean)
+            : [];
+        setSelectedRegions(parsedRegs);
+
+        const parsedTypes =
+          customerToEdit.propertyTypes && customerToEdit.propertyTypes.length > 0
+            ? customerToEdit.propertyTypes
+            : customerToEdit.propertyType
+            ? customerToEdit.propertyType.split(",").map((s) => s.trim()).filter(Boolean)
+            : [];
+        setSelectedTypes(parsedTypes);
+
+        const parsedRooms =
+          customerToEdit.roomsList && customerToEdit.roomsList.length > 0
+            ? customerToEdit.roomsList
+            : customerToEdit.rooms
+            ? customerToEdit.rooms.split(",").map((s) => s.trim()).filter(Boolean)
+            : [];
+        setSelectedRooms(parsedRooms);
+
+        setFormBudget(customerToEdit.budget ? String(customerToEdit.budget) : "");
+        setFormCurrency(customerToEdit.budgetCurrency || "GBP");
+        setFormNotes(customerToEdit.notes || "");
+        setFormIsShared(!!customerToEdit.isShared);
+        setFormVip(!!customerToEdit.isVip);
+        setFormAssigneeId(customerToEdit.assignedToId || currentUser.id);
+        setDuplicateError(null);
+      } else if (!prevIsOpenRef.current) {
+        setFormName("");
+        setFormPhone("");
+        setFormWhatsapp("");
+        setFormInstagram("");
+        setFormEmail("");
+        setFormBirthDate("");
+        setFormCategory(initialCategory || "BUYER");
+        setIsAlsoBuyer(false);
+        setFormTemperature("warm");
+        setCustomerDistrict(KKTC_DISTRICTS[0] || "Girne");
+        setCustomerSubRegion(getRegionsByDistrict(KKTC_DISTRICTS[0] || "Girne")[0] || "");
+        setSelectedRegions([]);
+        setSelectedTypes([]);
+        setSelectedRooms([]);
+        setFormBudget("");
+        setFormCurrency("GBP");
+        setFormNotes("");
+        setFormIsShared(false);
+        setFormVip(false);
+        setFormAssigneeId(currentUser.id);
+        setDuplicateError(null);
+      }
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, initialCategory]);
+  }, [isOpen, initialCategory, customerToEdit, currentUser.id]);
 
   if (!isOpen) return null;
 
@@ -134,10 +185,10 @@ export function AddCustomerModal({
     e.preventDefault();
     if (!formName || !formPhone) return;
 
-    // Telefon no duplikasyon kontrolü
+    // Telefon no duplikasyon kontrolü (kendi telefon numarasını düzenlerken hata vermemeli)
     const cleanPhone = formPhone.replace(/\s+/g, "");
     const existing = customers.find(
-      (c) => c.phone.replace(/\s+/g, "") === cleanPhone
+      (c) => c.phone.replace(/\s+/g, "") === cleanPhone && c.id !== customerToEdit?.id
     );
     if (existing) {
       setDuplicateError(`Bu telefon numarası (${formPhone}) zaten "${existing.fullName}" adına sistemde kayıtlıdır.`);
@@ -159,6 +210,45 @@ export function AddCustomerModal({
     const finalRegionsList = shouldSaveCriteria ? selectedRegions : [];
     const finalTypesList = shouldSaveCriteria ? selectedTypes : [];
     const finalRoomsList = shouldSaveCriteria ? selectedRooms : [];
+
+    if (customerToEdit) {
+      const updatedFields: Partial<Customer> = {
+        fullName: formName,
+        phone: formPhone,
+        whatsapp: formWhatsapp || formPhone,
+        instagramHandle: formInstagram || undefined,
+        email: formEmail,
+        birthDate: formBirthDate || undefined,
+        category: finalCategory,
+        isAlsoBuyer: isSeller && isAlsoBuyer,
+        temperature: formTemperature,
+        isVip: formVip,
+        region: finalRegion,
+        propertyType: finalType,
+        rooms: finalRooms,
+        regions: finalRegionsList,
+        propertyTypes: finalTypesList,
+        roomsList: finalRoomsList,
+        budget: finalBudget,
+        budgetCurrency: formCurrency || "GBP",
+        notes: formNotes,
+        assignedToId: assignedUser.id,
+        assignedToName: assignedUser.name,
+        isShared: formIsShared,
+      };
+
+      updateCustomer(customerToEdit.id, updatedFields);
+
+      const savedCust: Customer = {
+        ...customerToEdit,
+        ...updatedFields,
+        updatedAt: new Date().toISOString(),
+      };
+
+      onClose();
+      if (onSuccess) onSuccess(savedCust);
+      return;
+    }
 
     const newCust = addCustomer({
       fullName: formName,
@@ -202,7 +292,7 @@ export function AddCustomerModal({
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#00adb5]" />
             <h2 className="text-sm font-bold text-[#1d2566]">
-              Yeni Müşteri Kaydı
+              {customerToEdit ? "Müşteri Bilgilerini Düzenle" : "Yeni Müşteri Kaydı"}
             </h2>
           </div>
           <button
@@ -674,9 +764,10 @@ export function AddCustomerModal({
             </button>
             <button
               type="submit"
-              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
+              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
-              Müşteriyi Kaydet
+              <Check className="w-4 h-4" />
+              <span>{customerToEdit ? "Değişiklikleri Kaydet" : "Müşteriyi Kaydet"}</span>
             </button>
           </div>
         </form>

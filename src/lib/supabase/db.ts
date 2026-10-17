@@ -102,7 +102,13 @@ export async function getCustomers(): Promise<Customer[]> {
 export async function saveCustomer(customer: Partial<Customer>): Promise<boolean> {
   try {
     const { error } = await supabase.from("customers").upsert(customer);
-    return !error;
+    if (!error) return true;
+    if (error.code === "PGRST204" || error.message?.includes("column")) {
+      const { isAlsoBuyer, ...safeCust } = customer as any;
+      const { error: safeErr } = await supabase.from("customers").upsert(safeCust);
+      return !safeErr;
+    }
+    return false;
   } catch {
     return false;
   }

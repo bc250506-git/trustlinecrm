@@ -13,7 +13,7 @@ export type PipelineStage =
 
 export type Currency = "TRY" | "USD" | "EUR" | "GBP";
 
-export type CustomerCategory = "BUYER" | "SELLER" | "TENANT";
+export type CustomerCategory = "BUYER" | "SELLER" | "TENANT" | "SELLER_AND_BUYER";
 
 export type PropertyStatus =
   | "AVAILABLE"
@@ -62,6 +62,7 @@ export interface Customer {
   birthDate?: string; // YYYY-MM-DD (Opsiyonel Doğum Tarihi)
   source: string; // manual, csv, meta, ycloud
   category: CustomerCategory;
+  isAlsoBuyer?: boolean;
   temperature: "hot" | "warm" | "cold";
   isVip: boolean;
   region: string;
@@ -228,6 +229,7 @@ export interface RentalMonthPayment {
   paidDate?: string;
   receiptUrl?: string;
   receiptName?: string;
+  notes?: string;
 }
 
 export interface RentalContract {
@@ -250,6 +252,7 @@ export interface RentalContract {
   active: boolean;
   isStamped?: boolean; // KKTC Vergi Dairesi Damga Pulu ile Pullatıldı mı?
   stampedAt?: string; // Pullatılma tarihi (YYYY-MM-DD)
+  paymentPeriod?: "monthly" | "quarterly" | "semi_annual" | "annual"; // Ödeme yöntemi / periyodu
   notes?: string;
   assignedToId?: string;
   assignedToName?: string;

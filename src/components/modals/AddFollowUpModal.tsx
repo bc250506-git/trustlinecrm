@@ -11,7 +11,7 @@ import {
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
 import { DateInput } from "@/components/common/DateInput";
-import { formatPhoneWithPrefix } from "@/lib/formatters";
+import { formatPhoneWithPrefix, combineLocalDateAndTimeToIso } from "@/lib/formatters";
 
 interface AddFollowUpModalProps {
   isOpen: boolean;
@@ -71,7 +71,7 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
     const isOffice = isBroker && formIsOfficeEvent;
     const finalKind = (formKind as any) || (isOffice ? "office_event" : "call");
     const hasSpecificTime = !!formTime.trim();
-    const dueAt = hasSpecificTime ? `${formDate}T${formTime}:00` : `${formDate}T00:00:00`;
+    const dueAt = combineLocalDateAndTimeToIso(formDate, hasSpecificTime ? formTime : undefined);
 
     addFollowUp({
       title: formTitle.trim(),

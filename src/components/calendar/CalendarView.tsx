@@ -3,7 +3,12 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
 import { FollowUp } from "@/lib/types";
-import { formatFollowUpKind } from "@/lib/formatters";
+import {
+  formatFollowUpKind,
+  combineLocalDateAndTimeToIso,
+  extractLocalDateAndTime,
+  formatFollowUpTime,
+} from "@/lib/formatters";
 import {
   CalendarDays,
   Plus,
@@ -107,10 +112,9 @@ export function CalendarView() {
     setEditingFollowUp(t);
     setEditFormTitle(t.title);
     setEditFormKind(t.kind);
-    const datePart = t.dueAt ? t.dueAt.split("T")[0] : new Date().toISOString().split("T")[0];
-    const timePart = t.dueAt && t.dueAt.includes("T") ? t.dueAt.split("T")[1]?.slice(0, 5) : "14:00";
+    const { date: datePart, time: timePart } = extractLocalDateAndTime(t.dueAt);
     setEditFormDate(datePart);
-    setEditFormTime(timePart || "14:00");
+    setEditFormTime(timePart);
     setEditFormStatus(t.status);
     setEditFormFeedback(t.feedback || "");
   };
@@ -121,7 +125,7 @@ export function CalendarView() {
     updateFollowUp(editingFollowUp.id, {
       title: editFormTitle,
       kind: editFormKind,
-      dueAt: `${editFormDate}T${editFormTime || "12:00"}:00`,
+      dueAt: combineLocalDateAndTimeToIso(editFormDate, editFormTime),
       status: editFormStatus,
       feedback: editFormFeedback,
     });
@@ -902,10 +906,7 @@ export function CalendarView() {
                         <>
                           {" "}
                           -{" "}
-                          {new Date(t.dueAt).toLocaleTimeString("tr-TR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatFollowUpTime(t.dueAt)}
                         </>
                       ) : (
                         <span className="ml-1 text-[11px] text-slate-500 font-normal italic">

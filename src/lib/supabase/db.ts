@@ -229,7 +229,33 @@ export async function getRentals(): Promise<RentalContract[]> {
     if (error || !data) {
       return [];
     }
-    return data as RentalContract[];
+    return data.map((r: any) => {
+      let isStamped = r.isStamped ?? false;
+      let stampedAt = r.stampedAt ?? undefined;
+      let paymentPeriod = r.paymentPeriod ?? "monthly";
+      let notes = r.notes ?? "";
+
+      if (notes && notes.includes("<!--RENTAL_META:")) {
+        try {
+          const match = notes.match(/<!--RENTAL_META:(.*?)-->/);
+          if (match && match[1]) {
+            const parsed = JSON.parse(match[1]);
+            if (parsed.isStamped !== undefined) isStamped = parsed.isStamped;
+            if (parsed.stampedAt !== undefined) stampedAt = parsed.stampedAt;
+            if (parsed.paymentPeriod !== undefined) paymentPeriod = parsed.paymentPeriod;
+          }
+          notes = notes.replace(/<!--RENTAL_META:.*?-->/g, "").trim();
+        } catch {}
+      }
+
+      return {
+        ...r,
+        isStamped,
+        stampedAt,
+        paymentPeriod,
+        notes,
+      } as RentalContract;
+    });
   } catch {
     return [];
   }
@@ -237,9 +263,57 @@ export async function getRentals(): Promise<RentalContract[]> {
 
 export async function saveRental(rental: Partial<RentalContract>): Promise<boolean> {
   try {
+    // 1. Önce doğrudan upsert dene
     const { error } = await supabase.from("rentals").upsert(rental);
-    return !error;
-  } catch {
+    if (!error) return true;
+
+    // 2. Eğer şema uyumsuzluğu varsa (isStamped / stampedAt / paymentPeriod kolonu henüz veritabanında açılmamışsa)
+    // Güvenli kolonlara indirge ve ek metaveriyi notes alanına göm
+    const safePayload: any = {
+      id: rental.id,
+      propertyId: rental.propertyId || null,
+      propertyTitle: rental.propertyTitle || "Kira Sözleşmesi",
+      region: rental.region || null,
+      tenantCustomerId: rental.tenantCustomerId || null,
+      tenantName: rental.tenantName || "Kiracı",
+      tenantPhone: rental.tenantPhone || null,
+      landlordCustomerId: rental.landlordCustomerId || null,
+      landlordName: rental.landlordName || "Mal Sahibi",
+      landlordPhone: rental.landlordPhone || null,
+      monthlyRent: rental.monthlyRent || 0,
+      currency: rental.currency || "GBP",
+      dueDay: rental.dueDay || 5,
+      contractStart: rental.contractStart || null,
+      contractEnd: rental.contractEnd || null,
+      depositAmount: rental.depositAmount || 0,
+      active: rental.active !== false,
+      notes: rental.notes || null,
+      assignedToId: rental.assignedToId || null,
+      assignedToName: rental.assignedToName || null,
+      createdAt: rental.createdAt || new Date().toISOString(),
+      payments: rental.payments || [],
+    };
+
+    if (rental.isStamped || rental.stampedAt || rental.paymentPeriod) {
+      const meta = {
+        isStamped: rental.isStamped,
+        stampedAt: rental.stampedAt,
+        paymentPeriod: rental.paymentPeriod,
+      };
+      const cleanNotes = (safePayload.notes || "").replace(/<!--RENTAL_META:.*?-->/g, "").trim();
+      safePayload.notes = cleanNotes
+        ? `${cleanNotes} <!--RENTAL_META:${JSON.stringify(meta)}-->`
+        : `<!--RENTAL_META:${JSON.stringify(meta)}-->`;
+    }
+
+    const { error: safeError } = await supabase.from("rentals").upsert(safePayload);
+    if (safeError) {
+      console.error("Kritik: saveRental güvenli payload ile de başarısız oldu:", safeError);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("Kritik: saveRental istisnası:", err);
     return false;
   }
 }

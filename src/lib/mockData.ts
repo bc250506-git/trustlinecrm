@@ -179,9 +179,9 @@ export const initialAutomationRules: AutomationRule[] = [
     id: "rule-auto-match",
     name: "Akıllı Portföy - Alıcı Eşleşme Bildirimi",
     description: "Yeni bir portföy sisteme girildiğinde havuzdaki alıcılarla otomatik eşleştirip sorumlu danışmanlara anlık bildirim atar.",
-    enabled: true,
+    enabled: false,
     category: "matchmaker",
-    lastTriggeredAt: "Bugün 10:30",
+    lastTriggeredAt: "Devre Dışı",
   },
   {
     id: "rule-lead-decay",
@@ -267,9 +267,9 @@ export const initialAutomationRules: AutomationRule[] = [
     id: "rule-missing-mandate",
     name: "Tek Yetki Sözleşmesi Eksik Portföy Uyarısı",
     description: "Canlı yayında olup sisteme Tek Yetki Sözleşmesi bağlanmamış mülkler için yetki belgesi alma hatırlatması yapar.",
-    enabled: true,
+    enabled: false,
     category: "mandate",
-    lastTriggeredAt: "Bugün 09:00",
+    lastTriggeredAt: "Devre Dışı",
   },
   {
     id: "rule-internal-deal-notify",

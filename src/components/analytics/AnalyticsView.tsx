@@ -49,21 +49,29 @@ import {
   Legend,
 } from "recharts";
 
-// Yıllık temel aylar listesi ve referans verisi
-const ANALYTICS_MONTH_LIST = [
-  { key: "2026-01", label: "Ocak 2026", short: "Oca 26", volume: 380000, commission: 19000, advisor: 11400, office: 7600, deals: 2 },
-  { key: "2026-02", label: "Şubat 2026", short: "Şub 26", volume: 420000, commission: 21000, advisor: 12600, office: 8400, deals: 2 },
-  { key: "2026-03", label: "Mart 2026", short: "Mar 26", volume: 460000, commission: 23000, advisor: 13800, office: 9200, deals: 3 },
-  { key: "2026-04", label: "Nisan 2026", short: "Nis 26", volume: 620000, commission: 31000, advisor: 18600, office: 12400, deals: 4 },
-  { key: "2026-05", label: "Mayıs 2026", short: "May 26", volume: 450000, commission: 22500, advisor: 13500, office: 9000, deals: 2 },
-  { key: "2026-06", label: "Haziran 2026", short: "Haz 26", volume: 680000, commission: 34000, advisor: 20400, office: 13600, deals: 3 },
-  { key: "2026-07", label: "Temmuz 2026", short: "Tem 26", volume: 540000, commission: 27000, advisor: 16200, office: 10800, deals: 2 },
-  { key: "2026-08", label: "Ağustos 2026", short: "Ağu 26", volume: 780000, commission: 39000, advisor: 23400, office: 15600, deals: 3 },
-  { key: "2026-09", label: "Eylül 2026", short: "Eyl 26", volume: 890000, commission: 44500, advisor: 26700, office: 17800, deals: 4 },
-  { key: "2026-10", label: "Ekim 2026", short: "Eki 26", volume: 1120000, commission: 56000, advisor: 33600, office: 22400, deals: 5 },
-  { key: "2026-11", label: "Kasım 2026", short: "Kas 26", volume: 750000, commission: 37500, advisor: 22500, office: 15000, deals: 3 },
-  { key: "2026-12", label: "Aralık 2026", short: "Ara 26", volume: 980000, commission: 49000, advisor: 29400, office: 19600, deals: 4 },
-];
+// Yıllık temel aylar listesi şablonu (Dinamik gerçek anlaşmalardan hesaplanır)
+const MONTH_LABELS: Record<string, { label: string; short: string }> = {
+  "01": { label: "Ocak", short: "Oca" },
+  "02": { label: "Şubat", short: "Şub" },
+  "03": { label: "Mart", short: "Mar" },
+  "04": { label: "Nisan", short: "Nis" },
+  "05": { label: "Mayıs", short: "May" },
+  "06": { label: "Haziran", short: "Haz" },
+  "07": { label: "Temmuz", short: "Tem" },
+  "08": { label: "Ağustos", short: "Ağu" },
+  "09": { label: "Eylül", short: "Eyl" },
+  "10": { label: "Ekim", short: "Eki" },
+  "11": { label: "Kasım", short: "Kas" },
+  "12": { label: "Aralık", short: "Ara" },
+};
+
+function getYearMonthList(year: number = 2026) {
+  return Object.entries(MONTH_LABELS).map(([mNum, mInfo]) => ({
+    key: `${year}-${mNum}`,
+    label: `${mInfo.label} ${year}`,
+    short: `${mInfo.short} ${String(year).slice(2)}`,
+  }));
+}
 
 // KKTC Sterlin (GBP) bazlı para birimi dönüştürücüsü
 const convertToGbp = (amount: number, currency: Currency): number => {
@@ -139,60 +147,97 @@ export function AnalyticsView() {
   // Seçili Döneme Göre Filtrelenmiş Anlaşmalar
   const filteredDeals = useMemo(() => {
     if (selectedMonth) {
-      const matching = closedDeals.filter((d) => {
+      return closedDeals.filter((d) => {
         const dateStr = d.closingDate || d.createdAt;
         return dateStr && dateStr.startsWith(selectedMonth);
       });
-      // Eğer bu ay için spesifik kayıt azsa genel havuzu bağlama sadık şekilde göster
-      return matching.length > 0 ? matching : closedDeals;
     }
     return closedDeals;
   }, [closedDeals, selectedMonth]);
 
-  // 1. AYLIK VEYA SEÇİLİ AYA AİT CİRO VE KOMİSYON TRENDİ (GBP BAZINDA)
+  // 1. AYLIK VEYA SEÇİLİ AYA AİT CİRO VE KOMİSYON TRENDİ (GBP BAZINDA - TAM GERÇEK VERİLER)
   const monthlyTrendData = useMemo(() => {
+    const currentYear = 2026;
+    const months = getYearMonthList(currentYear);
+
+    const baseList = months.map((m) => {
+      const monthDeals = closedDeals.filter((d) => {
+        const dateStr = d.closingDate || d.createdAt || "";
+        return dateStr.startsWith(m.key);
+      });
+
+      const volume = monthDeals.reduce(
+        (sum, d) => sum + convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency),
+        0
+      );
+      const commission = monthDeals.reduce(
+        (sum, d) =>
+          sum +
+          convertToGbp(d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0), d.currency),
+        0
+      );
+      const advisor = monthDeals.reduce((sum, d) => {
+        const comm = convertToGbp(
+          d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
+          d.currency
+        );
+        const rate = d.advisorShareRate ?? 60;
+        return sum + Math.round((comm * rate) / 100);
+      }, 0);
+      const office = Math.max(0, commission - advisor);
+
+      return {
+        key: m.key,
+        name: m.short,
+        volume,
+        commission,
+        advisor,
+        office,
+        deals: monthDeals.length,
+      };
+    });
+
     if (timeRange === "month" && selectedMonth) {
-      const monthObj = ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth) || ANALYTICS_MONTH_LIST[9];
+      const monthObj = baseList.find((m) => m.key === selectedMonth) || {
+        key: selectedMonth,
+        name: selectedMonth,
+        volume: 0,
+        commission: 0,
+        advisor: 0,
+        office: 0,
+        deals: 0,
+      };
       return [
         {
-          name: `${monthObj.short} / 1. Hf`,
-          volume: Math.round(monthObj.volume * 0.22),
-          commission: Math.round(monthObj.commission * 0.22),
-          advisor: Math.round(monthObj.advisor * 0.22),
-          office: Math.round(monthObj.office * 0.22),
+          name: `${monthObj.name} / 1. Hf`,
+          volume: Math.round(monthObj.volume * 0.25),
+          commission: Math.round(monthObj.commission * 0.25),
+          advisor: Math.round(monthObj.advisor * 0.25),
+          office: Math.round(monthObj.office * 0.25),
         },
         {
-          name: `${monthObj.short} / 2. Hf`,
-          volume: Math.round(monthObj.volume * 0.28),
-          commission: Math.round(monthObj.commission * 0.28),
-          advisor: Math.round(monthObj.advisor * 0.28),
-          office: Math.round(monthObj.office * 0.28),
+          name: `${monthObj.name} / 2. Hf`,
+          volume: Math.round(monthObj.volume * 0.25),
+          commission: Math.round(monthObj.commission * 0.25),
+          advisor: Math.round(monthObj.advisor * 0.25),
+          office: Math.round(monthObj.office * 0.25),
         },
         {
-          name: `${monthObj.short} / 3. Hf`,
-          volume: Math.round(monthObj.volume * 0.24),
-          commission: Math.round(monthObj.commission * 0.24),
-          advisor: Math.round(monthObj.advisor * 0.24),
-          office: Math.round(monthObj.office * 0.24),
+          name: `${monthObj.name} / 3. Hf`,
+          volume: Math.round(monthObj.volume * 0.25),
+          commission: Math.round(monthObj.commission * 0.25),
+          advisor: Math.round(monthObj.advisor * 0.25),
+          office: Math.round(monthObj.office * 0.25),
         },
         {
-          name: `${monthObj.short} / 4. Hf`,
-          volume: Math.round(monthObj.volume * 0.26),
-          commission: Math.round(monthObj.commission * 0.26),
-          advisor: Math.round(monthObj.advisor * 0.26),
-          office: Math.round(monthObj.office * 0.26),
+          name: `${monthObj.name} / 4. Hf`,
+          volume: Math.round(monthObj.volume * 0.25),
+          commission: Math.round(monthObj.commission * 0.25),
+          advisor: Math.round(monthObj.advisor * 0.25),
+          office: Math.round(monthObj.office * 0.25),
         },
       ];
     }
-
-    const baseList = ANALYTICS_MONTH_LIST.map((m) => ({
-      key: m.key,
-      name: m.short,
-      volume: m.volume,
-      commission: m.commission,
-      advisor: m.advisor,
-      office: m.office,
-    }));
 
     if (timeRange === "30d") {
       return baseList.slice(8, 10); // Eylül & Ekim
@@ -201,7 +246,7 @@ export function AnalyticsView() {
       return baseList.slice(4, 10); // Mayıs - Ekim (Son 6 Ay)
     }
     return baseList; // Tüm Yıl (12 Ay)
-  }, [timeRange, selectedMonth]);
+  }, [timeRange, selectedMonth, closedDeals]);
 
   // 2. EN ÇOK İŞLEM KAPATILAN MÜLK TİPLERİ (PROPERTY TYPES)
   const propertyTypeStats = useMemo(() => {
@@ -599,7 +644,7 @@ export function AnalyticsView() {
           <div className="flex items-center gap-2">
             <Calendar className="w-4 h-4 text-[#00adb5] shrink-0" />
             <span className="font-bold text-[#1d2566]">
-              {ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label || selectedMonth} Ayı İncelemesi
+              {monthDisplayText} Ayı İncelemesi
             </span>
             <span className="hidden md:inline text-slate-400">|</span>
             <span className="hidden md:inline text-slate-600">
@@ -709,7 +754,7 @@ export function AnalyticsView() {
               <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-[#00adb5]" />
                 {selectedMonth
-                  ? `${ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label || selectedMonth} - Haftalık Kapanış Hacmi & Komisyon Paylaşımı (GBP - £)`
+                  ? `${monthDisplayText} - Haftalık Kapanış Hacmi & Komisyon Paylaşımı (GBP - £)`
                   : "Dönemsel Satış Hacmi & Komisyon Paylaşım Eğrisi (GBP - £)"}
               </h3>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -718,7 +763,7 @@ export function AnalyticsView() {
             </div>
             <p className="text-[11px] text-slate-500">
               {selectedMonth
-                ? `${ANALYTICS_MONTH_LIST.find((m) => m.key === selectedMonth)?.label} ayının haftalık komisyon üretimi ve ofis / danışman net hak edişleri.`
+                ? `${monthDisplayText} döneminin haftalık komisyon üretimi ve ofis / danışman net hak edişleri.`
                 : "Aylık toplam komisyon üretimi ve ofis / danışman net hak edişlerinin karşılaştırmalı trendi."}
             </p>
           </div>

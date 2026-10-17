@@ -234,6 +234,9 @@ CREATE TABLE rentals (
     "contractEnd" TEXT,
     "depositAmount" NUMERIC(15,2) DEFAULT 0,
     active BOOLEAN DEFAULT TRUE,
+    "isStamped" BOOLEAN DEFAULT FALSE,
+    "stampedAt" TEXT,
+    "paymentPeriod" TEXT DEFAULT 'monthly', -- monthly, quarterly, semi_annual, annual
     notes TEXT,
     "assignedToId" TEXT,
     "assignedToName" TEXT,

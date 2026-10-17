@@ -11,8 +11,10 @@ export function formatCustomerCategory(category?: string | CustomerCategory): st
       return "Alıcı Adayı";
     case "SELLER":
       return "Satıcı";
+    case "SELLER_AND_BUYER":
+      return "Satıcı & Alıcı Adayı";
     case "TENANT":
-      return "Kiracı Adayı";
+      return "Kiracı";
     case "LANDLORD":
       return "Ev Sahibi";
     case "INVESTOR":
@@ -266,3 +268,75 @@ export function cleanWhatsAppNumber(phone: string | undefined | null): string {
   }
   return `90${digits}`;
 }
+
+/**
+ * Randevu ve ajanda saatini kullanıcının girdiği yerel saate sadık kalarak ISO formatına dönüştürür.
+ * Örneğin: date="2026-10-20", time="10:00" -> Yerel saatle oluşturulup toISOString() üretir.
+ * Bu sayede veritabanı (TIMESTAMPTZ) ve tarayıcılar arasında saat kayması (+3 saat ekleme) engellenir.
+ */
+export function combineLocalDateAndTimeToIso(dateStr: string, timeStr?: string): string {
+  if (!dateStr) return new Date().toISOString();
+  const cleanTime = timeStr && timeStr.trim() ? timeStr.trim() : "10:00";
+  const [hours, minutes] = cleanTime.split(":").map((v) => Number(v) || 0);
+  const [year, month, day] = dateStr.split("-").map((v) => Number(v) || 0);
+
+  const localDate = new Date(year, month - 1, day, hours, minutes, 0, 0);
+  return localDate.toISOString();
+}
+
+/**
+ * Veritabanından gelen dueAt değerinden yerel tarih ("YYYY-MM-DD") ve saati ("HH:mm") çözer.
+ * Düzenleme modalında ve form alanlarında tam girilen saati gösterir.
+ */
+export function extractLocalDateAndTime(dueAtStr?: string): { date: string; time: string } {
+  if (!dueAtStr) {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const d = String(now.getDate()).padStart(2, "0");
+    return { date: `${y}-${m}-${d}`, time: "10:00" };
+  }
+
+  // Eğer doğrudan saat dilimsiz "YYYY-MM-DDTHH:mm:ss" kaydedilmiş eski bir veriyse
+  if (dueAtStr.includes("T") && !dueAtStr.endsWith("Z") && !dueAtStr.includes("+")) {
+    const [dPart, tPart] = dueAtStr.split("T");
+    return {
+      date: dPart,
+      time: tPart.slice(0, 5) || "10:00",
+    };
+  }
+
+  const dt = new Date(dueAtStr);
+  if (isNaN(dt.getTime())) {
+    const parts = dueAtStr.split("T");
+    return { date: parts[0] || "", time: parts[1]?.slice(0, 5) || "10:00" };
+  }
+
+  const year = dt.getFullYear();
+  const month = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  const hours = String(dt.getHours()).padStart(2, "0");
+  const minutes = String(dt.getMinutes()).padStart(2, "0");
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`,
+  };
+}
+
+/**
+ * Görev ve randevunun saatini kartlarda ve listelerde tam yerel saat formatında ("10:00") döndürür.
+ */
+export function formatFollowUpTime(dueAtStr?: string): string {
+  if (!dueAtStr) return "10:00";
+  return extractLocalDateAndTime(dueAtStr).time;
+}
+
+/**
+ * Görev ve randevunun gününü ("YYYY-MM-DD") yerel saat dilimine göre döndürür.
+ */
+export function formatFollowUpDate(dueAtStr?: string): string {
+  if (!dueAtStr) return "";
+  return extractLocalDateAndTime(dueAtStr).date;
+}
+

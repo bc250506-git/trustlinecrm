@@ -292,9 +292,9 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
         ? "Satıcı"
         : c.category === "TENANT"
         ? "Kiracı"
-        : c.category === "LANDLORD"
-        ? "Ev Sahibi"
-        : "Yatırımcı",
+        : c.category === "SELLER_AND_BUYER"
+        ? "Satıcı & Alıcı"
+        : "Diğer",
     "Sıcaklık":
       c.temperature === "hot"
         ? "🔥 Sıcak (Acil)"

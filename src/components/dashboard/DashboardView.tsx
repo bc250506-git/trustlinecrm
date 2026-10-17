@@ -46,6 +46,7 @@ import {
   formatCustomerCategory,
   formatCustomerTemperature,
   cleanWhatsAppNumber,
+  formatFollowUpTime,
 } from "@/lib/formatters";
 
 interface DashboardViewProps {
@@ -85,7 +86,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   // Sayım Mantığı
   const hotCustomers = customers.filter((c) => !c.deletedAt && c.temperature === "hot");
   const activeProperties = properties.filter((p) => !p.deletedAt && p.status === "AVAILABLE");
-  const aiApprovedTodayCount = 2; // Simüle edilen bugünkü broker onaylı lead
+  const aiApprovedTodayCount = deals.filter((d) => Boolean(d.brokerApproval)).length;
 
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
   const [overdueAndTodayTasks, setOverdueAndTodayTasks] = useState<any[]>([]);
@@ -662,10 +663,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                               </span>
                             )}
                             <span className="text-xs font-mono text-slate-500 font-medium">
-                              {new Date(task.dueAt).toLocaleTimeString("tr-TR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {formatFollowUpTime(task.dueAt)}
                             </span>
                           </div>
 
@@ -821,10 +819,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                             month: "short",
                             weekday: "short",
                           })}{" "}
-                          {new Date(task.dueAt).toLocaleTimeString("tr-TR", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {formatFollowUpTime(task.dueAt)}
                         </span>
                         <div>
                           <div className="font-semibold text-slate-800">

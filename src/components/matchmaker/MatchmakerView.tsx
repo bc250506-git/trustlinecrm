@@ -47,15 +47,15 @@ export function MatchmakerView({
 
   // Müşteriye Portföy Bul için uygun adaylar:
   // SATICI ve AKTİF KİRACI (ev tutmuş, kira takibinde olan) kişilerin portföy aramaya ihtiyacı yoktur!
-  // Yalnızca ALICI ve KİRACI ADAYLARI aranır ve önerilir.
+  // Yalnızca ALICI, KİRACI ADAYLARI ve SATICI&ALICI olanlar aranır ve önerilir.
   const eligibleSearchCustomers = customers.filter((c) => {
     if (c.deletedAt) return false;
-    // Satıcılar kesinlikle portföy aramaz
-    if (c.category === "SELLER") return false;
+    // Saf satıcılar kesinlikle portföy aramaz (ancak aynı zamanda alıcı ise arar)
+    if (c.category === "SELLER" && !c.isAlsoBuyer) return false;
     // Aktif sözleşmesi olan kiracılar ev bulmuştur, arayışta değildir
     if (c.category === "TENANT" && isCustomerActiveTenant(c, rentals)) return false;
-    // Yalnızca ALICI ve KİRACI ADAYLARI
-    return c.category === "BUYER" || c.category === "TENANT";
+    // Yalnızca ALICI, KİRACI ADAYLARI veya ÇİFT ROLLÜLER
+    return c.category === "BUYER" || c.category === "TENANT" || c.category === "SELLER_AND_BUYER" || !!c.isAlsoBuyer;
   });
 
   const [mode, setMode] = useState<"customer_to_property" | "property_to_customer">(
@@ -68,7 +68,7 @@ export function MatchmakerView({
     if (
       initialCustomer &&
       !initialCustomer.deletedAt &&
-      initialCustomer.category !== "SELLER" &&
+      (initialCustomer.category !== "SELLER" || initialCustomer.isAlsoBuyer) &&
       !(initialCustomer.category === "TENANT" && isCustomerActiveTenant(initialCustomer, rentals))
     ) {
       return initialCustomer.id;
@@ -173,7 +173,7 @@ export function MatchmakerView({
                 ) : (
                   eligibleSearchCustomers.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} ({c.category === "BUYER" ? "Alıcı" : "Kiracı Adayı"} - {c.budget?.toLocaleString("tr-TR")}{" "}
+                      {c.fullName} ({c.category === "BUYER" ? "Alıcı" : c.category === "SELLER_AND_BUYER" || c.isAlsoBuyer ? "Satıcı & Alıcı" : "Kiracı Adayı"} - {c.budget?.toLocaleString("tr-TR")}{" "}
                       {c.budgetCurrency})
                     </option>
                   ))
@@ -207,7 +207,7 @@ export function MatchmakerView({
                   </span>
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                      {selectedCustomer.category === "BUYER" ? "ALICI" : "KİRACI ADAYI"}
+                      {selectedCustomer.category === "BUYER" ? "ALICI" : selectedCustomer.category === "SELLER_AND_BUYER" || selectedCustomer.isAlsoBuyer ? "SATICI & ALICI" : "KİRACI ADAYI"}
                     </span>
                     {selectedCustomer.isVip && (
                       <span className="text-[9px] font-mono uppercase bg-amber-500 text-black px-1.5 py-0.5 font-bold flex items-center gap-0.5">
@@ -411,7 +411,7 @@ export function MatchmakerView({
               ) : matchesForCustomer.length === 0 ? (
                 <div className="sharp-card p-8 text-center text-slate-500 font-mono text-xs">
                   <p className="font-semibold text-slate-600">
-                    Bu {selectedCustomer.category === "BUYER" ? "alıcıya" : "kiracı adayına"} uygun aktif {selectedCustomer.category === "BUYER" ? "satılık" : "kiralık"} portföy bulunamadı.
+                    Bu {selectedCustomer.category === "TENANT" ? "kiracı adayına" : "alıcıya"} uygun aktif {selectedCustomer.category === "TENANT" ? "kiralık" : "satılık"} portföy bulunamadı.
                   </p>
                 </div>
               ) : (
@@ -568,12 +568,12 @@ export function MatchmakerView({
                         </span>
 
                         <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/30 font-bold">
-                          {customer.category === "BUYER" ? "Alıcı" : "Kiracı Adayı"}
+                          {customer.category === "BUYER" ? "Alıcı" : customer.category === "SELLER_AND_BUYER" || customer.isAlsoBuyer ? "Satıcı & Alıcı" : "Kiracı Adayı"}
                         </span>
 
                         {customer.temperature === "hot" ? (
                           <span className="text-[10px] font-mono px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-300 font-bold flex items-center gap-1">
-                            <Flame className="w-3 h-3 fill-rose-600" /> {customer.category === "BUYER" ? "SICAK ALICI" : "SICAK KİRACI ADAYI"}
+                            <Flame className="w-3 h-3 fill-rose-600" /> {customer.category === "TENANT" ? "SICAK KİRACI ADAYI" : "SICAK ALICI"}
                           </span>
                         ) : (
                           <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 text-slate-600 border border-slate-200 font-medium">

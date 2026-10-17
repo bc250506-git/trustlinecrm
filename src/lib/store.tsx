@@ -208,6 +208,7 @@ const CURRENT_USER_STORAGE_KEY = "trustline_crm_current_user_kktc_v1";
 const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
 const DELETED_DEALS_KEY = "trustline_crm_deleted_deals_v1";
 const DELETED_MANDATES_KEY = "trustline_crm_deleted_mandates_v1";
+const DELETED_RENTALS_KEY = "trustline_crm_deleted_rentals_v1";
 
 function getDeletedIds(key: string): Set<string> {
   if (typeof window !== "undefined") {
@@ -317,9 +318,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return raw.filter((d) => !deleted.has(d.id));
   });
 
-  const [rentals, setRentals] = useState<RentalContract[]>(() =>
-    loadFromStorage(RENTALS_STORAGE_KEY, initialRentals)
-  );
+  const [rentals, setRentals] = useState<RentalContract[]>(() => {
+    const raw = loadFromStorage(RENTALS_STORAGE_KEY, initialRentals);
+    const deleted = getDeletedIds(DELETED_RENTALS_KEY);
+    return raw.filter((r) => !deleted.has(r.id));
+  });
 
   const [mandates, setMandates] = useState<MandateContract[]>(() => {
     const raw = loadFromStorage(MANDATES_STORAGE_KEY, initialMandates);
@@ -418,8 +421,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
 
-    // 2. Canlı veritabanındaki tüm güncel operasyonel verileri (müşteriler, portföyler, işlemler, kiralar vb.) otomatik çek
-    Promise.all([
+    // 2. Canlı veritabanındaki tüm güncel operasyonel verileri (müşteriler, portföyler, işlemler, kiralar vb.) bağımsız ve dayanıklı çek
+    Promise.allSettled([
       getCustomers(),
       getProperties(),
       getDeals(),
@@ -427,15 +430,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getMandates(),
       getFollowUps(),
     ])
-      .then(([cloudCust, cloudProp, cloudDeals, cloudRent, cloudMand, cloudFollow]) => {
+      .then(([custRes, propRes, dealsRes, rentRes, mandRes, followRes]) => {
         if (!isMounted) return;
         const deletedDealIds = getDeletedIds(DELETED_DEALS_KEY);
         const deletedMandateIds = getDeletedIds(DELETED_MANDATES_KEY);
+        const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);
 
-        if (cloudCust && cloudCust.length > 0) setCustomers(cloudCust);
-        if (cloudProp && cloudProp.length > 0) setProperties(cloudProp);
+        if (custRes.status === "fulfilled" && custRes.value && custRes.value.length > 0) {
+          setCustomers(custRes.value);
+          try {
+            localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(custRes.value));
+          } catch {}
+        }
 
-        if (Array.isArray(cloudDeals)) {
+        if (propRes.status === "fulfilled" && propRes.value && propRes.value.length > 0) {
+          setProperties(propRes.value);
+          try {
+            localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(propRes.value));
+          } catch {}
+        }
+
+        if (dealsRes.status === "fulfilled" && Array.isArray(dealsRes.value)) {
+          const cloudDeals = dealsRes.value;
           const filteredDeals = cloudDeals.filter((d) => !deletedDealIds.has(d.id));
           setDeals(filteredDeals);
           try {
@@ -449,9 +465,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
-        if (cloudRent && cloudRent.length > 0) setRentals(cloudRent);
+        if (rentRes.status === "fulfilled" && Array.isArray(rentRes.value)) {
+          const cloudRentals = rentRes.value.filter((r) => !deletedRentalIds.has(r.id));
+          setRentals((prev) => {
+            const cloudMap = new Map(cloudRentals.map((r) => [r.id, r]));
+            const unsavedLocal: RentalContract[] = [];
+            for (const localR of prev) {
+              if (!deletedRentalIds.has(localR.id) && !cloudMap.has(localR.id)) {
+                unsavedLocal.push(localR);
+                // Schema/fallback aktif olduğundan buluta kaydet
+                saveRental(localR).catch(() => {});
+              }
+            }
+            const merged = [...cloudRentals, ...unsavedLocal];
+            try {
+              localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+          // Silinmiş eski bulut kayıtlarını temizle
+          rentRes.value.forEach((r) => {
+            if (deletedRentalIds.has(r.id)) {
+              deleteRentalFromDb(r.id).catch(() => {});
+            }
+          });
+        }
 
-        if (Array.isArray(cloudMand)) {
+        if (mandRes.status === "fulfilled" && Array.isArray(mandRes.value)) {
+          const cloudMand = mandRes.value;
           const filteredMand = cloudMand.filter((m) => !deletedMandateIds.has(m.id));
           setMandates(filteredMand);
           try {
@@ -465,7 +506,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           });
         }
 
-        if (cloudFollow && cloudFollow.length > 0) setFollowUps(cloudFollow);
+        if (followRes.status === "fulfilled" && followRes.value && followRes.value.length > 0) {
+          setFollowUps(followRes.value);
+          try {
+            localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(followRes.value));
+          } catch {}
+        }
       })
       .catch((err) => {
         console.warn("Supabase veri senkronizasyonu sırasında hata, yerel veriler korundu:", err);
@@ -528,6 +574,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               : [newRecord, ...prev];
           });
         } else if (table === "rentals" && newRecord) {
+          const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);
+          if (deletedRentalIds.has(newRecord.id)) {
+            deleteRentalFromDb(newRecord.id).catch(() => {});
+            return;
+          }
           setRentals((prev) => {
             const exists = prev.some((r) => r.id === newRecord.id);
             return exists
@@ -559,10 +610,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (deletedId) {
           if (table === "customers") setCustomers((prev) => prev.filter((c) => c.id !== deletedId));
           else if (table === "properties") setProperties((prev) => prev.filter((p) => p.id !== deletedId));
-          else if (table === "deals") setDeals((prev) => prev.filter((d) => d.id !== deletedId));
-          else if (table === "rentals") setRentals((prev) => prev.filter((r) => r.id !== deletedId));
-          else if (table === "mandates") setMandates((prev) => prev.filter((m) => m.id !== deletedId));
-          else if (table === "follow_ups") setFollowUps((prev) => prev.filter((f) => f.id !== deletedId));
+          else if (table === "deals") {
+            addDeletedId(DELETED_DEALS_KEY, deletedId);
+            setDeals((prev) => prev.filter((d) => d.id !== deletedId));
+          } else if (table === "rentals") {
+            addDeletedId(DELETED_RENTALS_KEY, deletedId);
+            setRentals((prev) => prev.filter((r) => r.id !== deletedId));
+          } else if (table === "mandates") {
+            addDeletedId(DELETED_MANDATES_KEY, deletedId);
+            setMandates((prev) => prev.filter((m) => m.id !== deletedId));
+          } else if (table === "follow_ups") setFollowUps((prev) => prev.filter((f) => f.id !== deletedId));
         }
       }
     });
@@ -1118,48 +1175,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
-    // 11. Tek Yetki Sözleşmesi Eksik Portföy Uyarısı
-    if (isRuleEnabled("rule-missing-mandate")) {
-      properties.forEach((p) => {
-        if (p.status !== "AVAILABLE" || p.deletedAt) return;
-        const isAssigned = currentUser.role === "ADMIN" || p.assignedToId === currentUser.id;
-        if (!isAssigned) return;
-
-        const hasMandate = mandates.some(
-          (m) =>
-            (m.propertyId === p.id ||
-              (m.propertyTitle &&
-                p.title &&
-                m.propertyTitle.trim().toLowerCase() === p.title.trim().toLowerCase())) &&
-            m.status !== "cancelled"
-        );
-
-        if (!hasMandate) {
-          const notifId = `notif-missing-mandate-${p.id}`;
-          const alreadyNotified = notifications.some(
-            (n) => n.targetId === p.id && n.type === "missing_mandate"
-          );
-          if (!alreadyNotified) {
-            missingMandateAlerts++;
-            newNotifications.push({
-              id: notifId,
-              type: "missing_mandate",
-              title: `📑 Tek Yetki Belgesi Eksik: ${p.title}`,
-              message: `${p.title} portföyünüz yayında ancak sisteme Tek Yetki Sözleşmesi eklenmemiştir. Mal sahibi (${p.ownerName || "Bilinmiyor"}) ile tek yetkili aracılık protokolü imzalayın.`,
-              targetTab: "mandates",
-              targetId: p.id,
-              whatsappPhone: p.ownerPhone,
-              whatsappDraft: p.ownerPhone
-                ? `Merhaba ${p.ownerName || "Sayın Mülk Sahibimiz"}, ${p.title} gayrimenkulünüz için ofisimizin kurumsal tek yetkili pazarlama çalışmalarını başlatmak ve yetki belgesini imzalamak üzere görüşebilir miyiz?`
-                : undefined,
-              read: false,
-              createdAt: "Yetki Belgesiz",
-              urgency: "medium",
-            });
-          }
-        }
-      });
-    }
+    // 11. (Tek Yetki Belgesi Eksik Portföy Uyarısı kaldırıldı - Kullanıcı isteği)
 
     if (newNotifications.length > 0) {
       setNotifications((prev) => [...newNotifications, ...prev]);
@@ -1753,36 +1769,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saveProperty(newProperty).catch(() => {});
 
 
-    // Otomatik Eşleşme Bildirimi Robotu
-    const matchRule = automationRules.find((r) => r.id === "rule-auto-match");
-    if ((matchRule?.enabled ?? true) && newProperty.status === "AVAILABLE") {
-      const matched = customers.filter((c) => {
-        if (c.category !== "BUYER") return false;
-        const budgetFits = c.budget ? newProperty.price <= c.budget * 1.25 : true;
-        const regionFits = newProperty.region.toLowerCase().includes(c.region.split("/")[0].trim().toLowerCase());
-        return budgetFits && regionFits;
-      });
-
-      if (matched.length > 0) {
-        const buyerNames = matched.slice(0, 2).map((b) => b.fullName).join(" ve ");
-        setNotifications((prev) => [
-          {
-            id: `notif-match-${newProperty.id}-${Date.now()}`,
-            type: "match",
-            title: `⚡ Yeni Eşleşme: ${newProperty.title}`,
-            message: `Yeni eklenen portföy, alıcı müşterileriniz ${buyerNames}${
-              matched.length > 2 ? ` ve ${matched.length - 2} diğer alıcı` : ""
-            } ile yüksek oranda eşleşiyor.`,
-            targetTab: "matchmaker",
-            targetId: newProperty.id,
-            read: false,
-            createdAt: "Az önce",
-            urgency: "medium",
-          },
-          ...prev,
-        ]);
-      }
-    }
+    // (Otomatik Eşleşme Bildirimi kaldırıldı - Kullanıcı isteği)
 
     return newProperty;
   };
@@ -2368,7 +2355,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const finalAssignedToId = isBroker ? (contractData.assignedToId || currentUser.id) : currentUser.id;
     const finalAssignedToName = isBroker ? (assignedUser.name || currentUser.name) : currentUser.name;
 
-    const payments: RentalMonthPayment[] =
+    let payments: RentalMonthPayment[] =
       contractData.payments && contractData.payments.length > 0
         ? contractData.payments
         : generateRentalPayments(
@@ -2379,6 +2366,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             contractData.currency
           );
 
+    // KKTC Peşin Ödeme Periyotları Kuralı (Item 9):
+    // 3 Aylık, 6 Aylık veya 12 Aylık seçilmişse, sözleşme oluşturulduğunda ilk X ay derhal "paid" olarak işaretlenir.
+    const period = contractData.paymentPeriod || "monthly";
+    const todayStr = new Date().toISOString().split("T")[0];
+    let upfrontCount = 0;
+    if (period === "quarterly") upfrontCount = 3;
+    else if (period === "semi_annual") upfrontCount = 6;
+    else if (period === "annual") upfrontCount = 12;
+
+    if (upfrontCount > 0) {
+      payments = payments.map((p, idx) => {
+        if (idx < upfrontCount) {
+          return {
+            ...p,
+            status: "paid",
+            paidAmount: p.amount,
+            paidDate: todayStr,
+            notes: (p.notes ? p.notes + " • " : "") + `${upfrontCount} Aylık Peşin Tahsilat`,
+          };
+        }
+        return p;
+      });
+    }
+
     const newContract: RentalContract = {
       ...contractData,
       id,
@@ -2386,9 +2397,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       assignedToName: finalAssignedToName,
       createdAt,
       payments,
+      active: true,
+      paymentPeriod: period,
     };
 
-    setRentals((prev) => [newContract, ...prev]);
+    removeDeletedId(DELETED_RENTALS_KEY, newContract.id);
+    setRentals((prev) => [newContract, ...prev.filter((r) => r.id !== newContract.id)]);
     saveRental(newContract).catch(() => {});
 
     // BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (RENTED)
@@ -2475,6 +2489,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu kira sözleşmesi size ait değildir. Yalnızca sahibi veya ofis silebilir.");
       return false;
     }
+    addDeletedId(DELETED_RENTALS_KEY, id);
     setRentals((prev) => {
       const updated = prev.filter((r) => r.id !== id);
       if (typeof window !== "undefined") {
@@ -2704,9 +2719,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
-  const visibleRentals = isBroker
-    ? rentals
-    : rentals.filter((r) => r.assignedToId === currentUser.id);
+  const visibleRentals = rentals;
 
   // Mandates
   const canManageMandate = (mandate: MandateContract) => {
@@ -3010,9 +3023,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         activateUserPassword,
         logout,
         updateUserPassword,
-        updateUserProfile,
-        notifications,
-        automationRules,
+        notifications: notifications.filter(
+          (n) =>
+            n.type !== "match" &&
+            n.type !== "missing_mandate" &&
+            !n.id.startsWith("notif-match") &&
+            !n.id.startsWith("notif-missing-mandate")
+        ),
         markNotificationAsRead,
         markAllNotificationsAsRead,
         deleteNotification,
@@ -3023,6 +3040,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         createManualSnapshot,
         restoreSnapshot,
         removeSnapshot,
+        automationRules,
+        updateUserProfile,
       }}
     >
 

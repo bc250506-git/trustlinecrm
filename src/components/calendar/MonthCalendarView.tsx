@@ -7,6 +7,7 @@ import {
   formatFollowUpKind,
   cleanWhatsAppNumber,
   formatPhoneWithPrefix,
+  formatFollowUpTime,
 } from "@/lib/formatters";
 import {
   Calendar as CalendarIcon,
@@ -694,7 +695,7 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                             task.kind,
                             isDone
                           )} ${isDone ? "line-through opacity-75" : ""}`}
-                          title={`${task.dueAt ? task.dueAt.split("T")[1]?.slice(0, 5) : ""} - ${task.title}`}
+                          title={`${task.dueAt ? formatFollowUpTime(task.dueAt) : ""} - ${task.title}`}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${getKindDot(
@@ -703,7 +704,7 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                             )}`}
                           />
                           <span className="font-bold shrink-0">
-                            {task.dueAt ? task.dueAt.split("T")[1]?.slice(0, 5) : ""}
+                            {task.dueAt ? formatFollowUpTime(task.dueAt) : ""}
                           </span>
                           <span className="truncate">
                             {task.customerName ? `${task.customerName.split(" ")[0]}: ` : ""}
@@ -817,7 +818,7 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                       <div className="flex items-center gap-1.5">
                         <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-[#1d2566] text-white flex items-center gap-1">
                           <Clock className="w-3 h-3 text-[#00adb5]" />
-                          {task.dueAt ? task.dueAt.split("T")[1]?.slice(0, 5) || "10:00" : "10:00"}
+                          {formatFollowUpTime(task.dueAt)}
                         </span>
                         <span
                           className={`px-2 py-0.5 text-[10px] font-mono font-bold border ${getKindColorBadge(

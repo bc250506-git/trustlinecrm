@@ -92,7 +92,12 @@ export function CustomersView({
     return list.filter((c) => {
       if (c.deletedAt) return false;
       if (vipOnly && !c.isVip) return false;
-      if (categoryFilter !== "ALL" && c.category !== categoryFilter) return false;
+      if (categoryFilter !== "ALL") {
+        if (categoryFilter === "BUYER" && c.category !== "BUYER" && c.category !== "SELLER_AND_BUYER") return false;
+        if (categoryFilter === "SELLER" && c.category !== "SELLER" && c.category !== "SELLER_AND_BUYER") return false;
+        if (categoryFilter === "TENANT" && c.category !== "TENANT") return false;
+        if (categoryFilter === "SELLER_AND_BUYER" && c.category !== "SELLER_AND_BUYER") return false;
+      }
       if (temperatureFilter !== "ALL" && c.temperature !== temperatureFilter)
         return false;
 
@@ -215,10 +220,13 @@ export function CustomersView({
                 <td className="py-3 px-4">
                   {(() => {
                     const isActiveTenant = c.category === "TENANT" && isCustomerActiveTenant(c, rentals);
+                    const isDual = c.category === "SELLER_AND_BUYER" || c.isAlsoBuyer;
                     return (
                       <span
                         className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${
-                          c.category === "BUYER"
+                          isDual
+                            ? "bg-purple-50 text-purple-700 border-purple-200"
+                            : c.category === "BUYER"
                             ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
                             : c.category === "SELLER"
                             ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
@@ -227,7 +235,9 @@ export function CustomersView({
                             : "bg-emerald-50 text-emerald-700 border-emerald-200"
                         }`}
                       >
-                        {c.category === "BUYER"
+                        {isDual
+                          ? "Satıcı & Alıcı"
+                          : c.category === "BUYER"
                           ? "Alıcı"
                           : c.category === "SELLER"
                           ? "Satıcı"
@@ -303,8 +313,8 @@ export function CustomersView({
                 {/* Hızlı Aksiyonlar */}
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end gap-1.5">
-                    {/* Eşleştirme Motoru Butonu (Yalnızca ALICI ve KİRACI ADAYLARI için gösterilir) */}
-                    {(c.category === "BUYER" || (c.category === "TENANT" && !isCustomerActiveTenant(c, rentals))) && (
+                    {/* Eşleştirme Motoru Butonu (Yalnızca ALICI, SATICI&ALICI ve KİRACI ADAYLARI için gösterilir) */}
+                    {(c.category === "BUYER" || c.category === "SELLER_AND_BUYER" || c.isAlsoBuyer || (c.category === "TENANT" && !isCustomerActiveTenant(c, rentals))) && (
                       <button
                         onClick={() => onFindMatches(c)}
                         className="px-2.5 py-1 bg-[#00adb5] hover:bg-[#00939a] text-white text-[11px] font-mono flex items-center gap-1 transition cursor-pointer font-bold shadow-2xs"

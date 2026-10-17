@@ -123,6 +123,7 @@ CREATE TABLE properties (
     "listingUrl" TEXT,
     "imageUrl" TEXT,
     photos JSONB DEFAULT '[]'::jsonb,
+    "linkedPropertyId" TEXT, -- Çift İlan (Aynı mülkün diğer Satılık/Kiralık ilanı)
     "deletedAt" TIMESTAMPTZ,
     "createdAt" TIMESTAMPTZ DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ DEFAULT NOW()

@@ -132,6 +132,7 @@ export interface Property {
   listingUrl?: string; // Varsa portal/ilan linki
   imageUrl?: string; // Optimize edilmiş kapak görseli (WebP)
   photos: PropertyPhoto[];
+  linkedPropertyId?: string; // Çift İlan (Aynı mülkün bağımsız diğer Satılık/Kiralık ilanı ID'si)
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;

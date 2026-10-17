@@ -46,6 +46,7 @@ import { PropertyImageUploader } from "./PropertyImageUploader";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddDealModal } from "../modals/AddDealModal";
+import { formatPropertyStatus } from "@/lib/formatters";
 
 interface PropertiesViewProps {
   onFindMatches: (property: Property) => void;
@@ -117,6 +118,11 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
   const [formIsOffMarket, setFormIsOffMarket] = useState(false);
   const [formIsShared, setFormIsShared] = useState(false);
   const [formAssigneeId, setFormAssigneeId] = useState(currentUser.id);
+
+  // Çift İlan (Aynı Portföy Hem Satılık Hem Kiralık) State
+  const [formIsDualListing, setFormIsDualListing] = useState(false);
+  const [formDualPrice, setFormDualPrice] = useState("");
+  const [formDualCurrency, setFormDualCurrency] = useState<Currency>("GBP");
 
   // Mülk Sahibi Seçimi & Arama State
   const [formOwnerCustomerId, setFormOwnerCustomerId] = useState("");
@@ -470,7 +476,7 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
         ]
       : [];
 
-    addProperty({
+    const primaryProp = addProperty({
       title: formTitle,
       region: fullRegion,
       propertyType: formPropertyType,
@@ -496,6 +502,39 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       photos,
     });
 
+    // Çift İlan (Aynı mülk hem Satılık hem Kiralık olarak 2 bağımsız kayıt eklenir)
+    if (formIsDualListing && Number(formDualPrice) > 0) {
+      const oppositeType: "sale" | "rent" = formListingType === "sale" ? "rent" : "sale";
+      const secondaryProp = addProperty({
+        title: formTitle,
+        region: fullRegion,
+        propertyType: formPropertyType,
+        listingType: oppositeType,
+        price: Number(formDualPrice) || 0,
+        currency: formDualCurrency,
+        area: Number(formArea) || 0,
+        rooms: formRooms,
+        status: "AVAILABLE",
+        address: formAddress,
+        ownerCustomerId: formOwnerCustomerId,
+        ownerName: owner?.fullName || "Bilinmiyor",
+        ownerPhone: owner?.phone || "",
+        keyHolder: formKeyHolder,
+        notes: formNotes,
+        publicDescription: formPublicDesc,
+        isOffMarket: formIsOffMarket,
+        listingUrl: formIsOffMarket ? undefined : formListingUrl.trim() || undefined,
+        assignedToId: formAssigneeId,
+        assignedToName: assignedUser?.name,
+        isShared: formIsShared,
+        imageUrl: formImageUrl,
+        photos,
+        linkedPropertyId: primaryProp.id,
+      });
+
+      updateProperty(primaryProp.id, { linkedPropertyId: secondaryProp.id });
+    }
+
     setIsAddModalOpen(false);
     setFormImageUrl(undefined);
     setFormTitle("");
@@ -510,6 +549,47 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     setFormIsOffMarket(false);
     setFormIsShared(false);
     setFormCurrency("GBP");
+    setFormIsDualListing(false);
+    setFormDualPrice("");
+    setFormDualCurrency("GBP");
+  };
+
+  // Mevcut tekil bir ilana sonradan bağımsız Satılık / Kiralık ikizini oluşturma
+  const handleCreateLinkedTwin = (prop: Property) => {
+    const oppType: "sale" | "rent" = prop.listingType === "sale" ? "rent" : "sale";
+    const promptLabel = oppType === "sale" ? "Satış Fiyatı (örn: 250000)" : "Kiralık Fiyatı (örn: 850)";
+    const priceInput = window.prompt(`${prop.title} için ${oppType === "sale" ? "Satılık" : "Kiralık"} bağımsız ilan oluşturulacak. Lütfen ${promptLabel} girin:`);
+    if (!priceInput || isNaN(Number(priceInput)) || Number(priceInput) <= 0) return;
+
+    const twin = addProperty({
+      title: prop.title,
+      region: prop.region,
+      propertyType: prop.propertyType,
+      listingType: oppType,
+      price: Number(priceInput),
+      currency: prop.currency,
+      area: prop.area,
+      rooms: prop.rooms,
+      status: "AVAILABLE",
+      address: prop.address,
+      ownerCustomerId: prop.ownerCustomerId,
+      ownerName: prop.ownerName,
+      ownerPhone: prop.ownerPhone,
+      keyHolder: prop.keyHolder,
+      notes: prop.notes,
+      publicDescription: prop.publicDescription,
+      isOffMarket: prop.isOffMarket,
+      listingUrl: prop.listingUrl,
+      assignedToId: prop.assignedToId,
+      assignedToName: prop.assignedToName,
+      isShared: prop.isShared,
+      imageUrl: prop.imageUrl,
+      photos: prop.photos || [],
+      linkedPropertyId: prop.id,
+    });
+
+    updateProperty(prop.id, { linkedPropertyId: twin.id });
+    setActivePropertyDetail(twin);
   };
 
   // Render Kart Izgarası
@@ -590,6 +670,25 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                           <span>İlansız Portföy</span>
                         </span>
                       )}
+
+                      {/* Çift İlan Rozeti (Satılık / Kiralık İkizi) */}
+                      {p.linkedPropertyId && (() => {
+                        const twin = properties.find((x) => x.id === p.linkedPropertyId && !x.deletedAt);
+                        if (!twin) return null;
+                        return (
+                          <span
+                            className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 shadow-2xs ${
+                              twin.listingType === "sale"
+                                ? "bg-cyan-50 text-cyan-800 border-cyan-300"
+                                : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                            }`}
+                            title={`Aynı mülkün bağımsız ${twin.listingType === "sale" ? "Satılık" : "Kiralık"} ilanı da mevcuttur (${twin.price.toLocaleString("tr-TR")} ${twin.currency}). Statüleri bağımsızdır.`}
+                          >
+                            <span>🔗 {twin.listingType === "sale" ? "Satılık Eşi Var" : "Kiralık Eşi Var"}</span>
+                            <span className="text-[9px] opacity-75">({twin.price.toLocaleString("tr-TR")} {twin.currency})</span>
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {canManageProperty(p) && (
@@ -1238,6 +1337,50 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                 </div>
               </div>
 
+              {/* ÇİFT İLAN BİLGİLENDİRME VE GEÇİŞ BANDI */}
+              {activePropertyDetail.linkedPropertyId ? (() => {
+                const linked = properties.find((x) => x.id === activePropertyDetail.linkedPropertyId && !x.deletedAt);
+                if (!linked) return null;
+                return (
+                  <div className="p-3 bg-cyan-50/80 border border-cyan-200 text-xs font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-[#1d2566] flex items-center gap-1">
+                        <span>🔗 Çift İlan:</span>
+                        <span className={linked.listingType === "sale" ? "text-[#00adb5]" : "text-emerald-700"}>
+                          {linked.listingType === "sale" ? "Satılık İlanı" : "Kiralık İlanı"}
+                        </span>
+                      </span>
+                      <span>•</span>
+                      <span className="font-bold">{linked.price.toLocaleString("tr-TR")} {linked.currency}</span>
+                      <span className="text-slate-400">|</span>
+                      <span className="text-slate-600">
+                        Statü: <strong className="text-slate-800">{formatPropertyStatus(linked.status)}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActivePropertyDetail(linked)}
+                      className="px-2.5 py-1 bg-white border border-cyan-300 hover:border-[#00adb5] text-[#1d2566] font-bold text-[11px] cursor-pointer shadow-2xs shrink-0"
+                    >
+                      Diğer İlana Git →
+                    </button>
+                  </div>
+                );
+              })() : (
+                <div className="p-2.5 bg-slate-50 border border-dashed border-slate-300 text-xs font-mono flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="text-slate-600">
+                    Bu mülk şu anda yalnızca <strong>{activePropertyDetail.listingType === "sale" ? "Satılık" : "Kiralık"}</strong> olarak kayıtlı.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCreateLinkedTwin(activePropertyDetail)}
+                    className="px-2.5 py-1 bg-cyan-50 hover:bg-cyan-100 border border-cyan-300 text-[#00adb5] font-bold text-[11px] cursor-pointer shrink-0"
+                  >
+                    + {activePropertyDetail.listingType === "sale" ? "Kiralık Eşini Oluştur" : "Satılık Eşini Oluştur"}
+                  </button>
+                </div>
+              )}
+
               {/* DANIŞMANLAR ARASI PAYLAŞIM PANELİ */}
               <div className="p-3.5 bg-cyan-50/70 border border-cyan-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div className="flex items-start gap-2.5">
@@ -1647,21 +1790,21 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                    Fiyat (Tutar) *
+                    {formListingType === "sale" ? "Satış Fiyatı *" : "Kiralık Fiyatı *"}
                   </label>
                   <input
                     type="number"
                     required
                     value={formPrice}
                     onChange={(e) => setFormPrice(e.target.value)}
-                    placeholder="Örn: 250000"
+                    placeholder={formListingType === "sale" ? "Örn: 250000" : "Örn: 850"}
                     className="sharp-input w-full p-2 font-mono text-xs"
                   />
                 </div>
 
                 <div>
                   <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                    Para Birimi *
+                    {formListingType === "sale" ? "Satış Para Birimi *" : "Kira Para Birimi *"}
                   </label>
                   <select
                     value={formCurrency}
@@ -1674,6 +1817,59 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
                     <option value="TRY">TRY (₺ - Türk Lirası)</option>
                   </select>
                 </div>
+              </div>
+
+              {/* ÇİFT İLAN SEÇENEĞİ (AYNI PORTFÖY HEM SATILIK HEM KİRALIK) */}
+              <div className="p-3 border border-cyan-200 bg-cyan-50/40 space-y-2.5">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={formIsDualListing}
+                    onChange={(e) => setFormIsDualListing(e.target.checked)}
+                    className="w-4 h-4 text-[#00adb5] rounded border-slate-300 focus:ring-[#00adb5]"
+                  />
+                  <span className="text-xs font-bold text-[#1d2566]">
+                    {formListingType === "sale"
+                      ? "Bu portföy aynı zamanda KİRALIK olarak da pazarlanıyor"
+                      : "Bu portföy aynı zamanda SATILIK olarak da pazarlanıyor"}
+                  </span>
+                </label>
+                <p className="text-[10px] text-slate-500 font-mono pl-6 leading-relaxed">
+                  İşaretlendiğinde portföy havuzuna ve eşleştirme motoruna aynı bilgiler ve fotoğrafla hem Satılık hem Kiralık olarak 2 bağımsız kayıt eklenir. İlanların statüleri birbirinden bağımsızdır (biri kiralandığında veya pasife alındığında diğeri aktif kalabilir).
+                </p>
+
+                {formIsDualListing && (
+                  <div className="pt-2 border-t border-cyan-200/80 grid grid-cols-2 gap-3 pl-6">
+                    <div>
+                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
+                        {formListingType === "sale" ? "Kiralık Fiyatı *" : "Satış Fiyatı *"}
+                      </label>
+                      <input
+                        type="number"
+                        required={formIsDualListing}
+                        value={formDualPrice}
+                        onChange={(e) => setFormDualPrice(e.target.value)}
+                        placeholder={formListingType === "sale" ? "Örn: 850" : "Örn: 250000"}
+                        className="sharp-input w-full p-2 font-mono text-xs bg-white border-cyan-400 focus:border-[#00adb5]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
+                        {formListingType === "sale" ? "Kira Para Birimi *" : "Satış Para Birimi *"}
+                      </label>
+                      <select
+                        value={formDualCurrency}
+                        onChange={(e) => setFormDualCurrency(e.target.value as any)}
+                        className="sharp-input w-full p-2 font-mono text-xs bg-white text-[#1d2566] font-bold border-cyan-400 focus:border-[#00adb5]"
+                      >
+                        <option value="GBP">GBP (£ - İngiliz Sterlini)</option>
+                        <option value="EUR">EUR (€ - Euro)</option>
+                        <option value="USD">USD ($ - Amerikan Doları)</option>
+                        <option value="TRY">TRY (₺ - Türk Lirası)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* M2 & ODA SAYISI */}

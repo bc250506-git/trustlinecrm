@@ -1761,7 +1761,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     const newProperty: Property = {
       ...propData,
-      id: `prp-${Date.now()}`,
+      id: `prp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -2417,7 +2417,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const pTitleNorm = norm(p.title);
           const isMatch =
             Boolean(targetPropId && p.id === targetPropId) ||
-            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
+            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6 && p.listingType === "rent");
 
           if (isMatch && p.status !== "RENTED") {
             const updatedP: Property = {

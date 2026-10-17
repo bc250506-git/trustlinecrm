@@ -136,7 +136,13 @@ export async function getProperties(): Promise<Property[]> {
 export async function saveProperty(property: Partial<Property>): Promise<boolean> {
   try {
     const { error } = await supabase.from("properties").upsert(property);
-    return !error;
+    if (!error) return true;
+    if (error.code === "PGRST204" || error.message?.includes("column")) {
+      const { linkedPropertyId, ...safeProp } = property as any;
+      const { error: safeErr } = await supabase.from("properties").upsert(safeProp);
+      return !safeErr;
+    }
+    return false;
   } catch {
     return false;
   }

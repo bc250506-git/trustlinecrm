@@ -41,6 +41,7 @@ export function AddPropertyModal({
     isBroker,
     customers,
     addProperty,
+    updateProperty,
   } = useStore();
 
   const [formTitle, setFormTitle] = useState("");
@@ -51,6 +52,12 @@ export function AddPropertyModal({
   const [formPropertyType, setFormPropertyType] = useState("Daire");
   const [formPrice, setFormPrice] = useState("");
   const [formCurrency, setFormCurrency] = useState<Currency>("GBP");
+
+  // Çift İlan (Hem Satılık Hem Kiralık) State
+  const [formIsDualListing, setFormIsDualListing] = useState(false);
+  const [formDualPrice, setFormDualPrice] = useState("");
+  const [formDualCurrency, setFormDualCurrency] = useState<Currency>("GBP");
+
   const [formArea, setFormArea] = useState("");
   const [formRooms, setFormRooms] = useState("2+1");
   const [formOwnerCustomerId, setFormOwnerCustomerId] = useState("");
@@ -74,6 +81,9 @@ export function AddPropertyModal({
       setFormPropertyType("Daire");
       setFormPrice("");
       setFormCurrency("GBP");
+      setFormIsDualListing(false);
+      setFormDualPrice("");
+      setFormDualCurrency("GBP");
       setFormArea("");
       setFormRooms("2+1");
       setFormOwnerCustomerId(initialOwnerCustomerId || "");
@@ -136,6 +146,38 @@ export function AddPropertyModal({
       imageUrl: formImageUrl,
       photos,
     });
+
+    // Çift İlan (Aynı portföy hem Satılık hem Kiralık olarak 2 bağımsız kayıt eklenir)
+    if (formIsDualListing && Number(formDualPrice) > 0) {
+      const oppositeType: "sale" | "rent" = formListingType === "sale" ? "rent" : "sale";
+      const secondaryProp = addProperty({
+        title: formTitle,
+        region: `${formDistrict} / ${formSubRegion}`,
+        propertyType: formPropertyType,
+        listingType: oppositeType,
+        price: Number(formDualPrice) || 0,
+        currency: formDualCurrency,
+        area: Number(formArea) || 0,
+        rooms: formRooms,
+        status: "AVAILABLE",
+        address: formAddress,
+        ownerCustomerId: formOwnerCustomerId || undefined,
+        ownerName: selectedOwner ? selectedOwner.fullName : "Bilinmiyor",
+        ownerPhone: selectedOwner ? selectedOwner.phone : "",
+        keyHolder: formKeyHolder,
+        publicDescription: formPublicDesc,
+        isShared: formIsShared,
+        isOffMarket: formIsOffMarket,
+        listingUrl: formIsOffMarket ? undefined : formListingUrl,
+        assignedToId: currentUser.id,
+        assignedToName: currentUser.name,
+        imageUrl: formImageUrl,
+        photos,
+        linkedPropertyId: newProp.id,
+      });
+
+      updateProperty(newProp.id, { linkedPropertyId: secondaryProp.id });
+    }
 
     onClose();
     if (onSuccess) onSuccess(newProp);
@@ -263,21 +305,21 @@ export function AddPropertyModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                Fiyat (Tutar) *
+                {formListingType === "sale" ? "Satış Fiyatı *" : "Kiralık Fiyatı *"}
               </label>
               <input
                 type="number"
                 required
                 value={formPrice}
                 onChange={(e) => setFormPrice(e.target.value)}
-                placeholder="Örn: 250000"
+                placeholder={formListingType === "sale" ? "Örn: 250000" : "Örn: 850"}
                 className="sharp-input w-full p-2 font-mono text-xs"
               />
             </div>
 
             <div>
               <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
-                Para Birimi *
+                {formListingType === "sale" ? "Satış Para Birimi *" : "Kira Para Birimi *"}
               </label>
               <select
                 value={formCurrency}
@@ -290,6 +332,59 @@ export function AddPropertyModal({
                 <option value="TRY">TRY (₺ - Türk Lirası)</option>
               </select>
             </div>
+          </div>
+
+          {/* ÇİFT İLAN SEÇENEĞİ (AYNI PORTFÖY HEM SATILIK HEM KİRALIK) */}
+          <div className="p-3 border border-cyan-200 bg-cyan-50/40 space-y-2.5">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={formIsDualListing}
+                onChange={(e) => setFormIsDualListing(e.target.checked)}
+                className="w-4 h-4 text-[#00adb5] rounded border-slate-300 focus:ring-[#00adb5]"
+              />
+              <span className="text-xs font-bold text-[#1d2566]">
+                {formListingType === "sale"
+                  ? "Bu portföy aynı zamanda KİRALIK olarak da pazarlanıyor"
+                  : "Bu portföy aynı zamanda SATILIK olarak da pazarlanıyor"}
+              </span>
+            </label>
+            <p className="text-[10px] text-slate-500 font-mono pl-6 leading-relaxed">
+              İşaretlendiğinde portföy havuzuna ve eşleştirme motoruna aynı bilgiler ve fotoğraflarla hem Satılık hem Kiralık olarak 2 bağımsız kayıt eklenir. İlanların statüleri birbirinden bağımsızdır (biri kiralandığında veya pasife alındığında diğeri aktif kalabilir).
+            </p>
+
+            {formIsDualListing && (
+              <div className="pt-2 border-t border-cyan-200/80 grid grid-cols-2 gap-3 pl-6">
+                <div>
+                  <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
+                    {formListingType === "sale" ? "Kiralık Fiyatı *" : "Satış Fiyatı *"}
+                  </label>
+                  <input
+                    type="number"
+                    required={formIsDualListing}
+                    value={formDualPrice}
+                    onChange={(e) => setFormDualPrice(e.target.value)}
+                    placeholder={formListingType === "sale" ? "Örn: 850" : "Örn: 250000"}
+                    className="sharp-input w-full p-2 font-mono text-xs bg-white border-cyan-400 focus:border-[#00adb5]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-mono text-[11px] mb-1 font-bold">
+                    {formListingType === "sale" ? "Kira Para Birimi *" : "Satış Para Birimi *"}
+                  </label>
+                  <select
+                    value={formDualCurrency}
+                    onChange={(e) => setFormDualCurrency(e.target.value as any)}
+                    className="sharp-input w-full p-2 font-mono text-xs bg-white text-[#1d2566] font-bold border-cyan-400 focus:border-[#00adb5]"
+                  >
+                    <option value="GBP">GBP (£ - İngiliz Sterlini)</option>
+                    <option value="EUR">EUR (€ - Euro)</option>
+                    <option value="USD">USD ($ - Amerikan Doları)</option>
+                    <option value="TRY">TRY (₺ - Türk Lirası)</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { Property, Currency, DealSharingType } from "@/lib/types";
+import { Property, Currency, DealSharingType, isOfficeSystemAccount } from "@/lib/types";
 import {
   Calculator,
   X,
@@ -72,7 +72,11 @@ export function AddDealModal({
   // Üst Meta Bilgileri
   const [formDealNumber, setFormDealNumber] = useState("");
   const [formReportDate, setFormReportDate] = useState(getTodayStr());
-  const [formAdvisorId, setFormAdvisorId] = useState(currentUser.id);
+  const [formAdvisorId, setFormAdvisorId] = useState(() =>
+    isOfficeSystemAccount(currentUser)
+      ? users.find((u) => !isOfficeSystemAccount(u))?.id || currentUser.id
+      : currentUser.id
+  );
   const [formTitle, setFormTitle] = useState("");
 
   // 01 Gayrimenkul Bilgileri
@@ -573,7 +577,7 @@ export function AddDealModal({
                   onChange={(e) => setFormAdvisorId(e.target.value)}
                   className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
                 >
-                  {users.map((u) => (
+                  {users.filter((u) => !isOfficeSystemAccount(u)).map((u) => (
                     <option key={u.id} value={u.id}>
                       {u.name} {u.role === "ADMIN" ? "(Broker / Yönetici)" : "(Danışman)"}
                     </option>

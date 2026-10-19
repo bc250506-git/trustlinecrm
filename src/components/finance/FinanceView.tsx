@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useStore } from "@/lib/store";
-import { Deal, Currency, DealSharingType } from "@/lib/types";
+import { Deal, Currency, DealSharingType, isOfficeSystemAccount } from "@/lib/types";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
@@ -1184,7 +1184,7 @@ export function FinanceView() {
                     onChange={(e) => setEditAdvisorId(e.target.value)}
                     className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
                   >
-                    {users.map((u) => (
+                    {users.filter((u) => !isOfficeSystemAccount(u)).map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.name} {u.role === "ADMIN" ? "(Ofis / Broker)" : "(Danışman)"}
                       </option>

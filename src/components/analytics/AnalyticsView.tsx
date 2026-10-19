@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
-import { Currency, Deal } from "@/lib/types";
+import { Currency, Deal, isOfficeSystemAccount } from "@/lib/types";
 import {
   TrendingUp,
   Award,
@@ -362,11 +362,12 @@ export function AnalyticsView() {
 
   // 4. EN ÇOK İŞLEM KAPATAN DANIŞMANLAR & PODYUM LİDERLİK TABLOSU
   const advisorRankings = useMemo(() => {
-    // Tüm danışman ve yöneticileri tara
+    const dealsToUse = selectedMonth ? filteredDeals : closedDeals;
+    // Tüm gerçek danışman ve yöneticileri tara (Ofis Yönetimi gibi tüzel hesaplar hariç)
     return users
-      .filter((u) => u.active)
+      .filter((u) => u.active && !isOfficeSystemAccount(u))
       .map((user) => {
-        const userDeals = closedDeals.filter(
+        const userDeals = dealsToUse.filter(
           (d) => d.createdById === user.id || d.partnerAdvisorId === user.id
         );
 
@@ -453,7 +454,7 @@ export function AnalyticsView() {
         };
       })
       .sort((a, b) => b.volumeGbp - a.volumeGbp || b.totalDeals - a.totalDeals);
-  }, [users, closedDeals, properties]);
+  }, [users, closedDeals, filteredDeals, selectedMonth, properties]);
 
   // 5. İŞLEM TÜRÜ & BÖLÜŞÜM MODELLERİ ANALİZİ (PORTFOLIO ORIGIN & SPLIT)
   const dealEconomics = useMemo(() => {

@@ -52,6 +52,20 @@ export interface User {
   permissions: UserPermissions;
 }
 
+/**
+ * "Ofis Yönetimi" hesabı gibi tüzel/sistem hesaplarını belirten yardımcı.
+ * Bu hesaplar etkinlik eklemek ve genel ofis işlemlerini yönetmek için olup,
+ * bireysel satış danışmanı veya broker yarışında/liderlik tablosunda yer almaz.
+ */
+export function isOfficeSystemAccount(user?: { id?: string; username?: string; name?: string } | null): boolean {
+  if (!user) return false;
+  if (user.id === "usr-ofis") return true;
+  if (user.username === "ofis.yonetim") return true;
+  const nameLower = (user.name || "").toLowerCase().trim();
+  if (nameLower.includes("ofis yönetimi") || nameLower.includes("ofis yonetimi")) return true;
+  return false;
+}
+
 export interface Customer {
   id: string;
   fullName: string;

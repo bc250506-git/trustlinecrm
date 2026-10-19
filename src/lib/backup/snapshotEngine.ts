@@ -46,6 +46,23 @@ export function getLocalSnapshots(): SnapshotItem[] {
   }
 }
 
+function sanitizePropertiesForSnapshot(props: Property[]): Property[] {
+  if (!Array.isArray(props)) return [];
+  return props.map((p) => {
+    const isBase64 = (s?: string) => Boolean(s && s.startsWith("data:"));
+    const safeImageUrl = isBase64(p.imageUrl) ? undefined : p.imageUrl;
+    const safePhotos = (p.photos || []).map((ph) => ({
+      ...ph,
+      url: isBase64(ph.url) ? "" : ph.url,
+    }));
+    return {
+      ...p,
+      imageUrl: safeImageUrl,
+      photos: safePhotos,
+    };
+  });
+}
+
 export function saveSnapshot(
   name: string,
   description: string,
@@ -54,6 +71,11 @@ export function saveSnapshot(
 ): SnapshotItem {
   const existing = getLocalSnapshots();
 
+  const sanitizedData: SnapshotItem["data"] = {
+    ...data,
+    properties: sanitizePropertiesForSnapshot(data.properties || []),
+  };
+
   const newSnapshot: SnapshotItem = {
     id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     name,
@@ -61,18 +83,27 @@ export function saveSnapshot(
     createdAt: new Date().toISOString(),
     type,
     counts: {
-      customers: data.customers.length,
-      properties: data.properties.length,
-      deals: data.deals.length,
-      rentals: data.rentals.length,
-      mandates: data.mandates.length,
-      followUps: data.followUps.length,
+      customers: data.customers?.length || 0,
+      properties: data.properties?.length || 0,
+      deals: data.deals?.length || 0,
+      rentals: data.rentals?.length || 0,
+      mandates: data.mandates?.length || 0,
+      followUps: data.followUps?.length || 0,
     },
-    data,
+    data: sanitizedData,
   };
 
-  // En yeni snapshot başa gelir, maksimum 5 snapshot saklanır
-  const updated = [newSnapshot, ...existing].slice(0, MAX_SNAPSHOTS);
+  // Mevcut eski snapshot'lardaki ağır base64 yükünü de hafifleterek kotayı ferahlat
+  const cleanedExisting = existing.map((s) => ({
+    ...s,
+    data: {
+      ...s.data,
+      properties: sanitizePropertiesForSnapshot(s.data?.properties || []),
+    },
+  }));
+
+  // En yeni snapshot başa gelir, maksimum 10 snapshot saklanır
+  const updated = [newSnapshot, ...cleanedExisting].slice(0, 10);
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   } catch (err) {

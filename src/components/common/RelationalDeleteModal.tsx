@@ -72,56 +72,41 @@ export function RelationalDeleteModal({
     }
 
     if (type === "customer") {
-      const cust = customers.find((c) => c.id === itemId);
-      const custNameNorm = (cust?.fullName || itemName || "").trim().toLowerCase();
-
-      // 1. Müşteriye ait portföyler
+      // 1. Müşteriye ait portföyler (SADECE KESİN ID EŞLEŞMESİ)
       const ownedProperties = properties.filter((p) => {
         if (p.deletedAt) return false;
-        if (p.ownerCustomerId === itemId) return true;
-        if (custNameNorm && p.ownerName && p.ownerName.trim().toLowerCase() === custNameNorm) return true;
-        return false;
+        return Boolean(itemId && p.ownerCustomerId === itemId);
       });
       const ownedPropertyIds = new Set(ownedProperties.map((p) => p.id));
 
-      // 2. Doğrudan veya dolaylı (portföy üzerinden) kira sözleşmeleri
+      // 2. Doğrudan veya dolaylı (portföy üzerinden) kira sözleşmeleri (SADECE KESİN ID)
       const linkedRentals = rentals.filter((r) => {
         if (!r.active) return false;
-        if (r.tenantCustomerId === itemId || r.landlordCustomerId === itemId) return true;
-        if (
-          custNameNorm &&
-          ((r.tenantName && r.tenantName.trim().toLowerCase() === custNameNorm) ||
-            (r.landlordName && r.landlordName.trim().toLowerCase() === custNameNorm))
-        ) {
-          return true;
-        }
+        if (Boolean(itemId && (r.tenantCustomerId === itemId || r.landlordCustomerId === itemId))) return true;
         if (r.propertyId && ownedPropertyIds.has(r.propertyId)) return true;
         return false;
       });
 
-      // 3. Yetki belgeleri
+      // 3. Yetki belgeleri (SADECE KESİN ID)
       const linkedMandates = mandates.filter((m) => {
         if (m.status === "cancelled") return false;
-        if (m.ownerCustomerId === itemId) return true;
-        if (custNameNorm && m.ownerName && m.ownerName.trim().toLowerCase() === custNameNorm) return true;
+        if (Boolean(itemId && m.ownerCustomerId === itemId)) return true;
         if (m.propertyId && ownedPropertyIds.has(m.propertyId)) return true;
         return false;
       });
 
-      // 4. İşlem & Anlaşmalar (Deals)
+      // 4. İşlem & Anlaşmalar (Deals) (SADECE KESİN ID)
       const linkedDeals = deals.filter((d) => {
         if (d.stage === "lost") return false;
-        if (d.customerId === itemId) return true;
-        if (custNameNorm && d.customerName && d.customerName.trim().toLowerCase() === custNameNorm) return true;
+        if (Boolean(itemId && d.customerId === itemId)) return true;
         if (d.propertyId && ownedPropertyIds.has(d.propertyId)) return true;
         return false;
       });
 
-      // 5. Açık randevu ve takipleri
+      // 5. Açık randevu ve takipleri (SADECE KESİN ID)
       const linkedFollowUps = followUps.filter((f) => {
         if (f.status !== "open") return false;
-        if (f.customerId === itemId) return true;
-        if (custNameNorm && f.customerName && f.customerName.trim().toLowerCase() === custNameNorm) return true;
+        if (Boolean(itemId && f.customerId === itemId)) return true;
         if (f.propertyId && ownedPropertyIds.has(f.propertyId)) return true;
         return false;
       });

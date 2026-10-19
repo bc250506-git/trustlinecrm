@@ -56,7 +56,9 @@ export function SecurityView() {
   const {
     isBroker,
     customers,
+    allCustomers,
     properties,
+    allProperties,
     deletedCustomers,
     deletedProperties,
     restoreCustomer,
@@ -245,7 +247,14 @@ export function SecurityView() {
   // Dinamik filtrelenmiş verileri canlı hesapla (Sayaçlar için)
   const previewPayload = useMemo(() => {
     return generateBackupPayload(
-      { customers, properties, deals, rentals, mandates, followUps },
+      {
+        customers: allCustomers && allCustomers.length > 0 ? allCustomers : customers,
+        properties: allProperties && allProperties.length > 0 ? allProperties : properties,
+        deals,
+        rentals,
+        mandates,
+        followUps,
+      },
       {
         scope: selectedScope.length === ALL_BACKUP_MODULES.length ? "all" : selectedScope,
         advisorId: selectedAdvisorId,
@@ -258,7 +267,9 @@ export function SecurityView() {
     );
   }, [
     customers,
+    allCustomers,
     properties,
+    allProperties,
     deals,
     rentals,
     mandates,

@@ -28,7 +28,9 @@ export function WeeklyBackupModal() {
     currentUser,
     users,
     customers,
+    allCustomers,
     properties,
+    allProperties,
     deals,
     rentals,
     mandates,
@@ -77,8 +79,8 @@ export function WeeklyBackupModal() {
     try {
       const payload = generateBackupPayload(
         {
-          customers: customers || [],
-          properties: properties || [],
+          customers: allCustomers && allCustomers.length > 0 ? allCustomers : (customers || []),
+          properties: allProperties && allProperties.length > 0 ? allProperties : (properties || []),
           deals: deals || [],
           rentals: rentals || [],
           mandates: mandates || [],

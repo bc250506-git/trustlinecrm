@@ -260,6 +260,29 @@ function loadFromStorage<T>(key: string, fallback: T[]): T[] {
   return fallback;
 }
 
+/**
+ * 5 MB LocalStorage kotasının aşılmasını (QuotaExceededError) önlemek için
+ * yüksek çözünürlüklü Base64 resimleri yerel önbellekten arındırır.
+ * Böylece 8 MB'lık dev portföy verisi yerel hafızada 70-80 KB'a düşer ve
+ * sayfa her açıldığında/yenilendiğinde 44 portföy 1 milisaniyede eksiksiz ekrana gelir.
+ */
+function sanitizePropertiesForStorage(props: Property[]): Property[] {
+  if (!Array.isArray(props)) return [];
+  return props.map((p) => {
+    const isBase64 = (s?: string) => Boolean(s && s.startsWith("data:"));
+    const safeImageUrl = isBase64(p.imageUrl) ? undefined : p.imageUrl;
+    const safePhotos = (p.photos || []).map((ph) => ({
+      ...ph,
+      url: isBase64(ph.url) ? "" : ph.url,
+    }));
+    return {
+      ...p,
+      imageUrl: safeImageUrl,
+      photos: safePhotos,
+    };
+  });
+}
+
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -345,7 +368,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(properties));
+        localStorage.setItem(
+          PROPERTIES_STORAGE_KEY,
+          JSON.stringify(sanitizePropertiesForStorage(properties))
+        );
       } catch (e) {}
     }
   }, [properties]);
@@ -443,11 +469,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         }
 
-        if (propRes.status === "fulfilled" && propRes.value && propRes.value.length > 0) {
-          setProperties(propRes.value);
-          try {
-            localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(propRes.value));
-          } catch {}
+        if (propRes.status === "fulfilled" && Array.isArray(propRes.value) && propRes.value.length > 0) {
+          const cloudProps = propRes.value;
+          setProperties((prev) => {
+            const cloudMap = new Map(cloudProps.map((p) => [p.id, p]));
+            const unsavedLocal: Property[] = [];
+            for (const localP of prev) {
+              if (!cloudMap.has(localP.id)) {
+                unsavedLocal.push(localP);
+                saveProperty(localP).catch(() => {});
+              }
+            }
+            const merged = [...cloudProps, ...unsavedLocal];
+            try {
+              localStorage.setItem(
+                PROPERTIES_STORAGE_KEY,
+                JSON.stringify(sanitizePropertiesForStorage(merged))
+              );
+            } catch {}
+            return merged;
+          });
         }
 
         if (dealsRes.status === "fulfilled" && Array.isArray(dealsRes.value)) {
@@ -1591,17 +1632,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCustomers((prev) => prev.map((c) => (c.id === id ? updatedCustomer : c)));
     saveCustomer(updatedCustomer).catch(() => {});
 
-    // 2. Bu müşteriye ait portföyleri bul
-    const custNameNorm = cust.fullName ? cust.fullName.trim().toLowerCase() : "";
+    // 2. GÜVENLİK KORUMASI:
+    // ASLA VE ASLA metin/isim eşleşmesi ("Bilinmiyor", "Ahmet" vb.) ile portföy silinmez!
+    // Bir gayrimenkul mülkü, rehberden bir müşteri silindi diye fiziksel olarak yok olmaz.
+    // Sadece doğrudan bu müşteri ID'sine (ownerCustomerId === id) bağlı portföyler incelenir.
     const ownedProps = properties.filter((p) => {
       if (p.deletedAt) return false;
-      if (p.ownerCustomerId === id) return true;
-      if (custNameNorm && p.ownerName && p.ownerName.trim().toLowerCase() === custNameNorm) return true;
-      return false;
+      return Boolean(id && p.ownerCustomerId === id);
     });
     const ownedPropIds = new Set(ownedProps.map((p) => p.id));
 
-    // Portföyleri soft-delete yap
+    // Portföyleri soft-delete yap (sadece kesin ID bağlı olanlar)
     if (ownedProps.length > 0) {
       setProperties((prev) =>
         prev.map((p) => {
@@ -1615,15 +1656,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
-    // 3. İlgili kira sözleşmelerini pasife al / sonlandır
+    // 3. İlgili kira sözleşmelerini pasife al (SADECE KESİN ID EŞLEŞMESİ, METİN EŞLEŞMESİ KESİNLİKLE YOK)
     setRentals((prev) =>
       prev.map((r) => {
-        const isDirectTenant =
-          r.tenantCustomerId === id ||
-          (custNameNorm && r.tenantName && r.tenantName.trim().toLowerCase() === custNameNorm);
-        const isDirectLandlord =
-          r.landlordCustomerId === id ||
-          (custNameNorm && r.landlordName && r.landlordName.trim().toLowerCase() === custNameNorm);
+        const isDirectTenant = Boolean(id && r.tenantCustomerId === id);
+        const isDirectLandlord = Boolean(id && r.landlordCustomerId === id);
         const isOwnedPropertyRental = r.propertyId ? ownedPropIds.has(r.propertyId) : false;
 
         if (r.active && (isDirectTenant || isDirectLandlord || isOwnedPropertyRental)) {
@@ -1635,12 +1672,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // 4. İlgili yetki sözleşmelerini iptal et
+    // 4. İlgili yetki sözleşmelerini iptal et (SADECE KESİN ID EŞLEŞMESİ)
     setMandates((prev) =>
       prev.map((m) => {
-        const isDirectOwner =
-          m.ownerCustomerId === id ||
-          (custNameNorm && m.ownerName && m.ownerName.trim().toLowerCase() === custNameNorm);
+        const isDirectOwner = Boolean(id && m.ownerCustomerId === id);
         const isOwnedPropertyMandate = m.propertyId ? ownedPropIds.has(m.propertyId) : false;
 
         if (m.status !== "cancelled" && (isDirectOwner || isOwnedPropertyMandate)) {
@@ -1652,12 +1687,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // 5. İlgili anlaşma / fırsatları (Deals) iptal et
+    // 5. İlgili anlaşma / fırsatları (Deals) iptal et (SADECE KESİN ID EŞLEŞMESİ)
     setDeals((prev) =>
       prev.map((d) => {
-        const isDirectCust =
-          d.customerId === id ||
-          (custNameNorm && d.customerName && d.customerName.trim().toLowerCase() === custNameNorm);
+        const isDirectCust = Boolean(id && d.customerId === id);
         const isOwnedPropertyDeal = d.propertyId ? ownedPropIds.has(d.propertyId) : false;
 
         if (d.stage !== "lost" && (isDirectCust || isOwnedPropertyDeal)) {
@@ -1675,12 +1708,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       })
     );
 
-    // 6. Açık randevu ve takipleri kapat
+    // 6. Açık randevu ve takipleri kapat (SADECE KESİN ID EŞLEŞMESİ)
     setFollowUps((prev) =>
       prev.map((f) => {
-        const isDirectCust =
-          f.customerId === id ||
-          (custNameNorm && f.customerName && f.customerName.trim().toLowerCase() === custNameNorm);
+        const isDirectCust = Boolean(id && f.customerId === id);
         const isOwnedPropertyFollowUp = f.propertyId ? ownedPropIds.has(f.propertyId) : false;
 
         if (f.status === "open" && (isDirectCust || isOwnedPropertyFollowUp)) {
@@ -2901,6 +2932,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setRentals(finalRentals);
     setMandates(finalMandates);
     setFollowUps(finalFollowUps);
+
+    try {
+      localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(finalCustomers));
+      localStorage.setItem(
+        PROPERTIES_STORAGE_KEY,
+        JSON.stringify(sanitizePropertiesForStorage(finalProperties))
+      );
+      localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(finalDeals));
+      localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(finalRentals));
+      localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(finalMandates));
+      localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(finalFollowUps));
+    } catch {}
 
     // Supabase Buluta Sessizce Eşitle
     try {

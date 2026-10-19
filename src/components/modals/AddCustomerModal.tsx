@@ -153,7 +153,7 @@ export function AddCustomerModal({
   const handleAddRegion = () => {
     const full = `${customerDistrict} / ${customerSubRegion}`;
     if (!selectedRegions.includes(full)) {
-      setSelectedRegions((prev) => [...prev, full]);
+      setSelectedRegions((prev) => [...prev, full].sort((a, b) => a.localeCompare(b, "tr-TR")));
     }
   };
 

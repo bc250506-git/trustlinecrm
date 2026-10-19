@@ -76,10 +76,17 @@ export function WeeklyBackupModal() {
     setIsDownloading(true);
     try {
       const payload = generateBackupPayload(
-        { customers, properties, deals, rentals, mandates, followUps },
+        {
+          customers: customers || [],
+          properties: properties || [],
+          deals: deals || [],
+          rentals: rentals || [],
+          mandates: mandates || [],
+          followUps: followUps || [],
+        },
         { scope: "all", advisorId: "all", period: "all" },
         currentUser,
-        users
+        users || []
       );
 
       const todayStr = new Date().toISOString().split("T")[0];
@@ -97,10 +104,10 @@ export function WeeklyBackupModal() {
         setIsOpen(false);
         setDownloadSuccess(false);
       }, 2000);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Haftalık yedek indirme hatası:", err);
       setIsDownloading(false);
-      alert("Yedek paketi oluşturulurken bir hata oluştu.");
+      alert(`Yedek paketi oluşturulurken bir hata oluştu: ${err?.message || "Bilinmeyen hata"}`);
     }
   };
 

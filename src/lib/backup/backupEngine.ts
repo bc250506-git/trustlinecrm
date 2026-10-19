@@ -271,20 +271,41 @@ export function generateBackupPayload(
   };
 }
 
+// Excel hücreleri için OpenXML 32.767 karakter sınırını ve Base64 şişmesini önleyen yardımcı
+function safeCellText(val: any, maxLen: number = 32000): string {
+  if (val === undefined || val === null) return "-";
+  if (typeof val === "number") return String(val);
+  if (typeof val !== "string") return String(val);
+  const trimmed = val.trim();
+  if (!trimmed) return "-";
+  if (trimmed.startsWith("data:image")) {
+    return "[Gömülü Görsel - JSON Sistem Yedeğinde Mevcut]";
+  }
+  if (trimmed.length > maxLen) {
+    return trimmed.slice(0, maxLen - 25) + "... [kısaltıldı]";
+  }
+  return trimmed;
+}
+
+function safeCurrencyAmount(amount: number | string | undefined | null, currency: string = "GBP"): string {
+  const num = typeof amount === "number" ? amount : Number(amount) || 0;
+  return `${num.toLocaleString("tr-TR")} ${currency || "GBP"}`;
+}
+
 // 2. ÇOK SEKMELİ YÖNETİCİ EXCEL'İ (.XLSX) ÜRETİMİ
 export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
   const wb = XLSX.utils.book_new();
 
   // SEKME 1: MÜŞTERİLER
-  const customersRows = payload.customers.map((c, idx) => ({
+  const customersRows = (payload.customers || []).map((c, idx) => ({
     "No": idx + 1,
-    "Müşteri ID": c.id,
-    "Ad Soyad": c.fullName,
-    "Telefon": formatPhoneWithPrefix(c.phone) || c.phone,
-    "WhatsApp": formatPhoneWithPrefix(c.whatsapp || c.phone) || c.whatsapp || c.phone,
-    "E-posta": c.email || "-",
-    "Instagram": c.instagramHandle || "-",
-    "Doğum Tarihi": formatDateTR(c.birthDate),
+    "Müşteri ID": safeCellText(c.id),
+    "Ad Soyad": safeCellText(c.fullName),
+    "Telefon": safeCellText(formatPhoneWithPrefix(c.phone) || c.phone),
+    "WhatsApp": safeCellText(formatPhoneWithPrefix(c.whatsapp || c.phone) || c.whatsapp || c.phone),
+    "E-posta": safeCellText(c.email),
+    "Instagram": safeCellText(c.instagramHandle),
+    "Doğum Tarihi": safeCellText(formatDateTR(c.birthDate)),
     "Kategori":
       c.category === "BUYER"
         ? "Alıcı"
@@ -302,67 +323,71 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
         ? "☀️ Ilık"
         : "❄️ Soğuk",
     "VIP": c.isVip ? "Evet" : "Hayır",
-    "Aranan Bölge": c.region,
-    "Mülk Tipi": c.propertyType,
-    "Oda Sayısı": c.rooms || "-",
-    "Bütçe Tutarı": c.budget ? `${c.budget.toLocaleString("tr-TR")} ${c.budgetCurrency}` : "0",
-    "Aşama (Pipeline)": c.stage,
-    "Sorumlu Danışman": c.assignedToName || "-",
-    "Eklenme Tarihi": formatDateTR(c.createdAt),
-    "Son İletişim": formatDateTR(c.lastContactAt),
-    "Özel Notlar": c.notes || "-",
+    "Aranan Bölge": safeCellText(c.region),
+    "Mülk Tipi": safeCellText(c.propertyType),
+    "Oda Sayısı": safeCellText(c.rooms),
+    "Bütçe Tutarı": safeCurrencyAmount(c.budget, c.budgetCurrency),
+    "Aşama (Pipeline)": safeCellText(c.stage),
+    "Sorumlu Danışman": safeCellText(c.assignedToName),
+    "Eklenme Tarihi": safeCellText(formatDateTR(c.createdAt)),
+    "Son İletişim": safeCellText(formatDateTR(c.lastContactAt)),
+    "Özel Notlar": safeCellText(c.notes),
   }));
 
-  const wsCustomers = XLSX.utils.json_to_sheet(customersRows);
+  const wsCustomers = customersRows.length > 0
+    ? XLSX.utils.json_to_sheet(customersRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Kayıtlı müşteri bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsCustomers, "Müşteri Havuzu");
 
   // SEKME 2: PORTFÖYLER
-  const propertiesRows = payload.properties.map((p, idx) => ({
+  const propertiesRows = (payload.properties || []).map((p, idx) => ({
     "No": idx + 1,
-    "Portföy ID": p.id,
-    "İlan Başlığı": p.title,
+    "Portföy ID": safeCellText(p.id),
+    "İlan Başlığı": safeCellText(p.title),
     "İşlem Türü": formatListingType(p.listingType),
     "Durum": formatPropertyStatus(p.status),
-    "Mülk Tipi": p.propertyType,
-    "Fiyat": `${p.price.toLocaleString("tr-TR")} ${p.currency}`,
-    "Şehir / Bölge": p.region,
-    "Oda Sayısı": p.rooms,
-    "Alan (m²)": p.area,
-    "Açık Adres": p.address || "-",
-    "Mülk Sahibi Adı": p.ownerName || "-",
-    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(p.ownerPhone) || p.ownerPhone || "-",
-    "Anahtar Teslim / Kimde": p.keyHolder || "-",
-    "Danışman": p.assignedToName || "-",
+    "Mülk Tipi": safeCellText(p.propertyType),
+    "Fiyat": safeCurrencyAmount(p.price, p.currency),
+    "Şehir / Bölge": safeCellText(p.region),
+    "Oda Sayısı": safeCellText(p.rooms),
+    "Alan (m²)": p.area || 0,
+    "Açık Adres": safeCellText(p.address),
+    "Mülk Sahibi Adı": safeCellText(p.ownerName),
+    "Mülk Sahibi Telefonu": safeCellText(formatPhoneWithPrefix(p.ownerPhone) || p.ownerPhone),
+    "Anahtar Teslim / Kimde": safeCellText(p.keyHolder),
+    "Danışman": safeCellText(p.assignedToName),
     "Paylaşımlı Portföy": p.isShared ? "Evet" : "Hayır",
     "Off-Market (Gizli)": p.isOffMarket ? "Evet" : "Hayır",
-    "Kayıt Tarihi": formatDateTR(p.createdAt),
-    "İlan Linki": p.listingUrl || "-",
-    "Görsel Linki": p.imageUrl || "-",
-    "Genel Açıklama": p.publicDescription || "-",
+    "Kayıt Tarihi": safeCellText(formatDateTR(p.createdAt)),
+    "İlan Linki": safeCellText(p.listingUrl),
+    "Görsel Linki": safeCellText(p.imageUrl),
+    "Genel Açıklama": safeCellText(p.publicDescription),
   }));
 
-  const wsProperties = XLSX.utils.json_to_sheet(propertiesRows);
+  const wsProperties = propertiesRows.length > 0
+    ? XLSX.utils.json_to_sheet(propertiesRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Kayıtlı portföy bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsProperties, "Portföy Envanteri");
 
   // SEKME 3: KAPANAN İŞLEMLER & FİNANS
-  const dealsRows = payload.deals.map((d, idx) => ({
+  const dealsRows = (payload.deals || []).map((d, idx) => ({
     "No": idx + 1,
-    "İşlem ID": d.id,
-    "İşlem / Portföy No": d.dealNumber || "-",
-    "Portföy Başlığı": d.propertyTitle || d.title,
+    "İşlem ID": safeCellText(d.id),
+    "İşlem / Portföy No": safeCellText(d.dealNumber),
+    "Portföy Başlığı": safeCellText(d.propertyTitle || d.title),
     "İşlem Tipi": d.dealType === "rent" ? "Kiralama" : "Satış",
-    "Alıcı / Kiracı": d.customerName || "-",
-    "Alıcı Telefonu": formatPhoneWithPrefix(d.customerPhone) || d.customerPhone || "-",
-    "Mülk Sahibi": d.landlordName || "-",
-    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(d.landlordPhone) || d.landlordPhone || "-",
-    "Nihai Anlaşılan Fiyat": `${d.agreedPrice.toLocaleString("tr-TR")} ${d.currency}`,
-    "Alınan Depozito": d.deposit ? `${d.deposit.toLocaleString("tr-TR")} ${d.currency}` : "0",
-    "Depozito Tarihi": formatDateTR(d.depositDate),
-    "Ödeme Şekli": d.paymentMethod || "-",
-    "Tahsilat Tarihi": formatDateTR(d.collectionDate),
-    "Satış/Kiralama Süresi": d.durationText || "-",
+    "Alıcı / Kiracı": safeCellText(d.customerName),
+    "Alıcı Telefonu": safeCellText(formatPhoneWithPrefix(d.customerPhone) || d.customerPhone),
+    "Mülk Sahibi": safeCellText(d.landlordName),
+    "Mülk Sahibi Telefonu": safeCellText(formatPhoneWithPrefix(d.landlordPhone) || d.landlordPhone),
+    "Nihai Anlaşılan Fiyat": safeCurrencyAmount(d.agreedPrice, d.currency),
+    "Alınan Depozito": safeCurrencyAmount(d.deposit, d.currency),
+    "Depozito Tarihi": safeCellText(formatDateTR(d.depositDate)),
+    "Ödeme Şekli": safeCellText(d.paymentMethod),
+    "Tahsilat Tarihi": safeCellText(formatDateTR(d.collectionDate)),
+    "Satış/Kiralama Süresi": safeCellText(d.durationText),
     "Komisyon Oranı (%)": d.commissionRate ? `%${d.commissionRate}` : "-",
-    "Brüt Komisyon Tutarı": `${d.commissionReceived.toLocaleString("tr-TR")} ${d.currency}`,
+    "Brüt Komisyon Tutarı": safeCurrencyAmount(d.commissionReceived, d.currency),
     "Portföy Kökeni": d.portfolioOrigin === "advisor" ? "Danışman Portföyü" : "Ofis Portföyü",
     "Paylaşım Türü":
       d.sharingType === "external"
@@ -370,77 +395,83 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
         : d.sharingType === "internal"
         ? "Şirket İçi Ortak Danışman"
         : "Tek Danışman",
-    "Ortak Danışman / Ofis": d.partnerCompany || d.partnerAdvisorName || d.partnerName || "-",
-    "Ortak Pay Tutarı": d.partnerShareAmount ? `${d.partnerShareAmount.toLocaleString("tr-TR")} ${d.currency}` : "0",
-    "Satış Danışmanı Payı": `${(d.advisorShareAmount || 0).toLocaleString("tr-TR")} ${d.currency}`,
-    "Trustline Ofis Payı": `${(d.officeShareAmount || 0).toLocaleString("tr-TR")} ${d.currency}`,
-    "Alıcının Geldiği Kanal": d.leadChannel || "-",
-    "Kapanış / Satış Tarihi": formatDateTR(d.closingDate || d.createdAt),
-    "İşlemi Yapan": d.createdByName || "-",
+    "Ortak Danışman / Ofis": safeCellText(d.partnerCompany || d.partnerAdvisorName || d.partnerName),
+    "Ortak Pay Tutarı": safeCurrencyAmount(d.partnerShareAmount, d.currency),
+    "Satış Danışmanı Payı": safeCurrencyAmount(d.advisorShareAmount, d.currency),
+    "Trustline Ofis Payı": safeCurrencyAmount(d.officeShareAmount, d.currency),
+    "Alıcının Geldiği Kanal": safeCellText(d.leadChannel),
+    "Kapanış / Satış Tarihi": safeCellText(formatDateTR(d.closingDate || d.createdAt)),
+    "İşlemi Yapan": safeCellText(d.createdByName),
     "Broker Onayı": d.brokerApproval ? "Onaylandı" : "Bekliyor",
-    "Broker Onay Tarihi": formatDateTR(d.brokerApprovedAt),
+    "Broker Onay Tarihi": safeCellText(formatDateTR(d.brokerApprovedAt)),
   }));
 
-  const wsDeals = XLSX.utils.json_to_sheet(dealsRows);
+  const wsDeals = dealsRows.length > 0
+    ? XLSX.utils.json_to_sheet(dealsRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Kapanan işlem kaydı bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsDeals, "Kapanan İşlemler");
 
   // SEKME 4: KİRA TAKİP MATRİSİ
-  const rentalsRows = payload.rentals.map((r, idx) => {
+  const rentalsRows = (payload.rentals || []).map((r, idx) => {
     const paidCount = (r.payments || []).filter((p) => p.status === "paid").length;
     const unpaidCount = (r.payments || []).length - paidCount;
 
     return {
       "No": idx + 1,
-      "Kontrat ID": r.id,
-      "Kiralanan Mülk": r.propertyTitle,
-      "Bölge": r.region,
-      "Kiracı Adı": r.tenantName,
-      "Kiracı Telefonu": formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone,
-      "Mülk Sahibi": r.landlordName,
-      "Aylık Kira Bedeli": `${r.monthlyRent.toLocaleString("tr-TR")} ${r.currency}`,
-      "Kira Ödeme Günü": `Her ayın ${r.dueDay}. günü`,
-      "Depozito": `${r.depositAmount.toLocaleString("tr-TR")} ${r.currency}`,
-      "Sözleşme Başlangıç": formatDateTR(r.contractStart),
-      "Sözleşme Bitiş": formatDateTR(r.contractEnd),
+      "Kontrat ID": safeCellText(r.id),
+      "Kiralanan Mülk": safeCellText(r.propertyTitle),
+      "Bölge": safeCellText(r.region),
+      "Kiracı Adı": safeCellText(r.tenantName),
+      "Kiracı Telefonu": safeCellText(formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone),
+      "Mülk Sahibi": safeCellText(r.landlordName),
+      "Aylık Kira Bedeli": safeCurrencyAmount(r.monthlyRent, r.currency),
+      "Kira Ödeme Günü": `Her ayın ${r.dueDay || 1}. günü`,
+      "Depozito": safeCurrencyAmount(r.depositAmount, r.currency),
+      "Sözleşme Başlangıç": safeCellText(formatDateTR(r.contractStart)),
+      "Sözleşme Bitiş": safeCellText(formatDateTR(r.contractEnd)),
       "Ödenen Ay Sayısı": paidCount,
       "Kalan / Ödenmeyen": unpaidCount,
       "Kontrat Durumu": r.active ? "Aktif Yürürlükte" : "Sona Erdi",
-      "Sorumlu Danışman": r.assignedToName || "-",
-      "Notlar": r.notes || "-",
+      "Sorumlu Danışman": safeCellText(r.assignedToName),
+      "Notlar": safeCellText(r.notes),
     };
   });
 
-  const wsRentals = XLSX.utils.json_to_sheet(rentalsRows);
+  const wsRentals = rentalsRows.length > 0
+    ? XLSX.utils.json_to_sheet(rentalsRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Kira kontrat kaydı bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsRentals, "Kira Takibi");
 
   // SEKME 5: YETKİ BELGELERİ
-  const mandatesRows = payload.mandates.map((m, idx) => ({
+  const mandatesRows = (payload.mandates || []).map((m, idx) => ({
     "No": idx + 1,
-    "Sözleşme ID": m.id,
-    "Portföy Başlığı": m.propertyTitle,
-    "Mülk Tipi": m.propertyType,
-    "Bölge": m.region,
-    "Yetki Verilen Fiyat": `${m.listingPrice.toLocaleString("tr-TR")} ${m.currency}`,
+    "Sözleşme ID": safeCellText(m.id),
+    "Portföy Başlığı": safeCellText(m.propertyTitle),
+    "Mülk Tipi": safeCellText(m.propertyType),
+    "Bölge": safeCellText(m.region),
+    "Yetki Verilen Fiyat": safeCurrencyAmount(m.listingPrice, m.currency),
     "Yetki Türü": m.mandateType === "exclusive" ? "Tek Yetkili (Exclusive)" : "Genel Yetki",
-    "Komisyon Oranı (%)": `%${m.commissionRate}`,
-    "Mülk Sahibi Adı": m.ownerName,
-    "Mülk Sahibi Telefonu": formatPhoneWithPrefix(m.ownerPhone) || m.ownerPhone,
-    "Başlangıç Tarihi": formatDateTR(m.startDate),
-    "Bitiş Tarihi": formatDateTR(m.endDate),
-    "Sorumlu Danışman": m.assignedToName || "-",
+    "Komisyon Oranı (%)": m.commissionRate ? `%${m.commissionRate}` : "-",
+    "Mülk Sahibi Adı": safeCellText(m.ownerName),
+    "Mülk Sahibi Telefonu": safeCellText(formatPhoneWithPrefix(m.ownerPhone) || m.ownerPhone),
+    "Başlangıç Tarihi": safeCellText(formatDateTR(m.startDate)),
+    "Bitiş Tarihi": safeCellText(formatDateTR(m.endDate)),
+    "Sorumlu Danışman": safeCellText(m.assignedToName),
     "Durum": m.status === "active" ? "Aktif" : m.status === "expired" ? "Süresi Doldu" : "İptal",
   }));
 
-  const wsMandates = XLSX.utils.json_to_sheet(mandatesRows);
+  const wsMandates = mandatesRows.length > 0
+    ? XLSX.utils.json_to_sheet(mandatesRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Yetki sözleşmesi bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsMandates, "Yetki Belgeleri");
 
   // SEKME 6: AJANDA & GÖREVLER
-  const followUpsRows = payload.followUps.map((f, idx) => ({
+  const followUpsRows = (payload.followUps || []).map((f, idx) => ({
     "No": idx + 1,
-    "Görev ID": f.id,
-    "Başlık": f.title,
-    "İlgili Müşteri": f.customerName || "-",
-    "İlgili Portföy": f.propertyTitle || "-",
+    "Görev ID": safeCellText(f.id),
+    "Başlık": safeCellText(f.title),
+    "İlgili Müşteri": safeCellText(f.customerName),
+    "İlgili Portföy": safeCellText(f.propertyTitle),
     "Aktivite Türü":
       f.kind === "call"
         ? "Telefon Araması"
@@ -458,13 +489,15 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
         : f.status === "cancelled"
         ? "İptal Edildi"
         : "Bekliyor",
-    "Görüşme Sonucu": f.outcome || "-",
-    "Geri Bildirim / Notlar": f.feedback || "-",
-    "Sorumlu Danışman": f.assignedToName || "-",
-    "Oluşturan": f.createdByName || "-",
+    "Görüşme Sonucu": safeCellText(f.outcome),
+    "Geri Bildirim / Notlar": safeCellText(f.feedback),
+    "Sorumlu Danışman": safeCellText(f.assignedToName),
+    "Oluşturan": safeCellText(f.createdByName),
   }));
 
-  const wsFollowUps = XLSX.utils.json_to_sheet(followUpsRows);
+  const wsFollowUps = followUpsRows.length > 0
+    ? XLSX.utils.json_to_sheet(followUpsRows)
+    : XLSX.utils.json_to_sheet([{ "Bilgi": "Ajanda / randevu kaydı bulunmuyor." }]);
   XLSX.utils.book_append_sheet(wb, wsFollowUps, "Ajanda & Takip");
 
   // Excel binary çıktısını üret

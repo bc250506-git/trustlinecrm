@@ -41,6 +41,7 @@ import {
   Award,
   RotateCcw,
   CheckCircle2,
+  ArrowUpDown,
 } from "lucide-react";
 import { PropertyImageUploader } from "./PropertyImageUploader";
 import { ActionMenu } from "@/components/common/ActionMenu";
@@ -92,7 +93,10 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
   const [listingTypeFilter, setListingTypeFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [districtFilter, setDistrictFilter] = useState<string>("ALL");
+  const [subRegionFilter, setSubRegionFilter] = useState<string>("ALL");
+  const [advisorFilter, setAdvisorFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "price_asc" | "price_desc">("newest");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [activePropertyDetail, setActivePropertyDetail] = useState<Property | null>(null);
   const [brochureProperty, setBrochureProperty] = useState<Property | null>(null);
@@ -362,34 +366,180 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
     });
 
 
-  // Ortak Filtreleyici
-  const filterList = (list: Property[]) => {
-    return list.filter((p) => {
-      if (listingTypeFilter !== "ALL" && p.listingType !== listingTypeFilter)
-        return false;
-      if (typeFilter !== "ALL" && p.propertyType !== typeFilter) return false;
-      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
-      if (
-        districtFilter !== "ALL" &&
-        !p.region.toLowerCase().includes(districtFilter.toLowerCase())
-      ) {
-        return false;
-      }
-
-      if (searchTerm) {
-        const q = searchTerm.toLowerCase();
-        const matchTitle = p.title.toLowerCase().includes(q);
-        const matchRegion = p.region.toLowerCase().includes(q);
-        const matchOwner = p.ownerName?.toLowerCase().includes(q);
-        if (!matchTitle && !matchRegion && !matchOwner) return false;
-      }
-
-      return true;
-    });
-  };
-
+  // Türkçe Karakter Normalizasyonu
   const norm = (s?: string) =>
     s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+
+  // Güvenli Tarih Çıkarıcı
+  const getTime = (dateStr?: string) => {
+    if (!dateStr) return 0;
+    const t = new Date(dateStr).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  // Gerçekçi Çoklu Para Birimi Karşılaştırması için Yaklaşık GBP Çevirici
+  const toGbpApprox = (price: number, currency?: Currency | string) => {
+    const p = Number(price) || 0;
+    switch (currency) {
+      case "GBP":
+        return p;
+      case "EUR":
+        return p * 0.86;
+      case "USD":
+        return p * 0.78;
+      case "TRY":
+        return p * 0.022;
+      default:
+        return p;
+    }
+  };
+
+  // Standart ve Dinamik Portföy Tipleri Listesi
+  const availablePropertyTypes = React.useMemo(() => {
+    const set = new Set([
+      "Daire",
+      "Villa",
+      "Müstakil Ev",
+      "Penthouse",
+      "Ticari",
+      "Arsa",
+      "Bina",
+      "Ofis / Dükkan",
+      "Yalı / Köşk",
+      "İkiz Villa",
+      "Rezidans",
+      "Tarla",
+    ]);
+    properties.forEach((p) => {
+      if (p.propertyType && p.propertyType.trim()) {
+        set.add(p.propertyType.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [properties]);
+
+  // Danışmanlar Listesi (Broker ve Danışmanlar)
+  const availableAdvisors = React.useMemo(() => {
+    return users
+      .filter((u) => u.id !== "usr-ofis" && u.active !== false)
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  }, [users]);
+
+  // Seçili İlçeye Göre Mahalle / Bölgeler
+  const availableSubRegions = React.useMemo(() => {
+    if (districtFilter === "ALL") return [];
+    return getRegionsByDistrict(districtFilter);
+  }, [districtFilter]);
+
+  // Aktif Filtre Sayısı & Filtre Sıfırlama
+  const activeFilterCount =
+    (searchTerm ? 1 : 0) +
+    (listingTypeFilter !== "ALL" ? 1 : 0) +
+    (typeFilter !== "ALL" ? 1 : 0) +
+    (districtFilter !== "ALL" ? 1 : 0) +
+    (subRegionFilter !== "ALL" ? 1 : 0) +
+    (advisorFilter !== "ALL" ? 1 : 0) +
+    (statusFilter !== "ALL" ? 1 : 0) +
+    (sortBy !== "newest" ? 1 : 0);
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setListingTypeFilter("ALL");
+    setTypeFilter("ALL");
+    setDistrictFilter("ALL");
+    setSubRegionFilter("ALL");
+    setAdvisorFilter("ALL");
+    setStatusFilter("ALL");
+    setSortBy("newest");
+  };
+
+  // Ortak Filtreleyici & Sıralayıcı
+  const filterList = (list: Property[]) => {
+    return list
+      .filter((p) => {
+        // Satılık / Kiralık Filtresi
+        if (listingTypeFilter !== "ALL" && p.listingType !== listingTypeFilter) {
+          return false;
+        }
+
+        // Gayrimenkul Tipi Filtresi
+        if (typeFilter !== "ALL" && norm(p.propertyType) !== norm(typeFilter)) {
+          return false;
+        }
+
+        // Mülk Durumu Filtresi
+        if (statusFilter !== "ALL" && p.status !== statusFilter) {
+          return false;
+        }
+
+        // İlçe Filtresi
+        if (districtFilter !== "ALL") {
+          const qDist = norm(districtFilter);
+          const inReg = norm(p.region).includes(qDist);
+          const inAddr = norm(p.address).includes(qDist);
+          const inLoc = norm(p.location).includes(qDist);
+          if (!inReg && !inAddr && !inLoc) return false;
+        }
+
+        // Alt Bölge / Mahalle Filtresi
+        if (subRegionFilter !== "ALL") {
+          const qSub = norm(subRegionFilter);
+          const inReg = norm(p.region).includes(qSub);
+          const inAddr = norm(p.address).includes(qSub);
+          const inLoc = norm(p.location).includes(qSub);
+          if (!inReg && !inAddr && !inLoc) return false;
+        }
+
+        // Danışman Filtresi
+        if (advisorFilter !== "ALL") {
+          const selectedUser = users.find((u) => u.id === advisorFilter);
+          const matchId = p.assignedToId === advisorFilter;
+          const matchName =
+            selectedUser &&
+            p.assignedToName &&
+            norm(p.assignedToName) === norm(selectedUser.name);
+          if (!matchId && !matchName) return false;
+        }
+
+        // Arama Terimi
+        if (searchTerm.trim()) {
+          const q = norm(searchTerm);
+          const matchTitle = norm(p.title).includes(q);
+          const matchRegion = norm(p.region).includes(q);
+          const matchAddress = norm(p.address).includes(q);
+          const matchOwner = norm(p.ownerName).includes(q);
+          const matchAdvisor = norm(p.assignedToName).includes(q);
+          const matchId = norm(p.id).includes(q);
+          const matchRooms = norm(p.rooms).includes(q);
+          if (
+            !matchTitle &&
+            !matchRegion &&
+            !matchAddress &&
+            !matchOwner &&
+            !matchAdvisor &&
+            !matchId &&
+            !matchRooms
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "oldest") {
+          return getTime(a.createdAt) - getTime(b.createdAt);
+        }
+        if (sortBy === "price_asc") {
+          return toGbpApprox(a.price, a.currency) - toGbpApprox(b.price, b.currency);
+        }
+        if (sortBy === "price_desc") {
+          return toGbpApprox(b.price, b.currency) - toGbpApprox(a.price, a.currency);
+        }
+        // Varsayılan: "newest" (En son eklenenler önce)
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+  };
 
   // Bu portföye bağlı aktif bir kira sözleşmesi var mı?
   const isRentedByContract = (p: Property) => {
@@ -436,22 +586,28 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
 
   const isPassive = (p: Property) => {
     if (p.deletedAt) return false;
-    if (p.status === "SOLD" || p.status === "RENTED") return true;
+    if (p.status === "SOLD" || p.status === "RENTED" || p.status === "ARCHIVED") return true;
     if (isRentedByContract(p)) return true;
     if (isSoldOrRentedByDeal(p)) return true;
     return false;
   };
 
-  const filteredMyProperties = filterList(myProperties.filter(isActive));
-  const filteredSharedProperties = filterList(sharedProperties.filter(isActive));
-  const filteredAllProperties = filterList(properties.filter(isActive));
+  const filteredMyProperties = filterList(
+    statusFilter === "ALL" ? myProperties.filter(isActive) : myProperties.filter((p) => !p.deletedAt)
+  );
+  const filteredSharedProperties = filterList(
+    statusFilter === "ALL" ? sharedProperties.filter(isActive) : sharedProperties.filter((p) => !p.deletedAt)
+  );
+  const filteredAllProperties = filterList(
+    statusFilter === "ALL" ? properties.filter(isActive) : properties.filter((p) => !p.deletedAt)
+  );
 
   const passivePool = isBroker
     ? properties.filter(isPassive)
     : properties.filter(
         (p) => isPassive(p) && (p.assignedToId === currentUser.id || p.isShared)
       );
-  const filteredPassiveProperties = filterList(passivePool);
+  const filteredPassiveProperties = statusFilter === "ALL" ? filterList(passivePool) : [];
 
   const handleCreateProperty = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1104,82 +1260,334 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
         </div>
       </div>
 
-      {/* Arama & Filtre Çubuğu */}
-      <div className="sharp-card p-3 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
-        <div className="relative w-full md:w-72">
-          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            placeholder="Başlık, bölge veya portföy ara..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="sharp-input w-full pl-8.5 pr-3 py-1.5 text-xs font-mono"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* KKTC İlçe Filtresi */}
-          <select
-            value={districtFilter}
-            onChange={(e) => setDistrictFilter(e.target.value)}
-            className="sharp-input py-1 px-2 text-[11px] font-mono bg-white text-[#1d2566] font-semibold"
-          >
-            <option value="ALL">İlçe: Tümü</option>
-            {KKTC_DISTRICTS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-
-          {/* Portföy Türü (Satılık / Kiralık) */}
-          <div className="flex items-center bg-slate-100 border border-slate-200 p-0.5">
-            {[
-              { id: "ALL", label: "Tümü" },
-              { id: "sale", label: "Satılık" },
-              { id: "rent", label: "Kiralık" },
-            ].map((t) => (
+      {/* Arama, Filtreleme ve Sıralama Kontrol Paneli */}
+      <div className="sharp-card p-4 space-y-3.5 bg-white border border-slate-200/90 shadow-xs">
+        {/* Üst Satır: Arama Çubuğu + Satılık/Kiralık Seçimi + Sıralama Menüsü + Filtreleri Sıfırla */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Arama Input */}
+          <div className="relative flex-1 min-w-[260px]">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Başlık, bölge, adres, ilan no veya mülk sahibi ara..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="sharp-input w-full pl-9 pr-8 py-2 text-xs font-mono bg-slate-50/50 hover:bg-white focus:bg-white focus:border-[#00adb5] transition"
+            />
+            {searchTerm && (
               <button
-                key={t.id}
-                onClick={() => setListingTypeFilter(t.id)}
-                className={`px-2.5 py-1 text-[11px] font-mono transition cursor-pointer ${
-                  listingTypeFilter === t.id
-                    ? "bg-[#1d2566] text-white font-bold shadow-2xs"
-                    : "text-slate-600 hover:text-[#1d2566]"
-                }`}
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-rose-500 cursor-pointer p-0.5"
+                title="Aramayı Temizle"
               >
-                {t.label}
+                <X className="w-3.5 h-3.5" />
               </button>
-            ))}
+            )}
           </div>
 
-          {/* Gayrimenkul Tipi */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="sharp-input py-1 px-2.5 text-[11px] font-mono bg-white"
-          >
-            <option value="ALL">Tip: Tümü</option>
-            <option value="Daire">Daire</option>
-            <option value="Villa">Villa</option>
-            <option value="Ticari">Ticari</option>
-            <option value="Arsa">Arsa</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Satılık / Kiralık Durumu Segment Toggle */}
+            <div className="inline-flex items-center bg-slate-100 p-0.5 border border-slate-200">
+              {[
+                { id: "ALL", label: "Tümü" },
+                { id: "sale", label: "Satılık" },
+                { id: "rent", label: "Kiralık" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setListingTypeFilter(t.id)}
+                  className={`px-3 py-1.5 text-xs font-mono font-semibold transition-all cursor-pointer ${
+                    listingTypeFilter === t.id
+                      ? "bg-[#1d2566] text-white shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-[#1d2566]"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
 
-          {/* Durum / Arşiv Filtresi */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="sharp-input py-1 px-2.5 text-[11px] font-mono bg-white font-semibold text-[#1d2566]"
-          >
-            <option value="ALL">Durum: Tümü</option>
-            <option value="AVAILABLE">Yayında (Aktif)</option>
-            <option value="RESERVED">Rezerve</option>
-            <option value="SOLD">Satıldı</option>
-            <option value="RENTED">Kiralandı</option>
-            <option value="ARCHIVED">Arşivdeki Portföyler</option>
-          </select>
+            {/* Sıralama Seçenekleri (En Son Eklenenler Default) */}
+            <div className="relative flex items-center">
+              <span className="text-slate-400 absolute left-2.5 pointer-events-none">
+                <ArrowUpDown className="w-3.5 h-3.5" />
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="sharp-input pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white text-[#1d2566] border border-slate-200 focus:border-[#00adb5]"
+                title="Sıralama Ölçütü"
+              >
+                <option value="newest">Sırala: En Son Eklenen (Varsayılan)</option>
+                <option value="oldest">Sırala: En Eski Eklenen</option>
+                <option value="price_asc">Sırala: Fiyat (Düşükten Yükseğe)</option>
+                <option value="price_desc">Sırala: Fiyat (Yüksekten Düşüğe)</option>
+              </select>
+            </div>
+
+            {/* Filtreleri Sıfırla Butonu */}
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                title="Uygulanan tüm filtreleri temizle"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Temizle ({activeFilterCount})</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Alt Satır: Detaylı Filtre Dropdownları (İlçe, Bölge/Mahalle, Mülk Tipi, Danışman, Mülk Durumu) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100">
+          {/* 1. Konum: İlçe */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-[#00adb5]" />
+              <span>İlçe (Şehir)</span>
+            </label>
+            <select
+              value={districtFilter}
+              onChange={(e) => {
+                setDistrictFilter(e.target.value);
+                setSubRegionFilter("ALL"); // İlçe değiştiğinde alt bölgeyi sıfırla
+              }}
+              className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+            >
+              <option value="ALL">Tüm İlçeler</option>
+              {KKTC_DISTRICTS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Konum: Mahalle / Bölge */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <MapPin className="w-3 h-3 text-[#00adb5]" />
+              <span>Mahalle / Bölge</span>
+            </label>
+            <select
+              value={subRegionFilter}
+              onChange={(e) => setSubRegionFilter(e.target.value)}
+              disabled={districtFilter === "ALL"}
+              className={`sharp-input w-full py-1.5 px-2.5 text-xs font-mono border-slate-200 ${
+                districtFilter === "ALL"
+                  ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                  : "bg-white text-[#1d2566] font-semibold"
+              }`}
+            >
+              <option value="ALL">
+                {districtFilter === "ALL" ? "Önce İlçe Seçin" : "Tüm Bölgeler"}
+              </option>
+              {availableSubRegions.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Mülk Tipi */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Building className="w-3 h-3 text-[#00adb5]" />
+              <span>Mülk Tipi</span>
+            </label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+            >
+              <option value="ALL">Tüm Tipler</option>
+              {availablePropertyTypes.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Danışman */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <User className="w-3 h-3 text-[#00adb5]" />
+              <span>Danışman</span>
+            </label>
+            <select
+              value={advisorFilter}
+              onChange={(e) => setAdvisorFilter(e.target.value)}
+              className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+            >
+              <option value="ALL">Tüm Danışmanlar</option>
+              {availableAdvisors.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 5. Mülk Durumu */}
+          <div className="space-y-1 col-span-2 sm:col-span-1">
+            <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+              <Filter className="w-3 h-3 text-[#00adb5]" />
+              <span>Mülk Durumu</span>
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+            >
+              <option value="ALL">Tüm Durumlar</option>
+              <option value="AVAILABLE">Yayında (Aktif)</option>
+              <option value="RESERVED">Rezerve</option>
+              <option value="SOLD">Satıldı</option>
+              <option value="RENTED">Kiralandı</option>
+              <option value="ARCHIVED">Arşivdeki Portföyler</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Aktif Filtre Bilgi / Chip Çubuğu */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-[11px] font-mono">
+            <span className="text-slate-400 font-semibold mr-1">Aktif Filtreler:</span>
+            {districtFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>İlçe: {districtFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDistrictFilter("ALL");
+                    setSubRegionFilter("ALL");
+                  }}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {subRegionFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>Bölge: {subRegionFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setSubRegionFilter("ALL")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {listingTypeFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>{listingTypeFilter === "sale" ? "Satılık" : "Kiralık"}</span>
+                <button
+                  type="button"
+                  onClick={() => setListingTypeFilter("ALL")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {typeFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>Tip: {typeFilter}</span>
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter("ALL")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {advisorFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>
+                  Danışman:{" "}
+                  {users.find((u) => u.id === advisorFilter)?.name || advisorFilter}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAdvisorFilter("ALL")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {statusFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 border border-slate-200 text-slate-700">
+                <span>
+                  Durum:{" "}
+                  {statusFilter === "AVAILABLE"
+                    ? "Yayında"
+                    : statusFilter === "RESERVED"
+                    ? "Rezerve"
+                    : statusFilter === "SOLD"
+                    ? "Satıldı"
+                    : statusFilter === "RENTED"
+                    ? "Kiralandı"
+                    : "Arşiv"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ALL")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Filtreyi kaldır"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {sortBy !== "newest" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-cyan-50 border border-cyan-200 text-cyan-800">
+                <span>
+                  {sortBy === "oldest"
+                    ? "En Eski"
+                    : sortBy === "price_asc"
+                    ? "Fiyat (Artan)"
+                    : "Fiyat (Azalan)"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSortBy("newest")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Varsayılana dön"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+            {searchTerm && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-800">
+                <span>Arama: &quot;{searchTerm}&quot;</span>
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="hover:text-rose-600 cursor-pointer"
+                  title="Aramayı temizle"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Portföy Listesi (Danışman İzolasyonu & Ortak Paylaşım) */}
@@ -1235,20 +1643,22 @@ export function PropertiesView({ onFindMatches }: PropertiesViewProps) {
       )}
 
       {/* 3. Satılan & Kiralanan (Pasif) Portföyler */}
-      <div className="space-y-3 pt-6 border-t-2 border-dashed border-slate-300">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 pb-2">
-          <div className="flex items-center gap-2">
-            <Archive className="w-4 h-4 text-slate-600" />
-            <h2 className="text-sm font-bold text-slate-700 uppercase font-mono tracking-wide">
-              Satılan & Kiralanan (Pasif) Portföyler ({filteredPassiveProperties.length})
-            </h2>
+      {statusFilter === "ALL" && (
+        <div className="space-y-3 pt-6 border-t-2 border-dashed border-slate-300">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-slate-200 pb-2">
+            <div className="flex items-center gap-2">
+              <Archive className="w-4 h-4 text-slate-600" />
+              <h2 className="text-sm font-bold text-slate-700 uppercase font-mono tracking-wide">
+                Satılan & Kiralanan (Pasif) Portföyler ({filteredPassiveProperties.length})
+              </h2>
+            </div>
+            <span className="text-[11px] font-mono text-slate-500">
+              Sözleşmesi ve satışı kapanmış mülkler • Arşivde bekletilir, tek tıkla aktife alınabilir
+            </span>
           </div>
-          <span className="text-[11px] font-mono text-slate-500">
-            Sözleşmesi ve satışı kapanmış mülkler • Arşivde bekletilir, tek tıkla aktife alınabilir
-          </span>
+          {renderPassivePropertyGrid(filteredPassiveProperties)}
         </div>
-        {renderPassivePropertyGrid(filteredPassiveProperties)}
-      </div>
+      )}
 
       {/* Portföy Kartı Detayı Pop-up Modal */}
       {activePropertyDetail && (

@@ -39,7 +39,64 @@ interface SidebarProps {
 }
 
 export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
-  const { isBroker, currentUser, customers, properties, followUps, deals, mandates, logout } = useStore();
+  const {
+    isBroker,
+    currentUser,
+    customers,
+    properties,
+    followUps,
+    deals,
+    mandates,
+    rentals,
+    logout,
+  } = useStore();
+
+  // Kullanıcının yetkisine / hesabına göre dinamik sayaçlar (Danışman İzolasyonu)
+  const openFollowUpsCount = isBroker
+    ? followUps.filter((f) => f.status === "open").length
+    : followUps.filter(
+        (f) => f.status === "open" && (f.assignedToId === currentUser.id || f.isOfficeEvent)
+      ).length;
+
+  const activeCustomersCount = isBroker
+    ? customers.filter((c) => !c.deletedAt).length
+    : customers.filter(
+        (c) => !c.deletedAt && (c.assignedToId === currentUser.id || c.isShared)
+      ).length;
+
+  const activePropertiesCount = isBroker
+    ? properties.filter((p) => !p.deletedAt).length
+    : properties.filter(
+        (p) => !p.deletedAt && (p.assignedToId === currentUser.id || p.isShared)
+      ).length;
+
+  const activeRentalsCount = isBroker
+    ? rentals.filter((r) => r.active !== false).length
+    : rentals.filter(
+        (r) =>
+          r.active !== false &&
+          (r.assignedToId === currentUser.id ||
+            (r.assignedToName &&
+              currentUser.name &&
+              r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()))
+      ).length;
+
+  const activeMandatesCount = isBroker
+    ? mandates.filter((m) => m.status !== "cancelled").length
+    : mandates.filter(
+        (m) =>
+          m.status !== "cancelled" &&
+          (m.assignedToId === currentUser.id ||
+            (m.assignedToName &&
+              currentUser.name &&
+              m.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()))
+      ).length;
+
+  const activeDealsCount = isBroker
+    ? deals.length
+    : deals.filter(
+        (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
+      ).length;
 
   const navItems = [
     {
@@ -53,42 +110,42 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       id: "month_calendar" as NavTab,
       label: "Takvim",
       icon: Calendar,
-      badge: "Aylık",
+      badge: null,
       brokerOnly: false,
     },
     {
       id: "calendar" as NavTab,
       label: "Ajanda",
       icon: CalendarDays,
-      badge: followUps.filter((f) => f.status === "open").length,
+      badge: openFollowUpsCount,
       brokerOnly: false,
     },
     {
       id: "customers" as NavTab,
       label: "Müşteri Havuzu",
       icon: Users,
-      badge: customers.filter((c) => !c.deletedAt).length,
+      badge: activeCustomersCount,
       brokerOnly: false,
     },
     {
       id: "properties" as NavTab,
       label: "Portföy Yönetimi",
       icon: Building,
-      badge: properties.filter((p) => !p.deletedAt).length,
+      badge: activePropertiesCount,
       brokerOnly: false,
     },
     {
       id: "rentals" as NavTab,
       label: "Kira Takip",
       icon: KeyRound,
-      badge: "12 Ay",
+      badge: activeRentalsCount,
       brokerOnly: false,
     },
     {
       id: "mandates" as NavTab,
       label: "Yetki Takip",
       icon: FileCheck,
-      badge: mandates.length,
+      badge: activeMandatesCount,
       brokerOnly: false,
     },
     {
@@ -102,7 +159,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       id: "finance" as NavTab,
       label: "İşlemler",
       icon: Calculator,
-      badge: deals.length,
+      badge: activeDealsCount,
       brokerOnly: false,
     },
     {

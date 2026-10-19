@@ -157,8 +157,10 @@ export const initialUsers: User[] = [
   },
 ];
 
-// Canlı gerçek kullanım için başlangıçta boş operasyonel havuzlar
-export const initialProperties: Property[] = [];
+import defaultProperties from "./propertiesData.json";
+
+// Canlı kullanım ve anında (0ms) ilk yükleme için güncel başlangıç portföyleri
+export const initialProperties: Property[] = (defaultProperties as unknown as Property[]) || [];
 export const initialCustomers: Customer[] = [];
 export const initialFollowUps: FollowUp[] = [];
 export const initialDeals: Deal[] = [];

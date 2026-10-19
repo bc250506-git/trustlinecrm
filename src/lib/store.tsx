@@ -68,6 +68,7 @@ import {
   deleteSnapshot,
   checkAndCreateDailySnapshot,
 } from "./backup/snapshotEngine";
+import { idbGet, idbSet } from "./indexedDbCache";
 
 interface StoreContextType {
   currentUser: User;
@@ -327,9 +328,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     loadFromStorage(CUSTOMERS_STORAGE_KEY, initialCustomers)
   );
 
-  const [properties, setProperties] = useState<Property[]>(() =>
-    loadFromStorage(PROPERTIES_STORAGE_KEY, initialProperties)
-  );
+  const [properties, setProperties] = useState<Property[]>(() => {
+    const fromStorage = loadFromStorage(PROPERTIES_STORAGE_KEY, initialProperties);
+    // Depolamada eski/kırpılmış veri (örn: 22 portföy) veya resimsiz veri varsa, güncel başlangıç snapshot'ını kullan
+    if (!fromStorage || fromStorage.length < initialProperties.length) {
+      return initialProperties;
+    }
+    const storageHasPhotos = fromStorage.some(
+      (p) => p.imageUrl || (p.photos && p.photos.length > 0 && p.photos[0].url)
+    );
+    if (!storageHasPhotos && initialProperties.some((p) => p.imageUrl)) {
+      return initialProperties;
+    }
+    return fromStorage;
+  });
 
   const [followUps, setFollowUps] = useState<FollowUp[]>(() =>
     loadFromStorage(FOLLOWUPS_STORAGE_KEY, initialFollowUps)
@@ -356,7 +368,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
 
-  // Otomatik LocalStorage Senkronizasyonları (Sayfa Yenilendiğinde Asla Veri Kaybolmaz)
+  // Sayfa açılır açılmaz IndexedDB'den fotoğraflı güncel portföyleri hemen (0ms) yükle
+  useEffect(() => {
+    idbGet<Property[]>("trustline_crm_properties_v2").then((cached) => {
+      if (cached && Array.isArray(cached) && cached.length >= initialProperties.length) {
+        setProperties((prev) => {
+          const prevHasPhotos = prev.some((p) => p.imageUrl);
+          const cachedHasPhotos = cached.some((p) => p.imageUrl);
+          if (prev.length < cached.length || (!prevHasPhotos && cachedHasPhotos)) {
+            return cached;
+          }
+          return prev;
+        });
+      }
+    });
+  }, []);
+
+  // Otomatik LocalStorage ve IndexedDB Senkronizasyonları (Sayfa Yenilendiğinde Asla Veri Kaybolmaz)
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -367,12 +395,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // 1. IndexedDB'ye fotoğraflarıyla birlikte tam veriyi yaz (5MB sınırı yoktur, anında yazar)
+      idbSet("trustline_crm_properties_v2", properties);
+
+      // 2. LocalStorage'a da yaz (WebP optimize edildiğinden doğrudan sığar)
       try {
-        localStorage.setItem(
-          PROPERTIES_STORAGE_KEY,
-          JSON.stringify(sanitizePropertiesForStorage(properties))
-        );
-      } catch (e) {}
+        localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(properties));
+      } catch (e) {
+        try {
+          localStorage.setItem(
+            PROPERTIES_STORAGE_KEY,
+            JSON.stringify(sanitizePropertiesForStorage(properties))
+          );
+        } catch {}
+      }
     }
   }, [properties]);
 
@@ -481,12 +517,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               }
             }
             const merged = [...cloudProps, ...unsavedLocal];
+            idbSet("trustline_crm_properties_v2", merged);
             try {
-              localStorage.setItem(
-                PROPERTIES_STORAGE_KEY,
-                JSON.stringify(sanitizePropertiesForStorage(merged))
-              );
-            } catch {}
+              localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(merged));
+            } catch {
+              try {
+                localStorage.setItem(
+                  PROPERTIES_STORAGE_KEY,
+                  JSON.stringify(sanitizePropertiesForStorage(merged))
+                );
+              } catch {}
+            }
             return merged;
           });
         }
@@ -2935,10 +2976,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     try {
       localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(finalCustomers));
-      localStorage.setItem(
-        PROPERTIES_STORAGE_KEY,
-        JSON.stringify(sanitizePropertiesForStorage(finalProperties))
-      );
+      idbSet("trustline_crm_properties_v2", finalProperties);
+      try {
+        localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(finalProperties));
+      } catch {
+        try {
+          localStorage.setItem(
+            PROPERTIES_STORAGE_KEY,
+            JSON.stringify(sanitizePropertiesForStorage(finalProperties))
+          );
+        } catch {}
+      }
       localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(finalDeals));
       localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(finalRentals));
       localStorage.setItem(MANDATES_STORAGE_KEY, JSON.stringify(finalMandates));

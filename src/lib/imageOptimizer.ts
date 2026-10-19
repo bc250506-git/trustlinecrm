@@ -17,9 +17,9 @@ export interface OptimizedImageResult {
 
 export async function optimizeImageToWebP(
   file: File,
-  maxWidth = 1200,
-  maxHeight = 900,
-  quality = 0.75
+  maxWidth = 720,
+  maxHeight = 540,
+  quality = 0.65
 ): Promise<OptimizedImageResult> {
   if (!file.type.startsWith("image/")) {
     throw new Error("Lütfen geçerli bir görsel dosyası (JPG, PNG, WebP) seçin.");

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import {
   Settings,
@@ -30,7 +30,23 @@ export function SettingsView() {
     updateUserProfile,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>("security");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    if (typeof window === "undefined") return "security";
+    try {
+      const saved = localStorage.getItem("trustline_crm_settings_subtab") as SettingsTab;
+      if (saved === "security" || saved === "profile" || saved === "notifications") {
+        return saved;
+      }
+    } catch {}
+    return "security";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("trustline_crm_settings_subtab", activeTab);
+    } catch {}
+  }, [activeTab]);
 
   // Şifre Değiştirme State
   const [currentPassword, setCurrentPassword] = useState("");

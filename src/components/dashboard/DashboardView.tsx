@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import {
   Users,
@@ -73,7 +73,21 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [completeFeedback, setCompleteFeedback] = useState("");
   const [completeOutcome, setCompleteOutcome] = useState("attended");
-  const [dashboardTab, setDashboardTab] = useState<"operations" | "analytics">("operations");
+  const [dashboardTab, setDashboardTab] = useState<"operations" | "analytics">(() => {
+    if (typeof window === "undefined") return "operations";
+    try {
+      const saved = localStorage.getItem("trustline_crm_dashboard_tab");
+      if (saved === "operations" || saved === "analytics") return saved;
+    } catch {}
+    return "operations";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("trustline_crm_dashboard_tab", dashboardTab);
+    } catch {}
+  }, [dashboardTab]);
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
 
   // Hızlı İşlem Modalları State

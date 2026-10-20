@@ -21,19 +21,97 @@ import { WeeklyBackupModal } from "@/components/backup/WeeklyBackupModal";
 import { Customer, Property } from "@/lib/types";
 import { useStore } from "@/lib/store";
 
+const VALID_TABS: NavTab[] = [
+  "dashboard",
+  "month_calendar",
+  "calendar",
+  "customers",
+  "properties",
+  "matchmaker",
+  "rentals",
+  "mandates",
+  "finance",
+  "security",
+  "settings",
+];
+
+const ACTIVE_TAB_STORAGE_KEY = "trustline_crm_active_tab";
+
+function getStoredTab(): NavTab {
+  if (typeof window === "undefined") return "dashboard";
+
+  // 1. URL Hash önceliği (#properties, #customers vb.)
+  const hash = window.location.hash.replace(/^#/, "").trim() as NavTab;
+  if (VALID_TABS.includes(hash)) {
+    return hash;
+  }
+
+  // 2. URL Query Parametre önceliği (?tab=properties)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get("tab") as NavTab;
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      return tabParam;
+    }
+  } catch {}
+
+  // 3. LocalStorage önceliği
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY) as NavTab;
+    if (saved && VALID_TABS.includes(saved)) {
+      return saved;
+    }
+  } catch {}
+
+  return "dashboard";
+}
+
 function MainApp() {
   const { isAuthenticated } = useStore();
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<NavTab>("dashboard");
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    if (typeof window !== "undefined") {
+      return getStoredTab();
+    }
+    return "dashboard";
+  });
   const [matchmakerCustomer, setMatchmakerCustomer] = useState<Customer | null>(null);
   const [matchmakerProperty, setMatchmakerProperty] = useState<Property | null>(null);
   const [brochureProperty, setBrochureProperty] = useState<Property | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
-  // SSR Hydration Uyuşmazlığını Önleme (Sunucu ile Tarayıcıyı Senkronize Et)
+  // SSR Hydration Uyuşmazlığını Önleme & Hash Takibi (F5 Yenilemede Aynı Sekmede Kalma)
   React.useEffect(() => {
     setMounted(true);
+    const initial = getStoredTab();
+    if (initial) {
+      setActiveTab(initial);
+      if (window.location.hash !== `#${initial}`) {
+        window.history.replaceState(null, "", `#${initial}`);
+      }
+    }
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#/, "").trim() as NavTab;
+      if (VALID_TABS.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
+
+  // Aktif sekme değiştikçe LocalStorage ve URL Hash'ini daima güncel tut
+  React.useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+    try {
+      localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab);
+      if (window.location.hash !== `#${activeTab}`) {
+        window.history.replaceState(null, "", `#${activeTab}`);
+      }
+    } catch {}
+  }, [activeTab, mounted]);
 
   if (!mounted) {
     return (

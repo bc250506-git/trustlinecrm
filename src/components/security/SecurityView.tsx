@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useStore } from "@/lib/store";
 import {
   ShieldAlert,
@@ -81,7 +81,23 @@ export function SecurityView() {
 
   const [activeTab, setActiveTab] = useState<
     "export" | "restore" | "snapshots" | "cloud" | "merge" | "trash"
-  >("export");
+  >(() => {
+    if (typeof window === "undefined") return "export";
+    try {
+      const saved = localStorage.getItem("trustline_crm_security_subtab") as any;
+      if (["export", "restore", "snapshots", "cloud", "merge", "trash"].includes(saved)) {
+        return saved;
+      }
+    } catch {}
+    return "export";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("trustline_crm_security_subtab", activeTab);
+    } catch {}
+  }, [activeTab]);
 
   // =========================================================================
   // ÇÖP KUTUSU (SOFT DELETE ARŞİVİ) STATE'LERİ

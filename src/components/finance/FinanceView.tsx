@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { Deal, Currency, DealSharingType, isOfficeSystemAccount } from "@/lib/types";
 import { ActionMenu } from "@/components/common/ActionMenu";
@@ -66,7 +66,21 @@ export function FinanceView() {
   } = useStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [financeTab, setFinanceTab] = useState<"matrix" | "analytics">("matrix");
+  const [financeTab, setFinanceTab] = useState<"matrix" | "analytics">(() => {
+    if (typeof window === "undefined") return "matrix";
+    try {
+      const saved = localStorage.getItem("trustline_crm_finance_tab");
+      if (saved === "matrix" || saved === "analytics") return saved;
+    } catch {}
+    return "matrix";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem("trustline_crm_finance_tab", financeTab);
+    } catch {}
+  }, [financeTab]);
 
   // Silme Onay Modalı State
   const [dealToDelete, setDealToDelete] = useState<Deal | null>(null);

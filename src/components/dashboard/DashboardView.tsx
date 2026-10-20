@@ -134,7 +134,13 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
 
     const userRentals = isBroker
       ? rentals
-      : rentals.filter((r) => r.assignedToId === currentUser.id);
+      : rentals.filter(
+          (r) =>
+            r.assignedToId === currentUser.id ||
+            (r.assignedToName &&
+              currentUser.name &&
+              r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+        );
 
     // 14 Günlük İletişimsizlik Alarmı
     const fourteen = userCustomers.filter((c) => {

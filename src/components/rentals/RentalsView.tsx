@@ -60,6 +60,37 @@ export function RentalsView() {
     toggleRentalStamp,
   } = useStore();
 
+  const [advisorFilter, setAdvisorFilter] = useState<string>("ALL");
+
+  // Danışman İzolasyonu: Danışmanlar KESİNLİKLE sadece kendi kira sözleşmelerini görebilir
+  const filteredRentals = React.useMemo(() => {
+    if (!isBroker) {
+      // Danışman: KESİNLİKLE VE YALNIZCA KENDİSİNE AİT SÖZLEŞMELERİ GÖRÜR
+      return rentals.filter(
+        (r) =>
+          r.assignedToId === currentUser.id ||
+          (r.assignedToName &&
+            currentUser.name &&
+            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+          (!r.assignedToId &&
+            r.propertyId &&
+            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id))
+      );
+    }
+    // Broker: Tüm ofis veya filtreli danışman görünümü
+    if (advisorFilter === "ALL") return rentals;
+    if (advisorFilter === "MY") {
+      return rentals.filter(
+        (r) =>
+          r.assignedToId === currentUser.id ||
+          (r.assignedToName &&
+            currentUser.name &&
+            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+      );
+    }
+    return rentals.filter((r) => r.assignedToId === advisorFilter);
+  }, [rentals, isBroker, advisorFilter, currentUser, properties]);
+
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
 
@@ -167,7 +198,7 @@ export function RentalsView() {
     // Kullanıcı talebi: 2030'a kadar kesintisiz akış; ayrıca her zaman cari yıl + 3 yıl ilerisini kapsasın
     let maxYear = Math.max(2030, currentYear + 3);
 
-    rentals.forEach((r) => {
+    filteredRentals.forEach((r) => {
       if (r.contractStart) {
         const startY = parseInt(r.contractStart.slice(0, 4), 10);
         if (!isNaN(startY) && startY < minYear) minYear = startY;
@@ -183,7 +214,7 @@ export function RentalsView() {
       years.push(y);
     }
     return years;
-  }, [rentals, currentDate]);
+  }, [filteredRentals, currentDate]);
 
   // Zaman çizelgesindeki tüm aylar
   const allTimelineMonths = React.useMemo(() => {
@@ -574,16 +605,16 @@ export function RentalsView() {
 
 
   const todayStr = new Date().toISOString().split("T")[0];
-  const expiredRentals = rentals.filter((r) => {
+  const expiredRentals = filteredRentals.filter((r) => {
     if (r.active === false) return false;
     if (!r.contractEnd) return false;
     return r.contractEnd <= todayStr;
   });
   const visibleExpiredRentals = expiredRentals;
 
-  const stampedCount = rentals.filter((r) => !!r.isStamped).length;
-  const unstampedCount = rentals.length - stampedCount;
-  const displayedRentals = rentals.filter((r) => {
+  const stampedCount = filteredRentals.filter((r) => !!r.isStamped).length;
+  const unstampedCount = filteredRentals.length - stampedCount;
+  const displayedRentals = filteredRentals.filter((r) => {
     if (stampFilter === "STAMPED") return !!r.isStamped;
     if (stampFilter === "UNSTAMPED") return !r.isStamped;
     return true;
@@ -594,27 +625,75 @@ export function RentalsView() {
       {/* Üst Bilgi Başlığı */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-mono text-xs text-emerald-700 font-bold tracking-wider uppercase">
               YILLIK FİNANSAL YÖNETİM
             </span>
             <span className="text-slate-300">•</span>
-            <span className="text-xs text-slate-500 font-mono">
-              {isBroker
-                ? `Ofis Geneli (${rentals.length} Sözleşme)`
-                : `Kira Takip Defteri (${rentals.length} Sözleşme)`}
-            </span>
+            {isBroker ? (
+              <span className="text-xs text-slate-500 font-mono font-bold">
+                {advisorFilter === "ALL"
+                  ? `Ofis Geneli (${filteredRentals.length} Sözleşme)`
+                  : advisorFilter === "MY"
+                  ? `Şahsi Kiralarınız (${filteredRentals.length} Sözleşme)`
+                  : `${users.find((u) => u.id === advisorFilter)?.name || "Danışman"} (${filteredRentals.length} Sözleşme)`}
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-800 font-mono font-bold bg-emerald-50 px-2.5 py-0.5 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                Şahsi Kira Defteriniz ({filteredRentals.length} Sözleşme)
+              </span>
+            )}
+            {!isBroker && (
+              <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 border border-slate-200">
+                🔒 İzolasyon Koruması: Yalnızca kendi kira sözleşmelerinizi görüntülüyorsunuz
+              </span>
+            )}
           </div>
           <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-emerald-600" />
             Kira Takip Matrisi ve Dekont Defteri
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları yönetim defteri.
+            {isBroker
+              ? "Ofis geneli ve danışman bazlı 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları yönetim defteri."
+              : "Sorumlu olduğunuz şahsi kira sözleşmelerinizin 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları defteri."}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* Danışman Filtresi (Yalnızca Broker için) */}
+          {isBroker && (
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200">
+              <span className="text-xs font-mono font-bold text-slate-600 pl-1.5 flex items-center gap-1">
+                <Users className="w-3.5 h-3.5 text-[#00adb5]" />
+                <span className="hidden sm:inline">Danışman:</span>
+              </span>
+              <select
+                value={advisorFilter}
+                onChange={(e) => setAdvisorFilter(e.target.value)}
+                className="sharp-input px-2.5 py-1 text-xs font-mono bg-white font-bold border border-slate-300 cursor-pointer"
+              >
+                <option value="ALL">Tüm Ofis ({rentals.length})</option>
+                <option value="MY">
+                  Sadece Benim Kiralarım ({rentals.filter((r) => r.assignedToId === currentUser.id || (r.assignedToName && r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())).length})
+                </option>
+                <optgroup label="Danışmanlar">
+                  {users
+                    .filter((u) => u.id !== currentUser.id)
+                    .map((u) => {
+                      const count = rentals.filter((r) => r.assignedToId === u.id || (r.assignedToName && r.assignedToName.trim().toLowerCase() === u.name.trim().toLowerCase())).length;
+                      return (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({count})
+                        </option>
+                      );
+                    })}
+                </optgroup>
+              </select>
+            </div>
+          )}
+
           {/* KKTC Vergi Dairesi Damga Pulu Filtresi */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200">
             <button
@@ -626,7 +705,7 @@ export function RentalsView() {
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-200"
               }`}
             >
-              Tümü ({rentals.length})
+              Tümü ({filteredRentals.length})
             </button>
             <button
               type="button"
@@ -832,7 +911,7 @@ export function RentalsView() {
       )}
 
       {/* KESİNTİSİZ ZAMAN ÇİZELGESİ SLIDERI (SADE VE MODERN TASARIM) */}
-      {rentals.length > 0 && (
+      {filteredRentals.length > 0 && (
         <div className="sharp-card p-3 bg-white border border-slate-200 shadow-xs mb-3 space-y-2">
           {/* Üst Satır: Görüntülenen Dönem ve Hızlı Yıl / Bugün Butonları */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono">
@@ -905,7 +984,7 @@ export function RentalsView() {
       )}
 
       {/* Yıllık Matris Tablosu VEYA Boş Durum */}
-      {rentals.length === 0 ? (
+      {filteredRentals.length === 0 ? (
         <div className="sharp-card p-12 text-center border border-dashed border-slate-300 bg-slate-50/50 space-y-3">
           <KeyRound className="w-10 h-10 text-slate-400 mx-auto" />
           <h3 className="text-sm font-bold text-[#1d2566]">
@@ -913,8 +992,10 @@ export function RentalsView() {
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
             {isBroker
-              ? "Ofis portföyünde henüz aktif bir kira sözleşmesi kaydı girilmedi. Yeni bir kira takibi başlatmak için yukarıdaki butonu kullanın."
-              : "Sorumlu olduğunuz aktif bir kira sözleşmesi bulunmuyor. Yeni bir sözleşme eklemek için yukarıdaki '+ Yeni Kira Sözleşmesi Ekle' butonuna tıklayın."}
+              ? advisorFilter === "ALL"
+                ? "Ofis portföyünde henüz aktif bir kira sözleşmesi kaydı girilmedi. Yeni bir kira takibi başlatmak için yukarıdaki butonu kullanın."
+                : "Seçili danışmana ait kayıtlı kira sözleşmesi bulunmuyor."
+              : "Sorumlu olduğunuz şahsi bir kira sözleşmesi bulunmuyor. Yeni bir sözleşme eklemek için yukarıdaki '+ Yeni Kira Sözleşmesi Ekle' butonuna tıklayın."}
           </p>
           <button
             onClick={() => setIsAddModalOpen(true)}

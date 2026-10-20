@@ -88,6 +88,8 @@ interface StoreContextType {
   deals: Deal[];
   myDeals: Deal[];
   rentals: RentalContract[];
+  myRentals: RentalContract[];
+  allRentals: RentalContract[];
   mandates: MandateContract[];
   // Otomasyon & Bildirimler (Faz 2)
   notifications: WorkflowNotification[];
@@ -849,6 +851,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (isRuleEnabled("rule-rent-reminder")) {
       rentals.forEach((r) => {
         if (!r.active) return;
+        const isAssigned =
+          currentUser.role === "ADMIN" ||
+          (r.assignedToId && r.assignedToId === currentUser.id) ||
+          (r.assignedToName &&
+            currentUser.name &&
+            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+          (!r.assignedToId &&
+            r.propertyId &&
+            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id));
+        if (!isAssigned) return;
         r.payments.forEach((p) => {
           if (p.status === "unpaid" || p.status === "overdue") {
             const dueDate = new Date(p.dueDate);
@@ -963,6 +975,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (isRuleEnabled("rule-contract-expiration")) {
       rentals.forEach((r) => {
         if (!r.active || !r.contractEnd) return;
+        const isAssigned =
+          currentUser.role === "ADMIN" ||
+          (r.assignedToId && r.assignedToId === currentUser.id) ||
+          (r.assignedToName &&
+            currentUser.name &&
+            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+          (!r.assignedToId &&
+            r.propertyId &&
+            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id));
+        if (!isAssigned) return;
         const end = new Date(r.contractEnd);
         const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
         if (diffDays <= 60) {
@@ -1596,6 +1618,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
       );
 
+  // Danışmanın kendi kira takibi (Kira takibi YALNIZCA kira sahibi danışman tarafından görülür, diğer danışmanlar kesinlikle göremez)
+  const isRentalOwner = (r: RentalContract) => {
+    if (r.assignedToId && r.assignedToId === currentUser.id) return true;
+    if (
+      r.assignedToName &&
+      currentUser.name &&
+      r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()
+    ) {
+      return true;
+    }
+    if (!r.assignedToId && r.propertyId) {
+      const prop = properties.find((p) => p.id === r.propertyId);
+      if (prop && prop.assignedToId === currentUser.id) return true;
+    }
+    if (!r.assignedToId && r.landlordCustomerId) {
+      const cust = customers.find((c) => c.id === r.landlordCustomerId);
+      if (cust && cust.assignedToId === currentUser.id) return true;
+    }
+    if (!r.assignedToId && r.tenantCustomerId) {
+      const cust = customers.find((c) => c.id === r.tenantCustomerId);
+      if (cust && cust.assignedToId === currentUser.id) return true;
+    }
+    return false;
+  };
+
+  const myRentals = rentals.filter((r) => isRentalOwner(r));
+  const visibleRentals = isBroker ? rentals : myRentals;
+
   // Customer handlers
   const addCustomer = (customerData: Omit<Customer, "id" | "createdAt" | "updatedAt">): Customer => {
     const newCustomer: Customer = {
@@ -1615,7 +1665,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const canManageProperty = (p: Property) => isBroker || p.assignedToId === currentUser.id;
   const canManageFollowUp = (f: FollowUp) => isBroker || f.assignedToId === currentUser.id || f.createdById === currentUser.id;
   const canManageDeal = (d: Deal) => isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id;
-  const canManageRental = (r: RentalContract) => isBroker || r.assignedToId === currentUser.id;
+  const canManageRental = (r: RentalContract) => isBroker || isRentalOwner(r);
 
   const updateCustomer = (id: string, updates: Partial<Customer>): boolean => {
     const cust = customers.find((c) => c.id === id);
@@ -2584,7 +2634,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setRentals((prev) =>
       prev.map((r) => {
         if (r.id !== rentalId) return r;
-        if (!isBroker && r.assignedToId !== currentUser.id) return r;
+        if (!canManageRental(r)) return r;
         const updatedRental: RentalContract = {
           ...r,
           payments: r.payments.map((p) => {
@@ -2627,7 +2677,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setRentals((prev) =>
       prev.map((r) => {
         if (r.id !== rentalId) return r;
-        if (!isBroker && r.assignedToId !== currentUser.id) return r;
+        if (!canManageRental(r)) return r;
         const updatedRental: RentalContract = {
           ...r,
           payments: r.payments.map((p) => {
@@ -2790,8 +2840,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saveProperty(updatedProp).catch(() => {});
     return true;
   };
-
-  const visibleRentals = rentals;
 
   // Mandates
   const canManageMandate = (mandate: MandateContract) => {
@@ -3064,6 +3112,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         deals: visibleDeals,
         myDeals: visibleDeals,
         rentals: visibleRentals,
+        myRentals,
+        allRentals: rentals,
         mandates: visibleMandates,
         addCustomer,
         updateCustomer,

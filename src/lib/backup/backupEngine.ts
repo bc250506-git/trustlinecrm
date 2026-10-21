@@ -425,6 +425,8 @@ export function generateExcelWorkbook(payload: BackupPayload): Uint8Array {
       "Kiracı Telefonu": safeCellText(formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone),
       "Mülk Sahibi": safeCellText(r.landlordName),
       "Aylık Kira Bedeli": safeCurrencyAmount(r.monthlyRent, r.currency),
+      "Aidat Durumu": r.hasDues ? "Aidat Var" : "Aidat Yok",
+      "Aylık Aidat Bedeli": r.hasDues && r.duesAmount ? safeCurrencyAmount(r.duesAmount, r.duesCurrency || "TRY") : "—",
       "Kira Ödeme Günü": `Her ayın ${r.dueDay || 1}. günü`,
       "Depozito": safeCurrencyAmount(r.depositAmount, r.currency),
       "Sözleşme Başlangıç": safeCellText(formatDateTR(r.contractStart)),

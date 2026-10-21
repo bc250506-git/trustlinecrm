@@ -70,6 +70,7 @@ CREATE TABLE customers (
     "birthDate" TEXT,
     source TEXT DEFAULT 'manual', -- manual, csv, meta, ycloud, portal
     category TEXT DEFAULT 'BUYER', -- BUYER, SELLER, TENANT, LANDLORD, INVESTOR
+    "isAlsoBuyer" BOOLEAN DEFAULT FALSE,
     temperature TEXT DEFAULT 'warm', -- hot, warm, cold
     "isVip" BOOLEAN DEFAULT FALSE,
     region TEXT,
@@ -235,6 +236,9 @@ CREATE TABLE rentals (
     "contractEnd" TEXT,
     "depositAmount" NUMERIC(15,2) DEFAULT 0,
     active BOOLEAN DEFAULT TRUE,
+    "hasDues" BOOLEAN DEFAULT FALSE,
+    "duesAmount" NUMERIC(15,2) DEFAULT 0,
+    "duesCurrency" TEXT DEFAULT 'GBP',
     "isStamped" BOOLEAN DEFAULT FALSE,
     "stampedAt" TEXT,
     "paymentPeriod" TEXT DEFAULT 'monthly', -- monthly, quarterly, semi_annual, annual

@@ -66,6 +66,32 @@ export function isOfficeSystemAccount(user?: { id?: string; username?: string; n
   return false;
 }
 
+/**
+ * Volkan Affan Kanıgür (Ofis Sahibi / Broker) kullanıcısını tespit eden yardımcı.
+ */
+export function isVolkanUser(user?: { id?: string; username?: string; name?: string } | null): boolean {
+  if (!user) return false;
+  if (user.id === "usr-volkan") return true;
+  if (user.username === "volkan.broker") return true;
+  const nameLower = (user.name || "").toLowerCase().trim();
+  if (nameLower.includes("volkan") && (nameLower.includes("kanıgür") || nameLower.includes("kanigur"))) return true;
+  if (nameLower.includes("volkan affan")) return true;
+  return false;
+}
+
+/**
+ * İşlemin Volkan Affan Kanıgür adına olup olmadığını (veya Ofis Yönetimi üzerinden
+ * Volkan adına açılmış eski bir işlem olup olmadığını) tespit eden yardımcı.
+ */
+export function isVolkanDeal(deal?: { createdById?: string; createdByName?: string } | null): boolean {
+  if (!deal) return false;
+  if (deal.createdById === "usr-volkan") return true;
+  if (deal.createdById === "usr-ofis") return true;
+  if (isOfficeSystemAccount({ id: deal.createdById, name: deal.createdByName })) return true;
+  if (isVolkanUser({ id: deal.createdById, name: deal.createdByName })) return true;
+  return false;
+}
+
 export interface Customer {
   id: string;
   fullName: string;
@@ -245,6 +271,9 @@ export interface RentalMonthPayment {
   receiptUrl?: string;
   receiptName?: string;
   notes?: string;
+  duesStatus?: "paid" | "unpaid" | "overdue"; // Aidat Ödeme Durumu
+  duesPaidDate?: string; // Aidat Ödenme Tarihi (YYYY-MM-DD)
+  duesPaidAmount?: number; // Ödenen Aidat Tutarı
 }
 
 export interface RentalContract {
@@ -260,6 +289,9 @@ export interface RentalContract {
   landlordPhone: string;
   monthlyRent: number;
   currency: Currency;
+  hasDues?: boolean; // Aidat Ödemesi Var mı?
+  duesAmount?: number; // Aylık Aidat Tutarı
+  duesCurrency?: Currency; // Aidat Para Birimi
   dueDay: number; // 1-31
   contractStart: string;
   contractEnd: string;
@@ -304,6 +336,8 @@ export interface WorkflowNotification {
     | "match"
     | "rent_due"
     | "rent_paid"
+    | "dues_due"
+    | "dues_overdue"
     | "lead_decay"
     | "mandate_expiring"
     | "contract_expiring"

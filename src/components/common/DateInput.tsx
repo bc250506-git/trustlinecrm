@@ -147,7 +147,7 @@ export function DateInput({
 
   return (
     <div
-      className={`relative flex items-center border border-slate-300 bg-white transition focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5] ${
+      className={`relative flex items-center border border-slate-300 bg-white transition focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5] h-[38px] ${
         disabled ? "opacity-60 cursor-not-allowed bg-slate-50" : ""
       } ${className}`}
     >
@@ -161,7 +161,7 @@ export function DateInput({
         placeholder={placeholder}
         disabled={disabled}
         required={required}
-        className="w-full py-1.5 px-2.5 text-xs font-mono font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
+        className="w-full h-full py-1.5 px-2.5 text-xs font-mono font-medium text-slate-800 placeholder:text-slate-400 bg-transparent focus:outline-none"
       />
 
       {/* Takvim Butonu & İkonu */}

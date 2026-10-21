@@ -72,8 +72,17 @@ export function CustomersView({
       : null
   );
 
-  // Silme Onay Modalı State
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+
+  // Dışarıdan veya Global Search'ten seçilen müşteriyi anında detay modalında aç
+  useEffect(() => {
+    if (selectedCustomerId) {
+      const found = customers.find((c) => c.id === selectedCustomerId);
+      if (found) {
+        setActiveCustomerDetail(found);
+      }
+    }
+  }, [selectedCustomerId, customers]);
 
   // Popuplar açıkken arkaplan asla scroll yapılamasın
   useEffect(() => {
@@ -238,11 +247,11 @@ export function CustomersView({
                         }`}
                       >
                         {isDual
-                          ? "Satıcı & Alıcı"
+                          ? "Mal Sahibi & Alıcı"
                           : c.category === "BUYER"
                           ? "Alıcı"
                           : c.category === "SELLER"
-                          ? "Satıcı"
+                          ? "Mal Sahibi"
                           : isActiveTenant
                           ? "Aktif Kiracı"
                           : "Kiracı Adayı"}
@@ -422,7 +431,7 @@ export function CustomersView({
             {[
               { id: "ALL", label: "Tümü" },
               { id: "BUYER", label: "Alıcı" },
-              { id: "SELLER", label: "Satıcı" },
+              { id: "SELLER", label: "Mal Sahibi" },
               { id: "TENANT", label: "Kiracı" },
             ].map((cat) => (
               <button
@@ -547,8 +556,8 @@ export function CustomersView({
 
       {/* Müşteri Detay Modalı / Yan Kartı */}
       {activeCustomerDetail && (
-        <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-md flex items-center justify-center p-0 sm:p-4">
+          <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] max-w-lg flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div>
                 <div className="text-[10px] font-mono text-[#00adb5] uppercase font-bold">

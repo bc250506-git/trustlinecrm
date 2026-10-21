@@ -15,12 +15,15 @@ import {
   LogOut,
 } from "lucide-react";
 import { NotificationCenterDrawer } from "@/components/automation/NotificationCenterDrawer";
+import { GlobalHeaderSearch } from "@/components/layout/GlobalHeaderSearch";
 
 interface HeaderProps {
   onNavigateTab?: (tab: any) => void;
+  onOpenCustomer?: (customerId: string) => void;
+  onOpenProperty?: (propertyId: string) => void;
 }
 
-export function Header({ onNavigateTab }: HeaderProps) {
+export function Header({ onNavigateTab, onOpenCustomer, onOpenProperty }: HeaderProps) {
   const { currentUser, isBroker, notifications, logout } =
     useStore();
   const [isNotificationDrawerOpen, setIsNotificationDrawerOpen] = useState(false);
@@ -30,7 +33,7 @@ export function Header({ onNavigateTab }: HeaderProps) {
   const [currentDate, setCurrentDate] = useState("");
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
-  // Kıbrıs Saati (Asia/Famagusta)
+  // Kıbrıs Saati (Asia/Famagusta) - Yalnızca Saat ve Dakika (Saniye ve KKTC yazısı kaldırıldı)
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -38,7 +41,6 @@ export function Header({ onNavigateTab }: HeaderProps) {
         timeZone: "Asia/Famagusta",
         hour: "2-digit",
         minute: "2-digit",
-        second: "2-digit",
       });
       const dateStr = now.toLocaleDateString("tr-TR", {
         timeZone: "Asia/Famagusta",
@@ -57,34 +59,41 @@ export function Header({ onNavigateTab }: HeaderProps) {
   }, []);
 
   return (
-    <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+    <header className="h-16 border-b border-slate-200 bg-white px-3 sm:px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs gap-3">
       {/* Sol: Logo (Orijinal PNG) & Marka */}
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-3">
-          <img
-            src="/logo.png"
-            alt="Trustline Real Estate"
-            className="h-9 md:h-10 w-auto object-contain shrink-0"
-          />
-        </div>
-
-        {/* Canlı Saat / Zaman Dilimi (Asia/Famagusta - KKTC) */}
-        <div className="hidden lg:flex items-center gap-2 pl-6 ml-2 border-l border-slate-200 text-sm text-slate-600 font-mono">
-          <Clock className="w-4 h-4 text-[#00adb5]" />
-          <span className="text-slate-700 font-medium">{currentDate}</span>
-          <span className="px-2.5 py-0.5 bg-slate-100 border border-slate-200 text-[#1d2566] font-bold">
-            {currentTime || "--:--:--"} (KKTC)
-          </span>
-        </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <img
+          src="/logo.png"
+          alt="Trustline Real Estate"
+          className="h-7 sm:h-9 md:h-10 w-auto object-contain shrink-0"
+        />
       </div>
 
-      {/* Sağ: Bildirimler ve Kullanıcı Rol Seçici */}
-      <div className="flex items-center gap-3">
+      {/* Orta: Genel Hızlı Arama Çubuğu (Global Searchbar) */}
+      <div className="flex-1 max-w-xl mx-1 sm:mx-3 md:mx-4">
+        <GlobalHeaderSearch
+          onOpenCustomer={onOpenCustomer}
+          onOpenProperty={onOpenProperty}
+          onNavigateTab={onNavigateTab}
+        />
+      </div>
+
+      {/* Sağ: Tarih & Saat (Otomasyonun Solunda), Bildirimler ve Kullanıcı Rol Seçici */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Canlı Tarih & Saat (Saat ve Dakika) - Otomasyon Butonunun Solunda */}
+        <div className="hidden lg:flex items-center gap-2 text-xs text-slate-600 font-mono mr-1 shrink-0">
+          <Clock className="w-3.5 h-3.5 text-[#00adb5]" />
+          <span className="text-slate-700 font-medium">{currentDate}</span>
+          <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-[#1d2566] font-bold">
+            {currentTime || "--:--"}
+          </span>
+        </div>
+
         {/* Bildirim Zili ve Otomasyon Masası Butonu */}
         <button
           type="button"
           onClick={() => setIsNotificationDrawerOpen(true)}
-          className="relative px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 hover:text-[#1d2566] transition cursor-pointer shadow-2xs flex items-center gap-1.5 font-mono text-sm"
+          className="relative px-2 sm:px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 hover:text-[#1d2566] transition cursor-pointer shadow-2xs flex items-center gap-1.5 font-mono text-sm shrink-0"
           title="Akıllı Bildirim & Otomasyon Masası (Faz 2)"
         >
           <Bell className="w-4 h-4 text-[#1d2566]" />
@@ -102,16 +111,16 @@ export function Header({ onNavigateTab }: HeaderProps) {
         <div className="relative">
           <button
             onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-            className="flex items-center gap-2.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] transition text-left cursor-pointer shadow-2xs"
+            className="flex items-center gap-2 sm:gap-2.5 px-2 sm:px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] transition text-left cursor-pointer shadow-2xs"
           >
-            <div className="w-7 h-7 bg-[#1d2566] text-white flex items-center justify-center text-xs font-bold font-mono">
+            <div className="w-7 h-7 bg-[#1d2566] text-white flex items-center justify-center text-xs font-bold font-mono shrink-0">
               {currentUser.name.replace(/[()]/g, "").trim().split(/\s+/).slice(0, 2).map((n) => n[0]).join("").toUpperCase()}
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold text-[#1d2566] leading-tight">
+            <div className="flex flex-col max-w-[85px] xs:max-w-[120px] sm:max-w-none">
+              <span className="text-xs sm:text-sm font-bold text-[#1d2566] leading-tight truncate">
                 {currentUser.name}
               </span>
-              <span className="text-xs font-mono leading-tight">
+              <span className="hidden sm:inline text-xs font-mono leading-tight">
                 {currentUser.title ? (
                   <span className={isBroker ? "text-emerald-700 font-bold" : "text-[#00adb5] font-bold"}>
                     {currentUser.title.toUpperCase()}
@@ -127,7 +136,7 @@ export function Header({ onNavigateTab }: HeaderProps) {
                 )}
               </span>
             </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-1" />
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500 ml-0.5 sm:ml-1 shrink-0" />
           </button>
 
           {/* Kullanıcı Menüsü (Güvenli: Test Değişimi Kaldırıldı) */}

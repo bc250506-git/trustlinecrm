@@ -656,7 +656,7 @@ export function PipelineView() {
                     <option value="">-- Müşteri Havuzundan Seçiniz --</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.fullName} ({c.phone || "Telefon yok"}) — {c.category === "BUYER" ? "Alıcı" : c.category === "SELLER" ? "Satıcı" : c.category === "TENANT" ? "Kiracı" : "Mal Sahibi"}
+                        {c.fullName} ({c.phone || "Telefon yok"}) — {c.category === "BUYER" ? "Alıcı" : c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Mal Sahibi"}
                       </option>
                     ))}
                   </select>
@@ -812,21 +812,19 @@ export function PipelineView() {
                     <select
                       value={formAdvisorId}
                       onChange={(e) => setFormAdvisorId(e.target.value)}
-                      className="sharp-input w-full p-2 font-mono bg-white font-semibold"
+                      className="sharp-input w-full p-2 font-mono bg-white font-semibold text-xs"
                     >
                       {users.map((u) => (
                         <option key={u.id} value={u.id}>
-                          {u.name} ({u.role})
+                          {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
                         </option>
                       ))}
                     </select>
                   ) : (
-                    <input
-                      type="text"
-                      disabled
-                      value={currentUser.name}
-                      className="sharp-input w-full p-2 font-mono bg-slate-100 text-slate-600 font-semibold cursor-not-allowed"
-                    />
+                    <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                      <span className="truncate">{currentUser.name}</span>
+                      <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+                    </div>
                   )}
                 </div>
               </div>

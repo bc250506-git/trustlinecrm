@@ -178,6 +178,14 @@ export const initialAutomationRules: AutomationRule[] = [
     lastTriggeredAt: "Bugün 09:15",
   },
   {
+    id: "rule-dues-reminder",
+    name: "Otomatik Aidat Vadesi & Gecikme Robotu",
+    description: "Aidat ödemesi bulunan mülklerin aidat vadesine 3 gün kala ve gecikmelerinde danışmana ve kiracıya otomatik alarm üretir.",
+    enabled: true,
+    category: "rental",
+    lastTriggeredAt: "Bugün 09:15",
+  },
+  {
     id: "rule-auto-match",
     name: "Akıllı Portföy - Alıcı Eşleşme Bildirimi",
     description: "Yeni bir portföy sisteme girildiğinde havuzdaki alıcılarla otomatik eşleştirip sorumlu danışmanlara anlık bildirim atar.",

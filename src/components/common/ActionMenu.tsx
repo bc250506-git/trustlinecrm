@@ -2,17 +2,20 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical, Edit3, Trash2, CheckCircle2 } from "lucide-react";
+import { MoreVertical, Edit3, Trash2, CheckCircle2, Archive } from "lucide-react";
 
 interface ActionMenuProps {
   onEdit?: () => void;
   onDelete?: () => void;
   onCloseDeal?: () => void;
+  onDeactivate?: () => void;
   editLabel?: string;
   deleteLabel?: string;
   closeDealLabel?: string;
+  deactivateLabel?: string;
   canEdit?: boolean;
   canDelete?: boolean;
+  canDeactivate?: boolean;
   className?: string;
   menuPosition?: "left" | "right";
 }
@@ -21,11 +24,14 @@ export function ActionMenu({
   onEdit,
   onDelete,
   onCloseDeal,
+  onDeactivate,
   editLabel = "Düzenle",
   deleteLabel = "Sil",
   closeDealLabel = "İşlem Kapat",
+  deactivateLabel = "Geçici Olarak Pasife Al",
   canEdit = true,
   canDelete = true,
+  canDeactivate = true,
   className = "",
   menuPosition = "right",
 }: ActionMenuProps) {
@@ -156,6 +162,21 @@ export function ActionMenu({
         >
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
           <span>{closeDealLabel}</span>
+        </button>
+      )}
+
+      {canDeactivate && onDeactivate && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(false);
+            onDeactivate();
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-left font-mono font-medium text-amber-700 hover:bg-amber-50 hover:text-amber-800 transition cursor-pointer border-b border-slate-100"
+        >
+          <Archive className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+          <span>{deactivateLabel}</span>
         </button>
       )}
 

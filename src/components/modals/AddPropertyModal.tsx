@@ -39,6 +39,7 @@ export function AddPropertyModal({
   const {
     currentUser,
     isBroker,
+    users,
     customers,
     addProperty,
     updateProperty,
@@ -67,6 +68,7 @@ export function AddPropertyModal({
   const [formListingUrl, setFormListingUrl] = useState("");
   const [formIsShared, setFormIsShared] = useState(false);
   const [formIsOffMarket, setFormIsOffMarket] = useState(false);
+  const [formAssigneeId, setFormAssigneeId] = useState(currentUser.id);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
 
   const prevIsOpenRef = React.useRef(false);
@@ -93,6 +95,7 @@ export function AddPropertyModal({
       setFormListingUrl("");
       setFormIsShared(false);
       setFormIsOffMarket(false);
+      setFormAssigneeId(currentUser.id);
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen, initialListingType, initialOwnerCustomerId]);
@@ -122,6 +125,11 @@ export function AddPropertyModal({
         ]
       : [];
 
+    const assignedUser =
+      users.find((u) => u.id === (isBroker ? formAssigneeId : currentUser.id)) || currentUser;
+    const finalAssigneeId = isBroker ? formAssigneeId : currentUser.id;
+    const finalAssigneeName = isBroker ? assignedUser.name : currentUser.name;
+
     const newProp = addProperty({
       title: formTitle,
       region: `${formDistrict} / ${formSubRegion}`,
@@ -141,8 +149,8 @@ export function AddPropertyModal({
       isShared: formIsShared,
       isOffMarket: formIsOffMarket,
       listingUrl: formIsOffMarket ? undefined : formListingUrl,
-      assignedToId: currentUser.id,
-      assignedToName: currentUser.name,
+      assignedToId: finalAssigneeId,
+      assignedToName: finalAssigneeName,
       imageUrl: formImageUrl,
       photos,
     });
@@ -169,8 +177,8 @@ export function AddPropertyModal({
         isShared: formIsShared,
         isOffMarket: formIsOffMarket,
         listingUrl: formIsOffMarket ? undefined : formListingUrl,
-        assignedToId: currentUser.id,
-        assignedToName: currentUser.name,
+        assignedToId: finalAssigneeId,
+        assignedToName: finalAssigneeName,
         imageUrl: formImageUrl,
         photos,
         linkedPropertyId: newProp.id,
@@ -186,9 +194,9 @@ export function AddPropertyModal({
   return (
     <div
       style={{ zIndex: zIndex || 70 }}
-      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto"
     >
-      <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <Building className="w-4 h-4 text-[#00adb5]" />
@@ -552,17 +560,42 @@ export function AddPropertyModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          {/* Sorumlu Danışman */}
+          <div className="pt-2 border-t border-slate-200">
+            <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+              Portföy Sorumlusu Danışman
+            </label>
+            {isBroker ? (
+              <select
+                value={formAssigneeId}
+                onChange={(e) => setFormAssigneeId(e.target.value)}
+                className="sharp-input w-full p-2 bg-white font-mono text-xs"
+              >
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                <span className="truncate">{currentUser.name}</span>
+                <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+              </div>
+            )}
+          </div>
+
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer text-xs"
             >
               İptal
             </button>
             <button
               type="submit"
-              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
+              className="sharp-btn-primary px-5 py-2 font-bold text-white shadow-2xs cursor-pointer text-xs"
             >
               Portföyü Kaydet
             </button>

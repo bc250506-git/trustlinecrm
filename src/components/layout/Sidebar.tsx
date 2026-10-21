@@ -188,7 +188,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   ];
 
   return (
-    <aside className="w-64 border-r border-slate-200 bg-white flex flex-col justify-between shrink-0 select-none shadow-2xs">
+    <aside className="hidden md:flex md:w-64 border-r border-slate-200 bg-white flex-col justify-between shrink-0 select-none shadow-2xs">
       <div className="py-4">
         {/* Navigasyon Başlığı */}
         <div className="px-4 pb-2 text-xs font-mono uppercase tracking-widest text-slate-500 font-bold">

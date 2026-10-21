@@ -46,6 +46,7 @@ export function RentalsView() {
     properties,
     customers,
     toggleRentalPayment,
+    toggleRentalDuesPayment,
     uploadRentalReceipt,
     addRentalContract,
     updateRentalContract,
@@ -132,6 +133,9 @@ export function RentalsView() {
     landlordPhone: "",
     monthlyRent: "",
     currency: "GBP" as Currency,
+    hasDues: false,
+    duesAmount: "",
+    duesCurrency: "TRY" as Currency,
     dueDay: 5,
     contractStart: `${new Date().getFullYear()}-01-01`,
     contractEnd: `${new Date().getFullYear()}-12-31`,
@@ -323,69 +327,175 @@ export function RentalsView() {
   // Silme Onay Modalı State
   const [rentalToDelete, setRentalToDelete] = useState<RentalContract | null>(null);
 
-  // Kira Sözleşmesi Düzenleme Modalı State
+  // Kira Sözleşmesi Düzenleme / Ekleme Ortak State
   const [editingRental, setEditingRental] = useState<RentalContract | null>(null);
-  const [editRentalForm, setEditRentalForm] = useState({
-    monthlyRent: "",
-    currency: "GBP" as Currency,
-    dueDay: 5,
-    tenantName: "",
-    tenantPhone: "",
-    landlordName: "",
-    landlordPhone: "",
-    contractStart: "",
-    contractEnd: "",
-    depositAmount: "",
-    paymentPeriod: "monthly" as "monthly" | "quarterly" | "semi_annual" | "annual",
-    isStamped: false,
-    notes: "",
-  });
+
+  const handleOpenAddRental = () => {
+    setEditingRental(null);
+    setSubNotice(null);
+    setFormData({
+      selectedPropertyId: "",
+      propertyTitle: "",
+      region: "",
+      selectedTenantId: "",
+      tenantName: "",
+      tenantPhone: "",
+      selectedLandlordId: "",
+      landlordName: "",
+      landlordPhone: "",
+      monthlyRent: "",
+      currency: "GBP" as Currency,
+      hasDues: false,
+      duesAmount: "",
+      duesCurrency: "TRY" as Currency,
+      dueDay: 5,
+      contractStart: `${new Date().getFullYear()}-01-01`,
+      contractEnd: `${new Date().getFullYear()}-12-31`,
+      depositAmount: "",
+      assignedToId: currentUser.id,
+      paymentPeriod: "monthly" as "monthly" | "quarterly" | "semi_annual" | "annual",
+      isStamped: false,
+      notes: "",
+    });
+    setIsAddModalOpen(true);
+  };
 
   const handleOpenEditRental = (r: RentalContract) => {
     setEditingRental(r);
-    setEditRentalForm({
-      monthlyRent: String(r.monthlyRent),
-      currency: r.currency,
-      dueDay: r.dueDay,
-      tenantName: r.tenantName,
-      tenantPhone: r.tenantPhone || "",
-      landlordName: r.landlordName,
-      landlordPhone: r.landlordPhone || "",
-      contractStart: r.contractStart,
-      contractEnd: r.contractEnd,
+    setIsAddModalOpen(false);
+    setSubNotice(null);
+
+    // Otomatik portföy ve müşteri eşleme (id yoksa başlık/isimden bul)
+    const matchedProp = properties.find(
+      (p) =>
+        (r.propertyId && p.id === r.propertyId) ||
+        (r.propertyTitle && p.title.trim().toLowerCase() === r.propertyTitle.trim().toLowerCase())
+    );
+    const matchedTenant = customers.find(
+      (c) =>
+        (r.tenantCustomerId && c.id === r.tenantCustomerId) ||
+        (r.tenantName && c.fullName.trim().toLowerCase() === r.tenantName.trim().toLowerCase())
+    );
+    const matchedLandlord = customers.find(
+      (c) =>
+        (r.landlordCustomerId && c.id === r.landlordCustomerId) ||
+        (r.landlordName && c.fullName.trim().toLowerCase() === r.landlordName.trim().toLowerCase())
+    );
+
+    setFormData({
+      selectedPropertyId: r.propertyId || matchedProp?.id || "",
+      propertyTitle: r.propertyTitle || "",
+      region: r.region || matchedProp?.region || "",
+      selectedTenantId: r.tenantCustomerId || matchedTenant?.id || "",
+      tenantName: r.tenantName || "",
+      tenantPhone: r.tenantPhone || matchedTenant?.phone || "",
+      selectedLandlordId: r.landlordCustomerId || matchedLandlord?.id || "",
+      landlordName: r.landlordName || matchedLandlord?.fullName || "",
+      landlordPhone: r.landlordPhone || matchedLandlord?.phone || "",
+      monthlyRent: String(r.monthlyRent || ""),
+      currency: r.currency || "GBP",
+      hasDues: !!r.hasDues,
+      duesAmount: r.duesAmount ? String(r.duesAmount) : "",
+      duesCurrency: r.duesCurrency || "TRY",
+      dueDay: r.dueDay || 5,
+      contractStart: r.contractStart || "",
+      contractEnd: r.contractEnd || "",
       depositAmount: String(r.depositAmount || 0),
+      assignedToId: r.assignedToId || currentUser.id,
       paymentPeriod: (r.paymentPeriod as any) || "monthly",
       isStamped: !!r.isStamped,
       notes: r.notes || "",
     });
   };
 
+  const handleCloseRentalModal = () => {
+    setIsAddModalOpen(false);
+    setEditingRental(null);
+    setSubNotice(null);
+  };
+
   const handleSaveRentalEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRental) return;
-    const newRent = Number(editRentalForm.monthlyRent) || editingRental.monthlyRent;
-    const newCurrency = editRentalForm.currency;
-    const newDueDay = Number(editRentalForm.dueDay) || editingRental.dueDay;
+
+    if (!formData.propertyTitle.trim() || !formData.tenantName.trim()) {
+      alert("Lütfen portföy başlığı ve kiracı adını doldurun.");
+      return;
+    }
+
+    const rentAmount = Number(formData.monthlyRent);
+    if (isNaN(rentAmount) || rentAmount <= 0) {
+      alert("Lütfen geçerli bir aylık kira tutarı girin.");
+      return;
+    }
+
+    const hasDues = !!formData.hasDues;
+    const duesAmount = hasDues ? Number(formData.duesAmount) || 0 : undefined;
+    const duesCurrency = hasDues ? formData.duesCurrency : undefined;
+
+    const assignedUser = users.find(
+      (u) => u.id === (isBroker ? formData.assignedToId : (editingRental.assignedToId || currentUser.id))
+    );
+
+    const norm = (s?: string) =>
+      s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+    const formTitleNorm = norm(formData.propertyTitle);
+
+    const targetProp = properties.find(
+      (p) =>
+        (formData.selectedPropertyId && p.id === formData.selectedPropertyId) ||
+        (formTitleNorm && norm(p.title) === formTitleNorm) ||
+        (formTitleNorm && (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title))))
+    );
+    const resolvedPropId = targetProp ? targetProp.id : (formData.selectedPropertyId || editingRental.propertyId);
+    const resolvedPropTitle = targetProp ? targetProp.title : formData.propertyTitle;
 
     updateRentalContract(editingRental.id, {
-      monthlyRent: newRent,
-      currency: newCurrency,
-      dueDay: newDueDay,
-      tenantName: editRentalForm.tenantName,
-      tenantPhone: editRentalForm.tenantPhone,
-      landlordName: editRentalForm.landlordName,
-      landlordPhone: editRentalForm.landlordPhone,
-      contractStart: editRentalForm.contractStart,
-      contractEnd: editRentalForm.contractEnd,
-      depositAmount: Number(editRentalForm.depositAmount) || 0,
-      paymentPeriod: editRentalForm.paymentPeriod,
-      isStamped: editRentalForm.isStamped,
-      stampedAt: editRentalForm.isStamped
-        ? editingRental.stampedAt || new Date().toISOString().split("T")[0]
+      propertyId: resolvedPropId,
+      propertyTitle: resolvedPropTitle,
+      region: formData.region || targetProp?.region || editingRental.region,
+      tenantCustomerId: formData.selectedTenantId || editingRental.tenantCustomerId,
+      tenantName: formData.tenantName,
+      tenantPhone: formData.tenantPhone || "-",
+      landlordCustomerId: formData.selectedLandlordId || targetProp?.ownerCustomerId || editingRental.landlordCustomerId,
+      landlordName: formData.landlordName || targetProp?.ownerName || editingRental.landlordName,
+      landlordPhone: formData.landlordPhone || targetProp?.ownerPhone || editingRental.landlordPhone,
+      monthlyRent: rentAmount,
+      currency: formData.currency,
+      hasDues,
+      duesAmount,
+      duesCurrency,
+      dueDay: Number(formData.dueDay) || 5,
+      contractStart: formData.contractStart || editingRental.contractStart,
+      contractEnd: formData.contractEnd || editingRental.contractEnd,
+      depositAmount: Number(formData.depositAmount) || 0,
+      paymentPeriod: formData.paymentPeriod,
+      isStamped: formData.isStamped,
+      stampedAt: formData.isStamped
+        ? (editingRental.stampedAt || new Date().toISOString().split("T")[0])
         : undefined,
-      notes: editRentalForm.notes,
+      notes: formData.notes,
+      assignedToId: isBroker ? formData.assignedToId : (editingRental.assignedToId || currentUser.id),
+      assignedToName: assignedUser ? assignedUser.name : (editingRental.assignedToName || currentUser.name),
     });
+
+    if (resolvedPropId && resolvedPropId !== editingRental.propertyId) {
+      updateProperty(resolvedPropId, { status: "RENTED" });
+    }
+
+    setActionFeedback(`✓ "${resolvedPropTitle}" kira sözleşmesi başarıyla güncellendi.`);
+    setTimeout(() => setActionFeedback(null), 5000);
+
     setEditingRental(null);
+    setIsAddModalOpen(false);
+  };
+
+  const handleRentalFormSubmit = (e: React.FormEvent) => {
+    if (editingRental) {
+      handleSaveRentalEdit(e);
+    } else {
+      handleCreateRental(e);
+    }
   };
 
   // Body Scroll Lock for Modals
@@ -450,6 +560,50 @@ export function RentalsView() {
       return {
         diffDays,
         isOverdue: diffDays < 0 || currentPayment.status === "overdue",
+        dueDateStr,
+      };
+    }
+
+    return null;
+  };
+
+  // Yalnızca aidat tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
+  const getDuesReminderStatus = (r: RentalContract) => {
+    if (!r.hasDues || !r.duesAmount) return null;
+
+    const now = currentDate || new Date();
+    const currentMonthNum = now.getMonth() + 1; // 1-12
+    const currentYearNum = now.getFullYear();
+    const currentPeriodKey = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}`;
+    const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const currentPayment = r.payments?.find(
+      (p) =>
+        p.periodKey === currentPeriodKey ||
+        (p.dueDate && p.dueDate.startsWith(currentPeriodKey)) ||
+        (p.month === currentMonthNum && (!p.year || p.year === currentYearNum))
+    );
+
+    // Bu ay aidat ödemesi yapıldıysa veya taksit yoksa hatırlatma gerekmez
+    if (!currentPayment || currentPayment.duesStatus === "paid") {
+      return null;
+    }
+
+    let dueDateStr = currentPayment.dueDate;
+    if (!dueDateStr) {
+      const daysInCurrentMonth = new Date(currentYearNum, currentMonthNum, 0).getDate();
+      const adjustedDay = Math.min(r.dueDay, daysInCurrentMonth);
+      dueDateStr = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+    }
+
+    const [y, m, d] = dueDateStr.split("-").map(Number);
+    const dueDate = new Date(y, m - 1, d);
+    const diffDays = Math.ceil((dueDate.getTime() - todayDateOnly.getTime()) / (1000 * 3600 * 24));
+
+    if (diffDays <= 3) {
+      return {
+        diffDays,
+        isOverdue: diffDays < 0 || currentPayment.duesStatus === "overdue",
         dueDateStr,
       };
     }
@@ -577,6 +731,9 @@ export function RentalsView() {
       landlordPhone: formData.landlordPhone || targetProp?.ownerPhone || "-",
       monthlyRent: rentAmount,
       currency: formData.currency,
+      hasDues: !!formData.hasDues,
+      duesAmount: formData.hasDues ? Number(formData.duesAmount) || 0 : undefined,
+      duesCurrency: formData.hasDues ? formData.duesCurrency : undefined,
       dueDay: Number(formData.dueDay) || 5,
       contractStart: formData.contractStart || `${new Date().getFullYear()}-01-01`,
       contractEnd: formData.contractEnd || `${new Date().getFullYear()}-12-31`,
@@ -745,33 +902,13 @@ export function RentalsView() {
             <span className="px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200">
               Ödenmedi
             </span>
+            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200">
+              🏢 Aidat Takibi
+            </span>
           </div>
 
           <button
-            onClick={() => {
-              setFormData({
-                selectedPropertyId: "",
-                propertyTitle: "",
-                region: "",
-                selectedTenantId: "",
-                tenantName: "",
-                tenantPhone: "",
-                selectedLandlordId: "",
-                landlordName: "",
-                landlordPhone: "",
-                monthlyRent: "",
-                currency: "GBP",
-                dueDay: 5,
-                contractStart: `${new Date().getFullYear()}-01-01`,
-                contractEnd: `${new Date().getFullYear()}-12-31`,
-                depositAmount: "",
-                assignedToId: currentUser.id,
-                paymentPeriod: "monthly",
-                isStamped: false,
-                notes: "",
-              });
-              setIsAddModalOpen(true);
-            }}
+            onClick={handleOpenAddRental}
             className="sharp-btn-primary px-3.5 py-2 text-xs flex items-center gap-1.5 cursor-pointer shadow-xs font-bold"
           >
             <Plus className="w-4 h-4" />
@@ -1017,8 +1154,8 @@ export function RentalsView() {
                 <th className="py-3 px-4 min-w-[300px] w-[300px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                   Portföy & Sözleşme Detayları
                 </th>
-                <th className="py-3 px-3 text-right sticky left-[300px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[95px] w-[95px]">
-                  Aylık Kira
+                <th className="py-3 px-3 text-right sticky left-[300px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[110px] w-[110px]">
+                  Kira / Aidat
                 </th>
                 {allTimelineMonths.map((m) => {
                   const isCurrentRealMonth =
@@ -1056,6 +1193,7 @@ export function RentalsView() {
               ) : (
                 displayedRentals.map((r) => {
                 const reminderStatus = getRentalReminderStatus(r);
+                const duesReminderStatus = getDuesReminderStatus(r);
                 const startPeriodKey = r.contractStart ? r.contractStart.slice(0, 7) : "";
                 const endPeriodKey = r.contractEnd ? r.contractEnd.slice(0, 7) : "";
 
@@ -1130,7 +1268,8 @@ export function RentalsView() {
                         )}
                       </div>
 
-                      {reminderStatus ? (
+                      {/* Kira Vade Hatırlatması */}
+                      {reminderStatus && (
                         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           <button
                             type="button"
@@ -1152,7 +1291,7 @@ export function RentalsView() {
                           >
                             <MessageCircle className="w-3 h-3 text-emerald-600 shrink-0" />
                             <span>
-                              WhatsApp Vade Hatırlat{" "}
+                              WhatsApp Kira Vade{" "}
                               {reminderStatus.isOverdue
                                 ? "(Gecikmiş)"
                                 : reminderStatus.diffDays === 0
@@ -1160,24 +1299,62 @@ export function RentalsView() {
                                 : `(${reminderStatus.diffDays} Gün Kaldı)`}
                             </span>
                           </button>
-                          {r.tenantPhone && r.tenantPhone !== "-" && (
-                            <span className="text-[10px] text-slate-400 font-mono">
-                              ({formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone})
-                            </span>
-                          )}
                         </div>
-                      ) : (
-                        r.tenantPhone && r.tenantPhone !== "-" ? (
-                          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono">
-                            <span>Kiracı İletişim: {formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone}</span>
-                          </div>
-                        ) : null
+                      )}
+
+                      {/* Aidat Vade Hatırlatması */}
+                      {duesReminderStatus && (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const text = encodeURIComponent(
+                                `Merhaba ${r.tenantName || "Kiracımız"}, ${r.propertyTitle} mülkünüz için ${r.duesAmount} ${r.duesCurrency || "TRY"} tutarındaki aylık aidat ödemeniz ${
+                                  duesReminderStatus.isOverdue
+                                    ? "vadesi geçmiş durumdadır."
+                                    : duesReminderStatus.diffDays === 0
+                                    ? "için bugün son gündür."
+                                    : `${duesReminderStatus.diffDays} gün sonra vadesi dolacaktır.`
+                                } Aidat ödemenizi site yönetimine / ilgili hesaba iletip dekont/bilgi paylaşmanızı rica ederiz. Teşekkür ederiz.\n\nTrustline Estate`
+                              );
+                              const phone = cleanWhatsAppNumber(r.tenantPhone);
+                              window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+                            }}
+                            className="text-[10px] font-mono font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                            title="Kiracıya tek tıkla resmi WhatsApp aidat hatırlatması gönder"
+                          >
+                            <Building className="w-3 h-3 text-indigo-600 shrink-0" />
+                            <span>
+                              WhatsApp Aidat Vade{" "}
+                              {duesReminderStatus.isOverdue
+                                ? "(Gecikmiş)"
+                                : duesReminderStatus.diffDays === 0
+                                ? "(Bugün)"
+                                : `(${duesReminderStatus.diffDays} Gün Kaldı)`}
+                            </span>
+                          </button>
+                        </div>
+                      )}
+
+                      {r.tenantPhone && r.tenantPhone !== "-" && !reminderStatus && !duesReminderStatus && (
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono">
+                          <span>Kiracı İletişim: {formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone}</span>
+                        </div>
                       )}
                     </td>
 
-                    {/* Aylık Kira Tutarı (Sticky Sol 2) */}
+                    {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) */}
                     <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] bg-white group-hover:bg-slate-50 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition">
-                      {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
+                      <div className="text-xs">{r.monthlyRent.toLocaleString("tr-TR")} {r.currency}</div>
+                      {r.hasDues && r.duesAmount ? (
+                        <div className="text-[10px] font-sans font-semibold text-indigo-700 bg-indigo-50/90 px-1.5 py-0.5 mt-1 border border-indigo-200 inline-block shadow-2xs">
+                          Aidat: {r.duesAmount.toLocaleString("tr-TR")} {r.duesCurrency || "TRY"}
+                        </div>
+                      ) : (
+                        <div className="text-[9px] font-sans font-normal text-slate-400 mt-0.5">
+                          Aidat: Yok
+                        </div>
+                      )}
                     </td>
 
                     {/* Dinamik Kesintisiz Zaman Çizelgesi Hücreleri */}
@@ -1221,6 +1398,8 @@ export function RentalsView() {
 
                       const isPaid = payment?.status === "paid";
                       const isOverdue = payment?.status === "overdue";
+                      const isDuesPaid = payment?.duesStatus === "paid";
+                      const isDuesOverdue = payment?.duesStatus === "overdue";
                       const daysInMonth = new Date(m.year, m.month, 0).getDate();
                       const adjustedDay = Math.min(r.dueDay, daysInMonth);
                       const dueDayLabel = `${adjustedDay} ${m.shortName}`;
@@ -1245,8 +1424,8 @@ export function RentalsView() {
                               {dueDayLabel}
                             </div>
 
-                            {/* Ödeme Durumu & Buton */}
-                            <div className="flex items-center gap-1 mt-0.5">
+                            {/* Kira Ödeme Durumu & Buton */}
+                            <div className="flex items-center gap-1 mt-0.5" title={`Kira Ödemesi: ${isPaid ? "Ödendi" : isOverdue ? "Gecikmiş" : "Ödenmedi"}`}>
                               <input
                                 type="checkbox"
                                 checked={isPaid}
@@ -1260,8 +1439,8 @@ export function RentalsView() {
                                 }}
                                 title={
                                   isPaid
-                                    ? `${m.fullName} ${m.year}: Ödendi olarak işaretli (Tıkla ve kaldır)`
-                                    : `${m.fullName} ${m.year}: Ödendi olarak işaretle`
+                                    ? `${m.fullName} ${m.year}: Kira Ödendi olarak işaretli (Tıkla ve kaldır)`
+                                    : `${m.fullName} ${m.year}: Kira Ödendi olarak işaretle`
                                 }
                                 className="w-3.5 h-3.5 accent-emerald-600 rounded-none cursor-pointer"
                               />
@@ -1294,6 +1473,46 @@ export function RentalsView() {
                                 <FileText className="w-3 h-3" />
                               </button>
                             </div>
+
+                            {/* Aidat Ödeme Durumu (Kiradan haricen bağımsız işaretlenir) */}
+                            {r.hasDues && r.duesAmount ? (
+                              <div
+                                className={`w-full mt-1 pt-0.5 border-t flex items-center justify-between px-1 text-[9px] font-mono transition ${
+                                  isDuesPaid
+                                    ? "border-indigo-200 bg-indigo-50/70 text-indigo-900 font-semibold"
+                                    : isDuesOverdue
+                                    ? "border-rose-300 bg-rose-50 text-rose-800 font-semibold"
+                                    : "border-slate-200/80 bg-slate-50/60 text-slate-500"
+                                }`}
+                                title={
+                                  isDuesPaid
+                                    ? `${m.fullName}: Aidat Ödendi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
+                                    : isDuesOverdue
+                                    ? `${m.fullName}: Aidat Vadesi Geçti! (${r.duesAmount} ${r.duesCurrency || "TRY"})`
+                                    : `${m.fullName}: Aidat Ödenmedi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
+                                }
+                              >
+                                <span className="font-semibold text-[8px] uppercase tracking-tighter">Aidat</span>
+                                <input
+                                  type="checkbox"
+                                  checked={isDuesPaid}
+                                  onChange={(e) => {
+                                    toggleRentalDuesPayment(
+                                      r.id,
+                                      m.key,
+                                      e.target.checked,
+                                      payment?.dueDate
+                                    );
+                                  }}
+                                  title={
+                                    isDuesPaid
+                                      ? `${m.fullName} ${m.year}: Aidat ödendi (Kaldırmak için tıkla)`
+                                      : `${m.fullName} ${m.year}: Aidat ödendi olarak işaretle`
+                                  }
+                                  className="w-3 h-3 accent-indigo-600 rounded-none cursor-pointer shrink-0"
+                                />
+                              </div>
+                            ) : null}
                           </div>
                         </td>
                       );
@@ -1316,27 +1535,41 @@ export function RentalsView() {
         </div>
       )}
 
-      {/* YENİ KİRA SÖZLEŞMESİ EKLE MODAL */}
-      {isAddModalOpen && (
+      {/* KİRA SÖZLEŞMESİ OLUŞTURMA & DÜZENLEME MODALI */}
+      {(isAddModalOpen || editingRental) && (
         <>
-          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="sharp-card w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden bg-white border border-slate-300 shadow-2xl my-auto">
+          <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+          <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-2xl flex flex-col overflow-hidden bg-white border-0 sm:border border-slate-300 shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-[#00adb5]" />
-                <h3 className="text-sm font-bold text-[#1d2566]">
-                  Yeni Kira Takip Kaydı & Sözleşmesi
-                </h3>
+                {editingRental ? (
+                  <Edit3 className="w-4 h-4 text-[#00adb5]" />
+                ) : (
+                  <KeyRound className="w-4 h-4 text-[#00adb5]" />
+                )}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1d2566]">
+                    {editingRental
+                      ? "Kira Sözleşmesini Düzenle"
+                      : "Yeni Kira Takip Kaydı & Sözleşmesi"}
+                  </h3>
+                  {editingRental && (
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      {editingRental.propertyTitle} — {editingRental.tenantName}
+                    </p>
+                  )}
+                </div>
               </div>
               <button
-                onClick={() => setIsAddModalOpen(false)}
+                type="button"
+                onClick={handleCloseRentalModal}
                 className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateRental} className="p-6 space-y-4 text-xs flex-1 overflow-y-auto">
+            <form onSubmit={handleRentalFormSubmit} className="p-6 space-y-4 text-xs flex-1 overflow-y-auto">
               {/* Alt Modallardan Başarılı Kayıt Bildirimi */}
               {subNotice && (
                 <div className="p-2.5 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-semibold flex items-center gap-2">
@@ -1664,6 +1897,78 @@ export function RentalsView() {
                     </div>
                   )}
                 </div>
+
+                {/* Aidat Ödemesi (Bina / Site Yönetim Aidatı) */}
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      id="hasDuesAdd"
+                      checked={!!formData.hasDues}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          hasDues: e.target.checked,
+                          duesAmount: e.target.checked ? prev.duesAmount : "",
+                        }))
+                      }
+                      className="w-4 h-4 accent-[#00adb5] rounded-none cursor-pointer"
+                    />
+                    <label
+                      htmlFor="hasDuesAdd"
+                      className="text-xs font-semibold text-slate-800 cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Building className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Aidat Ödemesi Var mı? (Site / Bina Aidatı)</span>
+                    </label>
+                  </div>
+
+                  {formData.hasDues && (
+                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-200 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-indigo-950 mb-1">
+                          Aylık Aidat Tutarı *
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Örn: 1500"
+                          value={formData.duesAmount}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              duesAmount: e.target.value,
+                            }))
+                          }
+                          className="sharp-input w-full p-2 text-xs font-mono font-bold bg-white"
+                          required={formData.hasDues}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-indigo-950 mb-1">
+                          Aidat Para Birimi
+                        </label>
+                        <select
+                          value={formData.duesCurrency || "TRY"}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              duesCurrency: e.target.value as Currency,
+                            }))
+                          }
+                          className="sharp-input w-full p-2 text-xs font-mono bg-white font-bold"
+                        >
+                          <option value="TRY">TRY (₺) - KKTC Standart</option>
+                          <option value="GBP">GBP (£)</option>
+                          <option value="EUR">EUR (€)</option>
+                          <option value="USD">USD ($)</option>
+                        </select>
+                      </div>
+                      <div className="sm:col-span-2 text-[10px] text-indigo-800 font-mono">
+                        ℹ️ Aidat tutarı kira bedelinin altında listelenecek ve her ay kiradan bağımsız olarak &quot;Ödendi / Ödenmedi&quot; olarak takip edilecektir.
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 4. SÖZLEŞME GEÇERLİLİK DÖNEMİ VE DANIŞMAN */}
@@ -1745,8 +2050,9 @@ export function RentalsView() {
                         ))}
                       </select>
                     ) : (
-                      <div className="p-2 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-semibold">
-                        {currentUser.name} (Şahsi Portföy)
+                      <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                        <span className="truncate">{users.find((u) => u.id === formData.assignedToId)?.name || currentUser.name}</span>
+                        <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
                       </div>
                     )}
                   </div>
@@ -1810,7 +2116,7 @@ export function RentalsView() {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={handleCloseRentalModal}
                   className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 font-semibold cursor-pointer"
                 >
                   İptal
@@ -1819,8 +2125,17 @@ export function RentalsView() {
                   type="submit"
                   className="sharp-btn-primary px-5 py-2 text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Sözleşmeyi Kaydet & 12 Ayı Oluştur</span>
+                  {editingRental ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Değişiklikleri Kaydet</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Sözleşmeyi Kaydet & 12 Ayı Oluştur</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1882,8 +2197,8 @@ export function RentalsView() {
 
       {/* DEKONT DEFTERİ MODALI */}
       {activeReceiptModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-md bg-white border border-slate-300 shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-0 sm:p-4">
+          <div className="sharp-card w-full max-w-md bg-white border-0 sm:border border-slate-300 shadow-2xl rounded-none sm:rounded-lg">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#00adb5]" />
@@ -1998,343 +2313,7 @@ export function RentalsView() {
         </div>
       )}
 
-      {/* KİRA SÖZLEŞMESİ DÜZENLEME MODALI */}
-      {editingRental && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <Edit3 className="w-4 h-4 text-[#00adb5]" />
-                <h2 className="text-sm font-bold text-[#1d2566]">
-                  Kira Sözleşmesini Düzenle
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingRental(null)}
-                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            <form onSubmit={handleSaveRentalEdit} className="p-5 space-y-4 text-xs flex-1 overflow-y-auto">
-              {/* Portföy Bilgisi */}
-              <div className="p-2.5 bg-slate-50 border border-slate-200 text-slate-700">
-                <span className="text-[10px] text-slate-500 font-mono block">İlgili Portföy:</span>
-                <span className="font-bold text-[#1d2566] text-xs">{editingRental.propertyTitle}</span>
-              </div>
-
-              {/* Kiracı Bilgileri */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Kiracı Adı Soyadı *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editRentalForm.tenantName}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, tenantName: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Kiracı Telefonu
-                  </label>
-                  <PhoneInput
-                    value={editRentalForm.tenantPhone}
-                    onChange={(val) =>
-                      setEditRentalForm((prev) => ({ ...prev, tenantPhone: val }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Mülk Sahibi Bilgileri */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Mülk Sahibi Adı Soyadı *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editRentalForm.landlordName}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, landlordName: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Mülk Sahibi Telefonu
-                  </label>
-                  <PhoneInput
-                    value={editRentalForm.landlordPhone}
-                    onChange={(val) =>
-                      setEditRentalForm((prev) => ({ ...prev, landlordPhone: val }))
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* Kira Tutarı, Para Birimi ve Vade Günü */}
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Aylık Kira Tutarı *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min="1"
-                    value={editRentalForm.monthlyRent}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, monthlyRent: e.target.value }))
-                    }
-                    className="sharp-input w-full p-2 font-mono font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Para Birimi
-                  </label>
-                  <select
-                    value={editRentalForm.currency}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({
-                        ...prev,
-                        currency: e.target.value as Currency,
-                      }))
-                    }
-                    className="sharp-input w-full p-2 font-mono bg-white"
-                  >
-                    <option value="GBP">GBP (£ - Sterlin)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="USD">USD ($ - Dolar)</option>
-                    <option value="TRY">TRY (₺ - TL)</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                    Kira Vade Günü (Her ayın X. günü) *
-                  </label>
-                  <select
-                    value={editRentalForm.dueDay}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({
-                        ...prev,
-                        dueDay: Number(e.target.value) || 5,
-                      }))
-                    }
-                    className="sharp-input w-full p-2 font-mono font-bold bg-white"
-                  >
-                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                      <option key={d} value={d}>
-                        Her ayın {d}. günü {d === 31 ? "(Ay Sonu)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-slate-400 font-mono mt-1">
-                    Kira ödemesi her ayın seçilen gününde tekrarlanır.
-                  </p>
-                </div>
-
-                {/* Ödeme Periyodu */}
-                <div className="md:col-span-2">
-                  <label className="block text-[11px] font-mono text-slate-700 font-bold mb-1">
-                    Ödeme Periyodu / Tahsilat Şekli
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { key: "monthly", label: "AYLIK", desc: "Her Ay Düzenli" },
-                      { key: "quarterly", label: "3 AYLIK", desc: "3 Ay Peşin" },
-                      { key: "semi_annual", label: "6 AYLIK", desc: "6 Ay Peşin" },
-                      { key: "annual", label: "12 AYLIK", desc: "12 Ay Yıllık Peşin" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.key}
-                        type="button"
-                        onClick={() =>
-                          setEditRentalForm((prev) => ({
-                            ...prev,
-                            paymentPeriod: opt.key as any,
-                          }))
-                        }
-                        className={`p-2 text-left border cursor-pointer transition text-xs ${
-                          editRentalForm.paymentPeriod === opt.key
-                            ? "bg-[#1d2566] text-white border-[#1d2566] shadow-xs font-bold"
-                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                        }`}
-                      >
-                        <div className="font-mono">{opt.label}</div>
-                        <div
-                          className={`text-[10px] ${
-                            editRentalForm.paymentPeriod === opt.key ? "text-cyan-200" : "text-slate-500"
-                          }`}
-                        >
-                          {opt.desc}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Sözleşme Geçerlilik Süresi ve Depozito */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-[11px] font-mono text-slate-700 font-bold">
-                    Sözleşme Süresi & Depozito
-                  </span>
-                  {/* Hızlı Süre Önayarları */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-mono text-slate-400 font-semibold">Hızlı Süre:</span>
-                    {[
-                      { label: "+3 Ay", months: 3 },
-                      { label: "+6 Ay", months: 6 },
-                      { label: "+1 Yıl", months: 12 },
-                      { label: "+2 Yıl", months: 24 },
-                    ].map((preset) => (
-                      <button
-                        key={preset.months}
-                        type="button"
-                        onClick={() => {
-                          const start = editRentalForm.contractStart || `${new Date().getFullYear()}-01-01`;
-                          const newEnd = addMonthsToDate(start, preset.months);
-                          setEditRentalForm((prev) => ({ ...prev, contractEnd: newEnd }));
-                        }}
-                        className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 hover:bg-[#00adb5] hover:text-white border border-slate-300 transition cursor-pointer"
-                        title={`${preset.months} aylık süre uygula`}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                      Sözleşme Başlangıç Tarihi
-                    </label>
-                    <DateInput
-                      value={editRentalForm.contractStart}
-                      onChange={(val) =>
-                        setEditRentalForm((prev) => ({ ...prev, contractStart: val }))
-                      }
-                      className="w-full font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                      Sözleşme Bitiş Tarihi (Alarm)
-                    </label>
-                    <DateInput
-                      value={editRentalForm.contractEnd}
-                      onChange={(val) =>
-                        setEditRentalForm((prev) => ({ ...prev, contractEnd: val }))
-                      }
-                      className="w-full font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                      Depozito Tutarı
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={editRentalForm.depositAmount}
-                      onChange={(e) =>
-                        setEditRentalForm((prev) => ({ ...prev, depositAmount: e.target.value }))
-                      }
-                      className="sharp-input w-full p-2 font-mono"
-                    />
-                  </div>
-                </div>
-
-                {/* Dinamik Süre ve Matris Kutu Bilgisi */}
-                {editRentalForm.contractStart && editRentalForm.contractEnd && (
-                  <div className="text-[11px] font-mono text-[#00adb5] font-bold flex items-center gap-1.5 bg-cyan-50/70 p-2 border border-cyan-200">
-                    <span>⏱️ Seçilen Sözleşme Süresi:</span>
-                    <span className="px-1.5 py-0.2 bg-white border border-cyan-300 text-[#1d2566] font-bold">
-                      {getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Ay ({getDurationInMonths(editRentalForm.contractStart, editRentalForm.contractEnd)} Taksit Matrise Yerleşecek)
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-normal">
-                      ({formatDateTR(editRentalForm.contractStart)} — {formatDateTR(editRentalForm.contractEnd)})
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* KKTC Vergi Dairesi Damga Pulu */}
-              <div className="p-3 bg-slate-50 border border-slate-200 flex items-center justify-between gap-3">
-                <div>
-                  <div className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
-                    <Stamp className="w-4 h-4 text-emerald-600" />
-                    <span>KKTC Vergi Dairesi Damga Pulu (Pullatıldı)</span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Sözleşme vergi dairesinde resmi damga pulu yapıştırılarak onaylatıldı mı?
-                  </p>
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
-                  <input
-                    type="checkbox"
-                    checked={editRentalForm.isStamped}
-                    onChange={(e) =>
-                      setEditRentalForm((prev) => ({ ...prev, isStamped: e.target.checked }))
-                    }
-                    className="w-4 h-4 accent-emerald-600 cursor-pointer rounded-none"
-                  />
-                  <span className={editRentalForm.isStamped ? "text-emerald-700 font-bold" : "text-slate-600"}>
-                    {editRentalForm.isStamped ? "✓ Pullatıldı" : "Pullatılmadı"}
-                  </span>
-                </label>
-              </div>
-
-              {/* Notlar */}
-              <div>
-                <label className="block text-[11px] font-mono text-slate-600 mb-1 font-bold">
-                  Sözleşme Notları
-                </label>
-                <textarea
-                  rows={2}
-                  value={editRentalForm.notes}
-                  onChange={(e) =>
-                    setEditRentalForm((prev) => ({ ...prev, notes: e.target.value }))
-                  }
-                  className="sharp-input w-full p-2"
-                  placeholder="Ek sözleşme veya tahsilat notları..."
-                />
-              </div>
-
-              {/* Butonlar */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setEditingRental(null)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
-                >
-                  İptal
-                </button>
-                <button
-                  type="submit"
-                  className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
-                >
-                  Değişiklikleri Kaydet
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* SİLME ONAY MODALI */}
       <DeleteConfirmModal

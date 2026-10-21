@@ -89,9 +89,21 @@ export function MandatesView() {
     return Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
   };
 
+  // Danışman İzolasyonu: Danışmanlar yalnızca kendilerine ait yetki sözleşmelerini görebilir
+  const visibleMandates = useMemo(() => {
+    if (isBroker) return mandates;
+    return mandates.filter(
+      (m) =>
+        m.assignedToId === currentUser.id ||
+        (m.assignedToName &&
+          currentUser.name &&
+          m.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+    );
+  }, [mandates, isBroker, currentUser]);
+
   // Filtreleme
   const filteredMandates = useMemo(() => {
-    return mandates.filter((m) => {
+    return visibleMandates.filter((m) => {
       const days = calculateDaysRemaining(m.endDate);
       const isExpiring = days > 0 && days <= 60;
       const isExpired = days <= 0;
@@ -101,7 +113,7 @@ export function MandatesView() {
       if (filterStatus === "expiring" && !isExpiring) return false;
       if (filterStatus === "expired" && !isExpired) return false;
 
-      if (filterAdvisor !== "all" && m.assignedToId !== filterAdvisor) return false;
+      if (isBroker && filterAdvisor !== "all" && m.assignedToId !== filterAdvisor) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -114,16 +126,16 @@ export function MandatesView() {
 
       return true;
     });
-  }, [mandates, filterStatus, filterAdvisor, searchQuery]);
+  }, [visibleMandates, filterStatus, filterAdvisor, searchQuery, isBroker]);
 
-  // KPI Sayımları
-  const totalMandatesCount = mandates.length;
-  const exclusiveCount = mandates.filter((m) => m.mandateType === "exclusive").length;
-  const expiringCount = mandates.filter((m) => {
+  // KPI Sayımları (Danışman yalnızca kendi sayılarını görür)
+  const totalMandatesCount = visibleMandates.length;
+  const exclusiveCount = visibleMandates.filter((m) => m.mandateType === "exclusive").length;
+  const expiringCount = visibleMandates.filter((m) => {
     const days = calculateDaysRemaining(m.endDate);
     return days > 0 && days <= 60;
   }).length;
-  const expiredCount = mandates.filter((m) => calculateDaysRemaining(m.endDate) <= 0).length;
+  const expiredCount = visibleMandates.filter((m) => calculateDaysRemaining(m.endDate) <= 0).length;
 
   // Hızlı Süre Butonları (+3 Ay, +6 Ay, +1 Yıl)
   const handleSetDurationMonths = (monthsToAdd: number) => {
@@ -185,8 +197,8 @@ export function MandatesView() {
         status,
         contractNumber: formContractNumber || editingMandate.contractNumber,
         notes: formNotes,
-        assignedToId: assignedUser.id,
-        assignedToName: assignedUser.name,
+        assignedToId: isBroker ? assignedUser.id : (editingMandate.assignedToId || currentUser.id),
+        assignedToName: isBroker ? assignedUser.name : (editingMandate.assignedToName || currentUser.name),
       });
       setEditingMandate(null);
     } else {
@@ -569,8 +581,8 @@ export function MandatesView() {
 
       {/* YENİ YETKİ EKLE / DÜZENLE MODALI */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4">
+          <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg">
             {/* Modal Başlığı */}
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
@@ -771,24 +783,29 @@ export function MandatesView() {
                   />
                 </div>
 
-                {isBroker && (
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">
                       Sorumlu Danışman
                     </label>
-                    <select
-                      value={formAdvisorId}
-                      onChange={(e) => setFormAdvisorId(e.target.value)}
-                      className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
-                    >
-                      {users.map((u) => (
-                        <option key={u.id} value={u.id}>
-                          {u.name}
-                        </option>
-                      ))}
-                    </select>
+                    {isBroker ? (
+                      <select
+                        value={formAdvisorId}
+                        onChange={(e) => setFormAdvisorId(e.target.value)}
+                        className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
+                      >
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full p-2 border border-slate-300 text-xs bg-slate-100 text-slate-700 font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                        <span className="truncate">{users.find((u) => u.id === formAdvisorId)?.name || currentUser.name}</span>
+                        <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+                      </div>
+                    )}
                   </div>
-                )}
               </div>
 
               {/* 6. Notlar */}
@@ -806,7 +823,7 @@ export function MandatesView() {
               </div>
 
               {/* Butonlar */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}

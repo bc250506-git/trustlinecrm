@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { StoreProvider } from "@/lib/store";
 import { Header } from "@/components/layout/Header";
 import { Sidebar, NavTab } from "@/components/layout/Sidebar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 import { CustomersView } from "@/components/customers/CustomersView";
 import { PropertiesView } from "@/components/properties/PropertiesView";
@@ -79,6 +80,7 @@ function MainApp() {
   const [matchmakerProperty, setMatchmakerProperty] = useState<Property | null>(null);
   const [brochureProperty, setBrochureProperty] = useState<Property | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
 
   // SSR Hydration Uyuşmazlığını Önleme & Hash Takibi (F5 Yenilemede Aynı Sekmede Kalma)
   React.useEffect(() => {
@@ -143,6 +145,11 @@ function MainApp() {
     setActiveTab("customers");
   };
 
+  const handleOpenProperty = (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    setActiveTab("properties");
+  };
+
   // Oturum açılmamışsa kurumsal login ekranını göster
   if (!isAuthenticated) {
     return <LoginView />;
@@ -151,7 +158,11 @@ function MainApp() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-[#0f172a] flex flex-col font-sans selection:bg-[#00adb5] selection:text-white">
       {/* Üst Yönetici Çubuğu */}
-      <Header onNavigateTab={setActiveTab} />
+      <Header
+        onNavigateTab={setActiveTab}
+        onOpenCustomer={handleOpenCustomer}
+        onOpenProperty={handleOpenProperty}
+      />
 
       {/* Ana Çerçeve */}
       <div className="flex flex-1 overflow-hidden">
@@ -159,7 +170,7 @@ function MainApp() {
         <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
         {/* Ana İçerik Alanı */}
-        <main className="flex-1 overflow-y-auto p-6 md:p-8 bg-[#f8fafc]">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-8 pb-24 md:pb-8 bg-[#f8fafc]">
           <div className="max-w-[1440px] mx-auto">
             {activeTab === "dashboard" && (
               <DashboardView
@@ -178,6 +189,7 @@ function MainApp() {
             {activeTab === "properties" && (
               <PropertiesView
                 onFindMatches={handleFindMatchesForProperty}
+                selectedPropertyId={selectedPropertyId}
               />
             )}
 
@@ -208,6 +220,9 @@ function MainApp() {
           </div>
         </main>
       </div>
+
+      {/* Mobil Sabit Alt Menü & Çekmece */}
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Genel Broşür Modalı */}
       {brochureProperty && (

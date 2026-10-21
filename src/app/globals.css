@@ -33,6 +33,46 @@
 }
 
 /* -------------------------------------------------------------------------- */
+/* Mobil Optimizasyon & Otomatik Zoom Engelleyici (iOS / Android)            */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    position: relative;
+    touch-action: pan-x pan-y;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+  }
+
+  /* iOS Safari ve Chrome mobil otomatik zoom-in engelleyici:
+     Mobil cihazlarda input, select, textarea font-size < 16px olunca
+     sayfa zorla zoom yapar. Mobilde 16px sabitlenerek ekran sabit tutulur. */
+  input,
+  select,
+  textarea,
+  .sharp-input {
+    font-size: 16px !important;
+    touch-action: manipulation;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    font-size: 14px;
+  }
+}
+
+/* Çentik ve Alt Çubuk Güvenli Alanları (iPhone Notch & Home Indicator) */
+.safe-area-pb {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* -------------------------------------------------------------------------- */
 /* Tipografi Okunabilirlik Standardı (Mikro Metinleri Okunur Seviyeye Çekme)   */
 /* -------------------------------------------------------------------------- */
 /* Aşırı küçük kalıp göz yoran 9px ve 10px etiketleri 11.5px seviyesine dengeler */

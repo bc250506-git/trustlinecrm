@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useStore } from "@/lib/store";
-import { Currency, Deal, isOfficeSystemAccount } from "@/lib/types";
+import { Currency, Deal, isOfficeSystemAccount, isVolkanUser, isVolkanDeal } from "@/lib/types";
 import {
   TrendingUp,
   Award,
@@ -49,25 +49,25 @@ import {
   Legend,
 } from "recharts";
 
-// Yıllık temel aylar listesi şablonu (Dinamik gerçek anlaşmalardan hesaplanır)
-const MONTH_LABELS: Record<string, { label: string; short: string }> = {
-  "01": { label: "Ocak", short: "Oca" },
-  "02": { label: "Şubat", short: "Şub" },
-  "03": { label: "Mart", short: "Mar" },
-  "04": { label: "Nisan", short: "Nis" },
-  "05": { label: "Mayıs", short: "May" },
-  "06": { label: "Haziran", short: "Haz" },
-  "07": { label: "Temmuz", short: "Tem" },
-  "08": { label: "Ağustos", short: "Ağu" },
-  "09": { label: "Eylül", short: "Eyl" },
-  "10": { label: "Ekim", short: "Eki" },
-  "11": { label: "Kasım", short: "Kas" },
-  "12": { label: "Aralık", short: "Ara" },
-};
+// Ay isimleri ve sıra garantili konfigürasyon (Object.entries sayısal sıralama hatasını engeller)
+const MONTHS_CONFIG = [
+  { num: "01", label: "Ocak", short: "Oca" },
+  { num: "02", label: "Şubat", short: "Şub" },
+  { num: "03", label: "Mart", short: "Mar" },
+  { num: "04", label: "Nisan", short: "Nis" },
+  { num: "05", label: "Mayıs", short: "May" },
+  { num: "06", label: "Haziran", short: "Haz" },
+  { num: "07", label: "Temmuz", short: "Tem" },
+  { num: "08", label: "Ağustos", short: "Ağu" },
+  { num: "09", label: "Eylül", short: "Eyl" },
+  { num: "10", label: "Ekim", short: "Eki" },
+  { num: "11", label: "Kasım", short: "Kas" },
+  { num: "12", label: "Aralık", short: "Ara" },
+];
 
 function getYearMonthList(year: number = 2026) {
-  return Object.entries(MONTH_LABELS).map(([mNum, mInfo]) => ({
-    key: `${year}-${mNum}`,
+  return MONTHS_CONFIG.map((mInfo) => ({
+    key: `${year}-${mInfo.num}`,
     label: `${mInfo.label} ${year}`,
     short: `${mInfo.short} ${String(year).slice(2)}`,
   }));
@@ -139,31 +139,90 @@ export function AnalyticsView() {
     }
   }, [selectedMonth]);
 
-  // Kapanan / İşlem Kapaması Yapılan Anlaşmalar (Won Deals)
-  const closedDeals = useMemo(() => {
-    return deals.filter((d) => d.stage === "won" || d.commissionReceived > 0 || Boolean(d.closingDate));
+  // Tüm Kapanan / İşlem Kapaması Yapılan Anlaşmalar (Won Deals)
+  const allClosedDeals = useMemo(() => {
+    return deals.filter(
+      (d) => d.stage === "won" || d.commissionReceived > 0 || Boolean(d.closingDate)
+    );
   }, [deals]);
 
-  // Seçili Döneme Göre Filtrelenmiş Anlaşmalar
-  const filteredDeals = useMemo(() => {
-    if (selectedMonth) {
-      return closedDeals.filter((d) => {
-        const dateStr = d.closingDate || d.createdAt;
-        return dateStr && dateStr.startsWith(selectedMonth);
-      });
+  // Danışman İzolasyonu: Danışman hesabı sadece kendi sorumlu olduğu veya partner olduğu işlemleri analiz eder
+  const baseDealsForView = useMemo(() => {
+    if (isBroker) return allClosedDeals;
+    const myNameNorm = currentUser.name ? currentUser.name.trim().toLowerCase() : "";
+    return allClosedDeals.filter(
+      (d) =>
+        d.createdById === currentUser.id ||
+        d.partnerAdvisorId === currentUser.id ||
+        (d.createdByName && myNameNorm && d.createdByName.trim().toLowerCase() === myNameNorm) ||
+        (d.partnerAdvisorName && myNameNorm && d.partnerAdvisorName.trim().toLowerCase() === myNameNorm)
+    );
+  }, [allClosedDeals, isBroker, currentUser]);
+
+  // Tarih alma yardımcısı
+  const getDealDate = (d: Deal): Date => {
+    const raw = d.closingDate || d.paymentDue || d.createdAt;
+    if (!raw) return new Date();
+    const dt = new Date(raw);
+    return isNaN(dt.getTime()) ? new Date() : dt;
+  };
+
+  // Anlaşmanın seçili döneme düşüp düşmediğini kontrol eden evrensel fonksiyon
+  const isDealInPeriod = (d: Deal, range: "30d" | "6m" | "1y" | "month", monthKey: string | null): boolean => {
+    const dt = getDealDate(d);
+    const now = new Date();
+
+    if (monthKey) {
+      const raw = d.closingDate || d.paymentDue || d.createdAt || "";
+      if (raw.startsWith(monthKey)) return true;
+      const y = dt.getFullYear();
+      const mStr = String(dt.getMonth() + 1).padStart(2, "0");
+      return `${y}-${mStr}` === monthKey;
     }
-    return closedDeals;
-  }, [closedDeals, selectedMonth]);
+
+    if (range === "30d") {
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return dt >= thirtyDaysAgo;
+    }
+
+    if (range === "6m") {
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      return dt >= sixMonthsAgo;
+    }
+
+    if (range === "1y") {
+      const currentYear = now.getFullYear();
+      return dt.getFullYear() === currentYear;
+    }
+
+    return true;
+  };
+
+  // Seçili Döneme Göre Filtrelenmiş Kullanıcı Anlaşmaları (KPI Kartları, Grafikler ve İstatistikler için)
+  const filteredDeals = useMemo(() => {
+    return baseDealsForView.filter((d) => isDealInPeriod(d, timeRange, selectedMonth));
+  }, [baseDealsForView, timeRange, selectedMonth]);
+
+  // Podyum sıralaması için seçili dönemdeki tüm ofis kapanan işlemleri
+  const periodAllClosedDeals = useMemo(() => {
+    return allClosedDeals.filter((d) => isDealInPeriod(d, timeRange, selectedMonth));
+  }, [allClosedDeals, timeRange, selectedMonth]);
 
   // 1. AYLIK VEYA SEÇİLİ AYA AİT CİRO VE KOMİSYON TRENDİ (GBP BAZINDA - TAM GERÇEK VERİLER)
   const monthlyTrendData = useMemo(() => {
-    const currentYear = 2026;
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIdx = now.getMonth();
     const months = getYearMonthList(currentYear);
 
     const baseList = months.map((m) => {
-      const monthDeals = closedDeals.filter((d) => {
-        const dateStr = d.closingDate || d.createdAt || "";
-        return dateStr.startsWith(m.key);
+      const monthDeals = baseDealsForView.filter((d) => {
+        const raw = d.closingDate || d.paymentDue || d.createdAt || "";
+        if (raw.startsWith(m.key)) return true;
+        const dt = getDealDate(d);
+        const y = dt.getFullYear();
+        const mStr = String(dt.getMonth() + 1).padStart(2, "0");
+        return `${y}-${mStr}` === m.key;
       });
 
       const volume = monthDeals.reduce(
@@ -181,10 +240,33 @@ export function AnalyticsView() {
           d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
           d.currency
         );
+        const isVolkan = isVolkanDeal(d);
+        if (isVolkan) {
+          const partRate = d.sharingType === "external" ? 50 : d.sharingType === "internal" ? 25 : 0;
+          const advRate = 100 - partRate;
+          return sum + Math.round((comm * advRate) / 100);
+        }
+        if (!isBroker) {
+          if (d.partnerAdvisorId === currentUser.id) {
+            return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25));
+          }
+          return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, d.currency) : Math.round((comm * (d.advisorShareRate ?? 60)) / 100));
+        }
         const rate = d.advisorShareRate ?? 60;
         return sum + Math.round((comm * rate) / 100);
       }, 0);
-      const office = Math.max(0, commission - advisor);
+      const office = isBroker
+        ? monthDeals.reduce((oSum, d) => {
+            if (isVolkanDeal(d)) return oSum;
+            const comm = convertToGbp(
+              d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
+              d.currency
+            );
+            if (d.officeShareAmount !== undefined) return oSum + convertToGbp(d.officeShareAmount, d.currency);
+            const offRate = d.officeShareRate ?? (d.portfolioOrigin === "advisor" ? 40 : 50);
+            return oSum + Math.round((comm * offRate) / 100);
+          }, 0)
+        : 0;
 
       return {
         key: m.key,
@@ -240,13 +322,17 @@ export function AnalyticsView() {
     }
 
     if (timeRange === "30d") {
-      return baseList.slice(8, 10); // Eylül & Ekim
+      // Son 30 gün: Cari ay ve önceki ay (Eylül & Ekim)
+      const startIdx = Math.max(0, currentMonthIdx - 1);
+      return baseList.slice(startIdx, currentMonthIdx + 1);
     }
     if (timeRange === "6m") {
-      return baseList.slice(4, 10); // Mayıs - Ekim (Son 6 Ay)
+      // Son 6 ay: Cari aydan geriye 6 ay (örneğin Mayıs - Ekim)
+      const startIdx = Math.max(0, currentMonthIdx - 5);
+      return baseList.slice(startIdx, currentMonthIdx + 1);
     }
     return baseList; // Tüm Yıl (12 Ay)
-  }, [timeRange, selectedMonth, closedDeals]);
+  }, [timeRange, selectedMonth, baseDealsForView, isBroker, currentUser]);
 
   // 2. EN ÇOK İŞLEM KAPATILAN MÜLK TİPLERİ (PROPERTY TYPES)
   const propertyTypeStats = useMemo(() => {
@@ -262,7 +348,6 @@ export function AnalyticsView() {
       Apartman: { count: 0, volumeGbp: 0, commissionGbp: 0, color: "#ec4899", icon: "Layers" },
     };
 
-    // Dinamik olarak kayıtlı tüm anlaşmalardan mülk tipi verilerini topla
     filteredDeals.forEach((d) => {
       let rawType = d.propertyType || "Daire";
       if (rawType.toLowerCase().includes("villa")) rawType = "Villa";
@@ -321,7 +406,6 @@ export function AnalyticsView() {
 
     filteredDeals.forEach((d) => {
       let channel = d.leadChannel || "Tavsiye";
-      // Eşleştirme standardizasyonu
       if (channel.toLowerCase().includes("branda")) channel = "Branda";
       else if (channel.toLowerCase().includes("tavsiye") || channel.toLowerCase().includes("referans")) channel = "Tavsiye";
       else if (channel.toLowerCase().includes("ilan") || channel.toLowerCase().includes("portal") || channel.toLowerCase().includes("101")) channel = "İlan siteleri";
@@ -362,14 +446,29 @@ export function AnalyticsView() {
 
   // 4. EN ÇOK İŞLEM KAPATAN DANIŞMANLAR & PODYUM LİDERLİK TABLOSU
   const advisorRankings = useMemo(() => {
-    const dealsToUse = selectedMonth ? filteredDeals : closedDeals;
-    // Tüm gerçek danışman ve yöneticileri tara (Ofis Yönetimi gibi tüzel hesaplar hariç)
-    return users
-      .filter((u) => u.active && !isOfficeSystemAccount(u))
+    const realUsers = users.filter((u) => u.active && !isOfficeSystemAccount(u));
+
+    return realUsers
       .map((user) => {
-        const userDeals = dealsToUse.filter(
-          (d) => d.createdById === user.id || d.partnerAdvisorId === user.id
-        );
+        const uNameNorm = user.name.trim().toLowerCase();
+
+        const userDeals = periodAllClosedDeals.filter((d) => {
+          if (d.createdById && d.createdById === user.id) return true;
+          if (d.partnerAdvisorId && d.partnerAdvisorId === user.id) return true;
+          if (d.createdByName && d.createdByName.trim().toLowerCase() === uNameNorm) return true;
+          if (d.partnerAdvisorName && d.partnerAdvisorName.trim().toLowerCase() === uNameNorm) return true;
+
+          // Eğer işlem ofis sistemi ('usr-ofis' vb.) adına açılmışsa veya ID eşleşmiyorsa ana brokera (usr-volkan) bağla
+          const isOfficeCreated =
+            !d.createdById ||
+            d.createdById === "usr-ofis" ||
+            (d.createdByName && d.createdByName.toLowerCase().includes("ofis"));
+          if (isOfficeCreated && user.id === "usr-volkan") {
+            return true;
+          }
+
+          return false;
+        });
 
         let totalVolumeGbp = 0;
         let totalCommissionGbp = 0;
@@ -382,9 +481,15 @@ export function AnalyticsView() {
         const channelCount: Record<string, number> = {};
 
         userDeals.forEach((d) => {
-          const isPrimary = d.createdById === user.id;
-          const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice, d.currency);
-          const commGbp = convertToGbp(d.commissionExpected || (d.agreedPrice * 0.05), d.currency);
+          const isPrimary =
+            d.createdById === user.id ||
+            (d.createdByName && d.createdByName.trim().toLowerCase() === uNameNorm) ||
+            (d.createdById === "usr-ofis" && user.id === "usr-volkan");
+          const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency);
+          const commGbp = convertToGbp(
+            d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
+            d.currency
+          );
 
           totalVolumeGbp += priceGbp;
           totalCommissionGbp += commGbp;
@@ -392,16 +497,35 @@ export function AnalyticsView() {
           if (d.dealType === "rent") rentCount++;
           else saleCount++;
 
+          const isVolkan = isVolkanUser(user);
+
           // Prim hak ediş hesaplaması
           if (isPrimary) {
-            const advRate = d.advisorShareRate ?? 60;
-            const offRate = d.officeShareRate ?? 40;
-            advisorEarningsGbp += Math.round((commGbp * advRate) / 100);
-            officeContributionGbp += Math.round((commGbp * offRate) / 100);
+            if (isVolkan) {
+              const partRate = d.sharingType === "external" ? 50 : d.sharingType === "internal" ? 25 : 0;
+              const advRate = 100 - partRate;
+              const partGbp = Math.round((commGbp * partRate) / 100);
+              advisorEarningsGbp += commGbp - partGbp;
+              officeContributionGbp += 0;
+            } else {
+              const advRate = d.advisorShareRate ?? 60;
+              const offRate = d.officeShareRate ?? 40;
+              advisorEarningsGbp +=
+                d.advisorShareAmount !== undefined
+                  ? convertToGbp(d.advisorShareAmount, d.currency)
+                  : Math.round((commGbp * advRate) / 100);
+              officeContributionGbp +=
+                d.officeShareAmount !== undefined
+                  ? convertToGbp(d.officeShareAmount, d.currency)
+                  : Math.round((commGbp * offRate) / 100);
+            }
           } else {
             // Şirket içi ortak danışman ise partner payı
             const partRate = d.partnerShareRate ?? 25;
-            advisorEarningsGbp += Math.round((commGbp * partRate) / 100);
+            advisorEarningsGbp +=
+              d.partnerShareAmount !== undefined
+                ? convertToGbp(d.partnerShareAmount, d.currency)
+                : Math.round((commGbp * partRate) / 100);
           }
 
           const pType = d.propertyType || "Daire";
@@ -419,7 +543,7 @@ export function AnalyticsView() {
         const topChannel =
           Object.entries(channelCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "Tavsiye";
 
-        // Rol ve unvan kuralları: Berk Çiftçi gayrimenkul danışmanı değil, kesinlikle "Asistan"dır!
+        // Rol ve unvan kuralları: Berk Çiftçi Asistan
         let userTitle = user.title;
         if (user.id === "usr-berk" || user.name.toLowerCase().includes("berk")) {
           userTitle = "Asistan";
@@ -454,7 +578,7 @@ export function AnalyticsView() {
         };
       })
       .sort((a, b) => b.volumeGbp - a.volumeGbp || b.totalDeals - a.totalDeals);
-  }, [users, closedDeals, filteredDeals, selectedMonth, properties]);
+  }, [users, periodAllClosedDeals, properties]);
 
   // 5. İŞLEM TÜRÜ & BÖLÜŞÜM MODELLERİ ANALİZİ (PORTFOLIO ORIGIN & SPLIT)
   const dealEconomics = useMemo(() => {
@@ -463,8 +587,8 @@ export function AnalyticsView() {
     let salesVolumeGbp = 0;
     let rentsVolumeGbp = 0;
 
-    let advisorOriginCount = 0; // %60 GD / %40 Ofis
-    let officeOriginCount = 0;  // %50 GD / %50 Ofis
+    let advisorOriginCount = 0; // %60 GD
+    let officeOriginCount = 0;  // %50 GD
     let externalSharingCount = 0; // Dış Paylaşım
     let internalSharingCount = 0; // İç Paylaşım
 
@@ -518,11 +642,64 @@ export function AnalyticsView() {
     }));
   }, [properties]);
 
-  // Genel KPI Toplamları
-  const totalVolumeSum = monthlyTrendData.reduce((acc, cur) => acc + cur.volume, 0);
-  const totalCommissionSum = monthlyTrendData.reduce((acc, cur) => acc + cur.commission, 0);
-  const totalAdvisorShareSum = monthlyTrendData.reduce((acc, cur) => acc + cur.advisor, 0);
-  const totalOfficeShareSum = monthlyTrendData.reduce((acc, cur) => acc + cur.office, 0);
+  // Genel KPI Toplamları (Doğrudan filtrelenmiş anlaşmalardan kesin tutarlılıkla hesaplanır)
+  const totalVolumeSum = useMemo(() => {
+    return filteredDeals.reduce(
+      (sum, d) => sum + convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency),
+      0
+    );
+  }, [filteredDeals]);
+
+  const totalCommissionSum = useMemo(() => {
+    return filteredDeals.reduce(
+      (sum, d) =>
+        sum +
+        convertToGbp(d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0), d.currency),
+      0
+    );
+  }, [filteredDeals]);
+
+  const totalAdvisorShareSum = useMemo(() => {
+    return filteredDeals.reduce((sum, d) => {
+      const comm = convertToGbp(
+        d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
+        d.currency
+      );
+      const isVolkan = isVolkanDeal(d);
+      if (isVolkan) {
+        const partRate = d.sharingType === "external" ? 50 : d.sharingType === "internal" ? 25 : 0;
+        const advRate = 100 - partRate;
+        return sum + Math.round((comm * advRate) / 100);
+      }
+      if (!isBroker) {
+        if (d.partnerAdvisorId === currentUser.id) {
+          return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25));
+        }
+        return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, d.currency) : Math.round((comm * (d.advisorShareRate ?? 60)) / 100));
+      }
+      const rate = d.advisorShareRate ?? 60;
+      return sum + Math.round((comm * rate) / 100);
+    }, 0);
+  }, [filteredDeals, isBroker, currentUser]);
+
+  const totalOfficeShareSum = useMemo(() => {
+    if (!isBroker) return 0;
+    return filteredDeals.reduce((sum, d) => {
+      if (isVolkanDeal(d)) return sum + 0;
+      const comm = convertToGbp(
+        d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
+        d.currency
+      );
+      if (d.officeShareAmount !== undefined) {
+        return sum + convertToGbp(d.officeShareAmount, d.currency);
+      }
+      const advShare = Math.round((comm * (d.advisorShareRate ?? 60)) / 100);
+      const partShare = d.sharingType === "internal"
+        ? (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25))
+        : 0;
+      return sum + Math.max(0, comm - advShare - partShare);
+    }, 0);
+  }, [filteredDeals, isBroker]);
 
   if (!isMounted) {
     return (
@@ -669,7 +846,7 @@ export function AnalyticsView() {
         <div className="sharp-card p-4 border-t-3 border-t-[#00adb5] bg-white shadow-xs">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              Kapanan İşlem Sayısı
+              {isBroker ? "Kapanan İşlem Sayısı" : "Kişisel Kapanan İşlemim"}
             </span>
             <span className="text-emerald-700 font-bold flex items-center text-[11px]">
               <ArrowUpRight className="w-3.5 h-3.5" /> +28.5%
@@ -688,7 +865,7 @@ export function AnalyticsView() {
         <div className="sharp-card p-4 border-t-3 border-t-[#1d2566] bg-white shadow-xs">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-              {selectedMonth ? "Aylık Kapanış Hacmi" : "Toplam Kapanış Hacmi"}
+              {selectedMonth ? "Aylık Kapanış Hacmi" : "Dönemsel Kapanış Hacmi"}
             </span>
             <span className="text-emerald-700 font-bold flex items-center text-[11px]">
               <ArrowUpRight className="w-3.5 h-3.5" /> +22.4%
@@ -699,7 +876,7 @@ export function AnalyticsView() {
             <span className="text-xs font-normal text-slate-500">GBP</span>
           </div>
           <div className="text-[11px] font-mono text-slate-500 mt-1">
-            İşlem Kapama Formu onaylı brüt ciro
+            {isBroker ? "İşlem Kapama Formu onaylı brüt ciro" : "Sorumlu olduğunuz işlemlerin toplam satış hacmi"}
           </div>
         </div>
 
@@ -722,28 +899,42 @@ export function AnalyticsView() {
           </div>
         </div>
 
-        {/* Net Ofis vs Danışman Dağılımı */}
+        {/* Net Ofis vs Danışman Dağılımı (Danışman için sadece kendi hak edişi!) */}
         <div className="sharp-card p-4 border-t-3 border-t-purple-600 bg-white shadow-xs">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
             <span className="font-bold text-purple-900 px-2 py-0.5 bg-purple-50 border border-purple-200 uppercase">
-              Net Gelir & Prim Dağılımı
+              {isBroker ? "Net Gelir & Prim Dağılımı" : "Kişisel Prim Hak Edişim"}
             </span>
             <Coins className="w-4 h-4 text-purple-600" />
           </div>
-          <div className="text-lg font-bold font-mono text-[#1d2566] mt-1 flex items-baseline justify-between">
-            <div>
-              <span className="text-xs font-normal text-slate-500">Ofis: </span>
-              £{totalOfficeShareSum.toLocaleString("tr-TR")}
-            </div>
-            <div className="text-purple-700">
-              <span className="text-xs font-normal text-purple-500">Danışman: </span>
-              £{totalAdvisorShareSum.toLocaleString("tr-TR")}
-            </div>
-          </div>
-          <div className="text-[11px] font-mono text-slate-500 mt-1 flex items-center justify-between">
-            <span>Ofis Payı: %40-50</span>
-            <span className="text-purple-600 font-semibold">Danışman Primleri: %60</span>
-          </div>
+          {isBroker ? (
+            <>
+              <div className="text-lg font-bold font-mono text-[#1d2566] mt-1 flex items-baseline justify-between">
+                <div>
+                  <span className="text-xs font-normal text-slate-500">Ofis: </span>
+                  £{totalOfficeShareSum.toLocaleString("tr-TR")}
+                </div>
+                <div className="text-purple-700">
+                  <span className="text-xs font-normal text-purple-500">Danışman: </span>
+                  £{totalAdvisorShareSum.toLocaleString("tr-TR")}
+                </div>
+              </div>
+              <div className="text-[11px] font-mono text-slate-500 mt-1 flex items-center justify-between">
+                <span>Ofis Payı: %40-50</span>
+                <span className="text-purple-600 font-semibold">Danışman Primleri: %60</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold font-mono text-purple-700 mt-2">
+                £{totalAdvisorShareSum.toLocaleString("tr-TR")}{" "}
+                <span className="text-xs font-normal text-slate-500">GBP</span>
+              </div>
+              <div className="text-[11px] font-mono text-purple-600 mt-1">
+                Kapanan işlemlerinizden onaylı net prim hak edişiniz
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -759,13 +950,13 @@ export function AnalyticsView() {
                   : "Dönemsel Satış Hacmi & Komisyon Paylaşım Eğrisi (GBP - £)"}
               </h3>
               <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200">
-                Ofis / Danışman Payı
+                {isBroker ? "Ofis / Danışman Payı" : "Danışman Prim Hak Edişi"}
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
               {selectedMonth
-                ? `${monthDisplayText} döneminin haftalık komisyon üretimi ve ofis / danışman net hak edişleri.`
-                : "Aylık toplam komisyon üretimi ve ofis / danışman net hak edişlerinin karşılaştırmalı trendi."}
+                ? `${monthDisplayText} döneminin haftalık komisyon üretimi ve net hak edişler.`
+                : "Aylık toplam komisyon üretimi ve net hak edişlerin karşılaştırmalı trendi."}
             </p>
           </div>
 
@@ -774,9 +965,11 @@ export function AnalyticsView() {
               <span className="flex items-center gap-1.5 text-slate-700 font-semibold">
                 <span className="w-3 h-3 bg-[#00adb5] inline-block"></span> Danışman Payı
               </span>
-              <span className="flex items-center gap-1.5 text-slate-700 font-semibold">
-                <span className="w-3 h-3 bg-[#1d2566] inline-block"></span> Ofis Payı
-              </span>
+              {isBroker && (
+                <span className="flex items-center gap-1.5 text-slate-700 font-semibold">
+                  <span className="w-3 h-3 bg-[#1d2566] inline-block"></span> Ofis Payı
+                </span>
+              )}
             </div>
 
             <div className="flex items-center p-0.5 bg-slate-100 border border-slate-300">
@@ -831,8 +1024,9 @@ export function AnalyticsView() {
                     padding: "10px 14px",
                   }}
                   formatter={(value: any, name: any) => {
+                    if (!isBroker && name === "office") return [null, null];
                     const labelMap: Record<string, string> = {
-                      advisor: "Danışman Prim Payı",
+                      advisor: isBroker ? "Danışman Prim Payı" : "Danışman Prim Hak Edişi",
                       office: "Ofis Kasası Payı",
                       commission: "Toplam Komisyon",
                       volume: "Brüt Satış Hacmi",
@@ -841,7 +1035,9 @@ export function AnalyticsView() {
                   }}
                 />
                 <Bar dataKey="advisor" name="advisor" fill="#00adb5" radius={[3, 3, 0, 0]} maxBarSize={42} />
-                <Bar dataKey="office" name="office" fill="#1d2566" radius={[3, 3, 0, 0]} maxBarSize={42} />
+                {isBroker && (
+                  <Bar dataKey="office" name="office" fill="#1d2566" radius={[3, 3, 0, 0]} maxBarSize={42} />
+                )}
               </BarChart>
             ) : (
               <AreaChart data={monthlyTrendData} margin={{ top: 15, right: 15, left: 0, bottom: 5 }}>
@@ -850,10 +1046,12 @@ export function AnalyticsView() {
                     <stop offset="0%" stopColor="#00adb5" stopOpacity={0.25} />
                     <stop offset="100%" stopColor="#00adb5" stopOpacity={0.0} />
                   </linearGradient>
-                  <linearGradient id="officeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#1d2566" stopOpacity={0.15} />
-                    <stop offset="100%" stopColor="#1d2566" stopOpacity={0.0} />
-                  </linearGradient>
+                  {isBroker && (
+                    <linearGradient id="officeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#1d2566" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#1d2566" stopOpacity={0.0} />
+                    </linearGradient>
+                  )}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#475569", fontWeight: 500 }} tickLine={false} />
@@ -873,8 +1071,9 @@ export function AnalyticsView() {
                     padding: "10px 14px",
                   }}
                   formatter={(value: any, name: any) => {
+                    if (!isBroker && name === "office") return [null, null];
                     const labelMap: Record<string, string> = {
-                      advisor: "Danışman Prim Payı",
+                      advisor: isBroker ? "Danışman Prim Payı" : "Danışman Prim Hak Edişi",
                       office: "Ofis Kasası Payı",
                       commission: "Toplam Komisyon",
                       volume: "Brüt Satış Hacmi",
@@ -892,16 +1091,18 @@ export function AnalyticsView() {
                   fill="url(#advisorGrad)"
                   activeDot={{ r: 5, fill: "#00adb5", stroke: "#ffffff", strokeWidth: 2 }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="office"
-                  name="office"
-                  stroke="#1d2566"
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#officeGrad)"
-                  activeDot={{ r: 5, fill: "#1d2566", stroke: "#ffffff", strokeWidth: 2 }}
-                />
+                {isBroker && (
+                  <Area
+                    type="monotone"
+                    dataKey="office"
+                    name="office"
+                    stroke="#1d2566"
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#officeGrad)"
+                    activeDot={{ r: 5, fill: "#1d2566", stroke: "#ffffff", strokeWidth: 2 }}
+                  />
+                )}
               </AreaChart>
             )}
           </ResponsiveContainer>
@@ -1119,6 +1320,11 @@ export function AnalyticsView() {
               ? "bg-slate-200 text-slate-800 border-slate-400"
               : "bg-amber-100/70 text-amber-950 border-amber-300";
 
+            const isAdvisorMe =
+              adv.id === currentUser.id ||
+              Boolean(currentUser.name && adv.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
+            const canSeeNumbers = isBroker || isAdvisorMe;
+
             return (
               <div
                 key={adv.id}
@@ -1139,8 +1345,13 @@ export function AnalyticsView() {
                       {adv.avatarInitials}
                     </div>
                     <div>
-                      <h4 className="font-bold text-[#1d2566] text-sm leading-tight">
+                      <h4 className="font-bold text-[#1d2566] text-sm leading-tight flex items-center gap-1.5">
                         {adv.name}
+                        {isAdvisorMe && (
+                          <span className="px-1.5 py-0.2 bg-[#00adb5] text-white text-[9px] font-mono font-bold">
+                            SİZ
+                          </span>
+                        )}
                       </h4>
                       <div className="text-[11px] font-mono text-[#00adb5] font-semibold">
                         {adv.title}
@@ -1149,31 +1360,55 @@ export function AnalyticsView() {
                   </div>
 
                   {/* İstatistikler */}
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-white p-2.5 border border-slate-200">
+                  <div
+                    className={`grid ${
+                      isBroker ? "grid-cols-2" : "grid-cols-3"
+                    } gap-2 text-xs font-mono bg-white p-2.5 border border-slate-200`}
+                  >
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase">Toplam Satış Hacmi</div>
                       <div className="text-sm font-bold text-[#1d2566] mt-0.5">
-                        £{adv.volumeGbp.toLocaleString("tr-TR")}
+                        {canSeeNumbers ? (
+                          `£${adv.volumeGbp.toLocaleString("tr-TR")}`
+                        ) : (
+                          <span className="text-slate-400 font-normal select-none tracking-wider">
+                            £ ••••••
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase">Üretilen Komisyon</div>
                       <div className="text-sm font-bold text-emerald-700 mt-0.5">
-                        £{adv.commissionGbp.toLocaleString("tr-TR")}
+                        {canSeeNumbers ? (
+                          `£${adv.commissionGbp.toLocaleString("tr-TR")}`
+                        ) : (
+                          <span className="text-slate-400 font-normal select-none tracking-wider">
+                            £ ••••••
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase">Danışman Prim Payı</div>
                       <div className="text-xs font-bold text-purple-700 mt-0.5">
-                        £{adv.advisorEarningsGbp.toLocaleString("tr-TR")}
+                        {canSeeNumbers ? (
+                          `£${adv.advisorEarningsGbp.toLocaleString("tr-TR")}`
+                        ) : (
+                          <span className="text-slate-400 font-normal select-none tracking-wider">
+                            £ ••••••
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div>
-                      <div className="text-[10px] text-slate-400 uppercase">Ofis Kasası Payı</div>
-                      <div className="text-xs font-bold text-slate-700 mt-0.5">
-                        £{adv.officeContributionGbp.toLocaleString("tr-TR")}
+                    {isBroker && (
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase">Ofis Kasası Payı</div>
+                        <div className="text-xs font-bold text-slate-700 mt-0.5">
+                          £{adv.officeContributionGbp.toLocaleString("tr-TR")}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -1197,7 +1432,7 @@ export function AnalyticsView() {
                 <th className="py-2.5 px-3 text-right">Toplam Satış Hacmi</th>
                 <th className="py-2.5 px-3 text-right">Üretilen Komisyon</th>
                 <th className="py-2.5 px-3 text-right">Danışman Hak Edişi</th>
-                <th className="py-2.5 px-3 text-right">Ofis Kasası Payı</th>
+                {isBroker && <th className="py-2.5 px-3 text-right">Ofis Kasası Payı</th>}
                 <th className="py-2.5 px-3 text-center">En Çok Satan Mülk</th>
                 <th className="py-2.5 px-3 text-center">Ana Kanal</th>
               </tr>
@@ -1205,11 +1440,30 @@ export function AnalyticsView() {
             <tbody className="divide-y divide-slate-100 font-mono">
               {advisorRankings.map((agent, index) => {
                 const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : index === 2 ? "🥉" : `#${index + 1}`;
+                const isAgentMe =
+                  agent.id === currentUser.id ||
+                  Boolean(currentUser.name && agent.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
+                const canSeeAgentNumbers = isBroker || isAgentMe;
+
                 return (
-                  <tr key={agent.id} className="hover:bg-slate-50/80 transition">
+                  <tr
+                    key={agent.id}
+                    className={`transition ${
+                      isAgentMe
+                        ? "bg-[#00adb5]/5 hover:bg-[#00adb5]/10 border-l-2 border-l-[#00adb5]"
+                        : "hover:bg-slate-50/80"
+                    }`}
+                  >
                     <td className="py-3 px-3 text-center font-bold">{medal}</td>
                     <td className="py-3 px-3">
-                      <div className="font-bold text-[#1d2566] text-xs font-sans">{agent.name}</div>
+                      <div className="font-bold text-[#1d2566] text-xs font-sans flex items-center gap-1.5">
+                        {agent.name}
+                        {isAgentMe && (
+                          <span className="px-1.5 py-0.2 bg-[#00adb5] text-white text-[9px] font-mono font-bold">
+                            SİZ
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] text-slate-500 font-mono">{agent.title}</div>
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-slate-900">
@@ -1219,17 +1473,37 @@ export function AnalyticsView() {
                       </span>
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-[#1d2566]">
-                      £{agent.volumeGbp.toLocaleString("tr-TR")}
+                      {canSeeAgentNumbers ? (
+                        `£${agent.volumeGbp.toLocaleString("tr-TR")}`
+                      ) : (
+                        <span className="text-slate-400 font-normal select-none tracking-widest">
+                          £ ••••••
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-emerald-700">
-                      £{agent.commissionGbp.toLocaleString("tr-TR")}
+                      {canSeeAgentNumbers ? (
+                        `£${agent.commissionGbp.toLocaleString("tr-TR")}`
+                      ) : (
+                        <span className="text-slate-400 font-normal select-none tracking-widest">
+                          £ ••••••
+                        </span>
+                      )}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-purple-700">
-                      £{agent.advisorEarningsGbp.toLocaleString("tr-TR")}
+                      {canSeeAgentNumbers ? (
+                        `£${agent.advisorEarningsGbp.toLocaleString("tr-TR")}`
+                      ) : (
+                        <span className="text-slate-400 font-normal select-none tracking-widest">
+                          £ ••••••
+                        </span>
+                      )}
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-slate-700">
-                      £{agent.officeContributionGbp.toLocaleString("tr-TR")}
-                    </td>
+                    {isBroker && (
+                      <td className="py-3 px-3 text-right font-bold text-slate-700">
+                        £{agent.officeContributionGbp.toLocaleString("tr-TR")}
+                      </td>
+                    )}
                     <td className="py-3 px-3 text-center text-slate-700">
                       <span className="px-2 py-0.5 bg-slate-100 border border-slate-200 text-[10px]">
                         {agent.topType}
@@ -1293,8 +1567,16 @@ export function AnalyticsView() {
           </div>
 
           <p className="text-[11px] font-mono text-slate-500 leading-relaxed">
-            Ofis operasyonunun ana gelir motoru <strong>Portföy Satışları</strong> olurken, 
-            <strong> Kiralama işlemleri</strong> düzenli nakit akışı ve kira takip matrisine yeni kontratlar kazandırmaktadır.
+            {isBroker ? (
+              <>
+                Ofis operasyonunun ana gelir motoru <strong>Portföy Satışları</strong> olurken, 
+                <strong> Kiralama işlemleri</strong> düzenli nakit akışı ve kira takip matrisine yeni kontratlar kazandırmaktadır.
+              </>
+            ) : (
+              <>
+                Kapanan işlemleriniz <strong>Portföy Satışları</strong> ve <strong>Kiralama İşlemleri</strong> olmak üzere listelenmektedir.
+              </>
+            )}
           </p>
         </div>
 
@@ -1313,7 +1595,7 @@ export function AnalyticsView() {
           <div className="space-y-2 text-xs font-mono">
             <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200">
               <span className="font-semibold text-slate-700">
-                Danışman Kendi Portföyü (%60 GD / %40 Ofis):
+                {isBroker ? "Danışman Kendi Portföyü (%60 GD / %40 Ofis):" : "Danışman Kendi Portföyü (%60 Danışman Primi):"}
               </span>
               <span className="font-bold text-[#1d2566]">
                 {dealEconomics.advisorOriginCount} İşlem (%{dealEconomics.advisorOriginPercent})
@@ -1322,7 +1604,7 @@ export function AnalyticsView() {
 
             <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200">
               <span className="font-semibold text-slate-700">
-                Ofis Portföyü (%50 GD / %50 Ofis):
+                {isBroker ? "Ofis Portföyü (%50 GD / %50 Ofis):" : "Ofis Portföyü (%50 Danışman Primi):"}
               </span>
               <span className="font-bold text-[#1d2566]">
                 {dealEconomics.officeOriginCount} İşlem (%{dealEconomics.officeOriginPercent})
@@ -1331,7 +1613,7 @@ export function AnalyticsView() {
 
             <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200">
               <span className="font-semibold text-slate-700">
-                Dış Ortak ile Paylaşım (%50 Dış, %30 GD, %20 Ofis):
+                {isBroker ? "Dış Ortak ile Paylaşım (%50 Dış, %30 GD, %20 Ofis):" : "Dış Ortak ile Paylaşım (%50 Dış, %30 Danışman Primi):"}
               </span>
               <span className="font-bold text-amber-700">
                 {dealEconomics.externalSharingCount} İşlem (%{dealEconomics.externalPercent})
@@ -1340,7 +1622,7 @@ export function AnalyticsView() {
 
             <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200">
               <span className="font-semibold text-slate-700">
-                Şirket İçi Ortak Danışman (%25 GD2, %30 GD1, %45 Ofis):
+                {isBroker ? "Şirket İçi Ortak Danışman (%25 GD2, %30 GD1, %45 Ofis):" : "Şirket İçi Ortak Danışman (%25 GD2, %30 GD1 Paylaşımı):"}
               </span>
               <span className="font-bold text-purple-700">
                 {dealEconomics.internalSharingCount} İşlem (%{dealEconomics.internalPercent})

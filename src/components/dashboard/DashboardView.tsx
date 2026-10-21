@@ -238,7 +238,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
   return (
     <div className="space-y-6">
       {/* Karşılama ve Gün Özeti */}
-      <div className="sharp-card p-6 border-l-4 border-l-[#00adb5]">
+      <div className="sharp-card p-4 sm:p-6 border-l-4 border-l-[#00adb5]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -246,7 +246,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                 {isBroker ? "BROKER KONTROL MERKEZİ" : "DANIŞMAN GÜNLÜK PLANI"}
               </span>
             </div>
-            <h1 className="text-xl font-bold text-[#1d2566] tracking-tight">
+            <h1 className="text-lg sm:text-xl font-bold text-[#1d2566] tracking-tight">
               Hoş Geldiniz, {currentUser.name}
             </h1>
             <p className="text-xs text-slate-600 mt-1 max-w-2xl">
@@ -257,30 +257,30 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
           </div>
 
           {/* Görünüm Değiştirici: Operasyonel vs Analitik */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 shrink-0 self-start sm:self-center">
+          <div className="flex w-full sm:w-auto items-center gap-1.5 p-1 bg-slate-100 border border-slate-300 shrink-0 self-stretch sm:self-center">
             <button
               type="button"
               onClick={() => setDashboardTab("operations")}
-              className={`px-3 py-1.5 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 sm:flex-initial justify-center px-2.5 sm:px-3 py-1.5 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 dashboardTab === "operations"
                   ? "bg-[#1d2566] text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <Clock className="w-3.5 h-3.5 text-[#00adb5]" />
-              Operasyonel Akış & Alarmlar
+              <span className="truncate">Operasyonel Akış</span>
             </button>
             <button
               type="button"
               onClick={() => setDashboardTab("analytics")}
-              className={`px-3 py-1.5 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 sm:flex-initial justify-center px-2.5 sm:px-3 py-1.5 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 dashboardTab === "analytics"
                   ? "bg-[#1d2566] text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5 text-amber-500" />
-              Finans & Performans Analitiği
+              <span className="truncate">Finans & Analitik</span>
             </button>
           </div>
         </div>
@@ -293,21 +293,40 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
 
       {/* Canlı Metrik Sayaçları (Tıklanabilir Hızlı Erişim Blokları) */}
       {(() => {
-        // 1. Müşteri Havuzu: Mevcut erişilebilir müşteri sayısı
-        const customerCount = customers.length;
+        // 1. Müşteri Havuzu: Danışman için sadece kendine ait ve ortak paylaşılan
+        const customerCount = isBroker
+          ? customers.filter((c) => !c.deletedAt).length
+          : customers.filter((c) => !c.deletedAt && (c.assignedToId === currentUser.id || c.isShared)).length;
 
-        // 2. Aktif Portföy: Yayındaki portföy sayısı
-        const activePropertiesCount = properties.filter((p) => p.status === "AVAILABLE").length;
+        // 2. Aktif Portföy: Danışman için sadece kendine ait ve ortak paylaşılan
+        const activePropertiesCount = isBroker
+          ? properties.filter((p) => !p.deletedAt && p.status === "AVAILABLE").length
+          : properties.filter(
+              (p) => !p.deletedAt && p.status === "AVAILABLE" && (p.assignedToId === currentUser.id || p.isShared)
+            ).length;
 
-        // 3. Bu Ayki İşlem Sayısı: Yürütülen ve kapanan satış/kiralama anlaşmaları
+        // 3. Bu Ayki İşlem Sayısı: Yürütülen ve kapanan satış/kiralama anlaşmaları (Danışman izolasyonlu)
         const now = currentDate || new Date();
-        const monthlyDeals = deals.filter((d) => {
-          const dateStr = d.closingDate || d.createdAt;
+        const baseDealsForUser = isBroker
+          ? deals
+          : deals.filter(
+              (d) =>
+                d.createdById === currentUser.id ||
+                d.partnerAdvisorId === currentUser.id ||
+                (d.createdByName &&
+                  currentUser.name &&
+                  d.createdByName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+                (d.partnerAdvisorName &&
+                  currentUser.name &&
+                  d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+            );
+        const monthlyDeals = baseDealsForUser.filter((d) => {
+          const dateStr = d.closingDate || d.paymentDue || d.createdAt;
           if (!dateStr) return true;
           const dDate = new Date(dateStr);
           return dDate.getMonth() === now.getMonth() && dDate.getFullYear() === now.getFullYear();
         });
-        const monthlyDealsCount = monthlyDeals.length > 0 ? monthlyDeals.length : deals.length;
+        const monthlyDealsCount = monthlyDeals.length;
 
         // 4. Bugünkü Randevu / Toplantı / Arama / Etkinlikler
         const todayStr = now.toISOString().split("T")[0];

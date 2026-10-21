@@ -349,8 +349,8 @@ export function BrochureModal({ property, onClose }: BrochureModalProps) {
   }, []);
 
   return (
-    <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="brochure-modal-container sharp-card w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden bg-white border border-slate-200 shadow-2xl my-auto">
+    <div className="brochure-modal-backdrop fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="brochure-modal-container sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-3xl flex flex-col overflow-hidden bg-white border-0 sm:border border-slate-200 shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         {/* Güvenlik & İşlem Başlığı (Sadece 3 Net Aksiyon: WP PAYLAŞ, YAZDIR, İNDİR) */}
         <div className="no-print p-4 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">

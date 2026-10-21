@@ -10,13 +10,13 @@ export function formatCustomerCategory(category?: string | CustomerCategory): st
     case "BUYER":
       return "Alıcı Adayı";
     case "SELLER":
-      return "Satıcı";
+      return "Mal Sahibi";
     case "SELLER_AND_BUYER":
-      return "Satıcı & Alıcı Adayı";
+      return "Mal Sahibi & Alıcı Adayı";
     case "TENANT":
       return "Kiracı";
     case "LANDLORD":
-      return "Ev Sahibi";
+      return "Mal Sahibi";
     case "INVESTOR":
       return "Yatırımcı";
     default:

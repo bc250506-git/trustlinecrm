@@ -66,6 +66,8 @@ export function AddCustomerModal({
   const [formAssigneeId, setFormAssigneeId] = useState(currentUser.id);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
+  const isBuyerCandidate = formCategory === "BUYER" || isAlsoBuyer;
+
   const prevIsOpenRef = React.useRef(false);
 
   useEffect(() => {
@@ -195,13 +197,18 @@ export function AddCustomerModal({
       return;
     }
 
-    const assignedUser = users.find((u) => u.id === formAssigneeId) || currentUser;
+    const finalAssigneeId = isBroker
+      ? formAssigneeId
+      : (customerToEdit ? (customerToEdit.assignedToId || currentUser.id) : currentUser.id);
+    const assignedUser = users.find((u) => u.id === finalAssigneeId) || currentUser;
 
     const isSeller = formCategory === "SELLER";
-    const shouldSaveCriteria = formCategory === "BUYER" || (isSeller && isAlsoBuyer);
+    const isTenant = formCategory === "TENANT";
+    const shouldSaveCriteria = isBuyerCandidate;
 
     const finalCategory: CustomerCategory =
       isSeller && isAlsoBuyer ? "SELLER_AND_BUYER" : formCategory;
+    const finalIsAlsoBuyer = (isSeller || isTenant) && isAlsoBuyer;
 
     const finalRegion = shouldSaveCriteria && selectedRegions.length > 0 ? selectedRegions.join(", ") : "";
     const finalType = shouldSaveCriteria && selectedTypes.length > 0 ? selectedTypes.join(", ") : "";
@@ -220,8 +227,8 @@ export function AddCustomerModal({
         email: formEmail,
         birthDate: formBirthDate || undefined,
         category: finalCategory,
-        isAlsoBuyer: isSeller && isAlsoBuyer,
-        temperature: formTemperature,
+        isAlsoBuyer: finalIsAlsoBuyer,
+        temperature: isBuyerCandidate ? formTemperature : "warm",
         isVip: formVip,
         region: finalRegion,
         propertyType: finalType,
@@ -259,8 +266,8 @@ export function AddCustomerModal({
       birthDate: formBirthDate || undefined,
       source: "manual",
       category: finalCategory,
-      isAlsoBuyer: isSeller && isAlsoBuyer,
-      temperature: formTemperature,
+      isAlsoBuyer: finalIsAlsoBuyer,
+      temperature: isBuyerCandidate ? formTemperature : "warm",
       isVip: formVip,
       region: finalRegion,
       propertyType: finalType,
@@ -285,9 +292,9 @@ export function AddCustomerModal({
   return (
     <div
       style={{ zIndex: zIndex || 120 }}
-      className="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto"
+      className="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto"
     >
-      <div className="sharp-card w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#00adb5]" />
@@ -312,9 +319,10 @@ export function AddCustomerModal({
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+          {/* Ad Soyad & Telefon */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 Ad Soyad *
               </label>
               <input
@@ -323,12 +331,12 @@ export function AddCustomerModal({
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 placeholder="Örn: Selim Karadağ"
-                className="sharp-input w-full p-2"
+                className="sharp-input w-full px-2.5 h-[38px] text-xs font-medium"
               />
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 Telefon Numarası *
               </label>
               <PhoneInput
@@ -339,9 +347,10 @@ export function AddCustomerModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1">
+          {/* WhatsApp, Instagram, E-Posta, Doğum Tarihi (Hizalı Grid) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
                 WhatsApp (Aynı ise boş)
               </label>
               <PhoneInput
@@ -351,8 +360,8 @@ export function AddCustomerModal({
               />
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
                 Instagram
               </label>
               <input
@@ -360,12 +369,12 @@ export function AddCustomerModal({
                 value={formInstagram}
                 onChange={(e) => setFormInstagram(e.target.value)}
                 placeholder="@kullanici"
-                className="sharp-input w-full p-2 font-mono"
+                className="sharp-input w-full px-2.5 h-[38px] font-mono text-xs"
               />
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
                 E-Posta
               </label>
               <input
@@ -373,13 +382,13 @@ export function AddCustomerModal({
                 value={formEmail}
                 onChange={(e) => setFormEmail(e.target.value)}
                 placeholder="ad@soyad.com"
-                className="sharp-input w-full p-2 font-mono"
+                className="sharp-input w-full px-2.5 h-[38px] font-mono text-xs"
               />
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 flex items-center gap-1 font-semibold text-[#1d2566]">
-                <Cake className="w-3 h-3 text-pink-500" />
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end gap-1 font-semibold text-[#1d2566]">
+                <Cake className="w-3.5 h-3.5 text-pink-500 shrink-0 mb-0.5" />
                 <span>Doğum Tarihi (Ops.)</span>
               </label>
               <DateInput
@@ -390,72 +399,90 @@ export function AddCustomerModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+          {/* Kategori, Sıcaklık Derecesi (Sadece Alıcıda) & Sorumlu Danışman */}
+          <div className={`grid gap-3 ${isBuyerCandidate ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2"}`}>
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 Müşteri Kategorisi
               </label>
               <select
                 value={formCategory}
-                onChange={(e) => setFormCategory(e.target.value as any)}
-                className="sharp-input w-full p-2 bg-white"
+                onChange={(e) => {
+                  const newCat = e.target.value as CustomerCategory;
+                  setFormCategory(newCat);
+                  if (newCat === "BUYER") {
+                    setIsAlsoBuyer(false);
+                  }
+                }}
+                className="sharp-input w-full px-2.5 h-[38px] bg-white text-xs font-mono font-medium"
               >
                 <option value="BUYER">Alıcı Adayı</option>
-                <option value="SELLER">Satıcı</option>
+                <option value="SELLER">Mal Sahibi</option>
                 <option value="TENANT">Kiracı</option>
               </select>
             </div>
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                Sıcaklık Derecesi
-              </label>
-              <select
-                value={formTemperature}
-                onChange={(e) => setFormTemperature(e.target.value as any)}
-                className="sharp-input w-full p-2 bg-white"
-              >
-                <option value="hot">Sıcak (Acil Alıcı)</option>
-                <option value="warm">Ilık (Takipte)</option>
-                <option value="cold">Soğuk (Pasif)</option>
-              </select>
-            </div>
+            {isBuyerCandidate && (
+              <div className="flex flex-col justify-end">
+                <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
+                  Sıcaklık Derecesi
+                </label>
+                <select
+                  value={formTemperature}
+                  onChange={(e) => setFormTemperature(e.target.value as any)}
+                  className="sharp-input w-full px-2.5 h-[38px] bg-white text-xs font-mono font-medium"
+                >
+                  <option value="hot">Sıcak (Acil Alıcı)</option>
+                  <option value="warm">Ilık (Takipte)</option>
+                  <option value="cold">Soğuk (Pasif)</option>
+                </select>
+              </div>
+            )}
 
-            <div>
-              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+            <div className="flex flex-col justify-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 Sorumlu Danışman
               </label>
-              <select
-                value={formAssigneeId}
-                onChange={(e) => setFormAssigneeId(e.target.value)}
-                className="sharp-input w-full p-2 bg-white"
-              >
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
-                  </option>
-                ))}
-              </select>
+              {isBroker ? (
+                <select
+                  value={formAssigneeId}
+                  onChange={(e) => setFormAssigneeId(e.target.value)}
+                  className="sharp-input w-full px-2.5 h-[38px] bg-white text-xs font-mono font-medium"
+                >
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="sharp-input w-full px-2.5 h-[38px] bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                  <span className="truncate">{customerToEdit?.assignedToName || currentUser.name}</span>
+                  <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Satıcı İçin: Aynı Zamanda Alıcı Adayı Seçeneği */}
-          {formCategory === "SELLER" && (
+          {/* Mal Sahibi ve Kiracı İçin: Aynı Zamanda Alıcı Adayı Seçeneği */}
+          {(formCategory === "SELLER" || formCategory === "TENANT") && (
             <div className="p-3 bg-amber-50/80 border border-amber-300 flex items-center justify-between gap-3">
               <div>
                 <span className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
                   <span>Aynı Zamanda Alıcı Adayı mı?</span>
                 </span>
                 <p className="text-[11px] text-slate-600 mt-0.5">
-                  Müşteri hem mülkünü satıyor hem de aynı zamanda yeni bir gayrimenkul satın almak istiyorsa işaretleyin.
+                  {formCategory === "SELLER"
+                    ? "Müşteri mal sahibi olmanın yanında yeni bir gayrimenkul / konut satın almak istiyorsa işaretleyin."
+                    : "Kiracı kiralamanın yanında yeni bir gayrimenkul / konut satın almak istiyorsa işaretleyin."}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsAlsoBuyer(!isAlsoBuyer)}
-                className={`px-3 py-1.5 text-xs font-mono font-bold border transition cursor-pointer shrink-0 ${
+                className={`px-3 py-1.5 text-xs font-mono font-bold border transition cursor-pointer shrink-0 shadow-2xs ${
                   isAlsoBuyer
-                    ? "bg-[#1d2566] text-white border-[#1d2566] shadow-xs"
+                    ? "bg-[#1d2566] text-white border-[#1d2566]"
                     : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                 }`}
               >
@@ -465,21 +492,21 @@ export function AddCustomerModal({
           )}
 
           {/* Kiracı Bilgilendirme Notu */}
-          {formCategory === "TENANT" && (
+          {formCategory === "TENANT" && !isAlsoBuyer && (
             <div className="p-3 bg-blue-50/70 border border-blue-200 text-blue-900 text-xs font-mono">
-              ℹ️ Kiracı için detaylı kriter formu kaldırılmıştır. Kiracının özel istek ve detaylarını aşağıdaki &quot;Özel Notlar &amp; Talep Detayları&quot; kutusuna yazabilirsiniz.
+              ℹ️ Kiracı için detaylı mülk arama kriter formu kapatılmıştır. Kiracının özel istek ve detaylarını aşağıdaki &quot;Özel Notlar &amp; Talep Detayları&quot; kutusuna yazabilirsiniz. Kiracı aynı zamanda konut/mülk arıyorsa yukarıdan &quot;+ Alıcı Adayı Olarak da Ekle&quot; seçeneğini aktifleştirebilirsiniz.
             </div>
           )}
 
-          {/* Satıcı (Yalnızca Satıcı) Bilgilendirme Notu */}
+          {/* Mal Sahibi Bilgilendirme Notu */}
           {formCategory === "SELLER" && !isAlsoBuyer && (
             <div className="p-3 bg-slate-50 border border-slate-200 text-slate-700 text-xs font-mono">
-              ℹ️ Satıcının sattığı mülk bilgileri Portföyler bölümünden &quot;Yeni Portföy Ekle&quot; ile girildiğinde otomatik olarak eşleşecektir. Müşteri aynı zamanda ev arıyorsa yukarıdan &quot;+ Alıcı Adayı Olarak da Ekle&quot; seçeneğini aktifleştirebilirsiniz.
+              ℹ️ Mal sahibinin mülk bilgileri Portföyler bölümünden &quot;Yeni Portföy Ekle&quot; ile girildiğinde otomatik olarak eşleşecektir. Mal sahibi aynı zamanda konut/mülk arıyorsa yukarıdan &quot;+ Alıcı Adayı Olarak da Ekle&quot; seçeneğini aktifleştirebilirsiniz.
             </div>
           )}
 
-          {/* Sadece Alıcı Adayı ve Çift Rollü (Satıcı + Alıcı) Müşteriler İçin Kriter Bilgileri */}
-          {(formCategory === "BUYER" || (formCategory === "SELLER" && isAlsoBuyer)) && (
+          {/* Sadece Alıcı Adayı ve Alıcı Olarak İşaretlenen (Mal Sahibi / Kiracı) Müşteriler İçin Kriter Bilgileri */}
+          {isBuyerCandidate && (
             <>
               {/* Tercih Edilen Bölgeler (Çoklu Seçim & Tag Sistemi) */}
               <div className="bg-slate-50 p-3 border border-slate-200 space-y-2">
@@ -754,17 +781,17 @@ export function AddCustomerModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-medium"
             >
               İptal
             </button>
             <button
               type="submit"
-              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer flex items-center gap-1.5"
+              className="sharp-btn-primary px-5 py-2 font-bold text-white shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
               <Check className="w-4 h-4" />
               <span>{customerToEdit ? "Değişiklikleri Kaydet" : "Müşteriyi Kaydet"}</span>

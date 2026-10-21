@@ -98,8 +98,8 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] max-w-lg flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-4 h-4 text-[#00adb5]" />
@@ -262,17 +262,17 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
             </div>
           )}
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer text-xs font-medium"
             >
               İptal
             </button>
             <button
               type="submit"
-              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
+              className="sharp-btn-primary px-5 py-2 font-bold text-white shadow-2xs cursor-pointer text-xs"
             >
               Takvim ve Ajandaya Kaydet
             </button>

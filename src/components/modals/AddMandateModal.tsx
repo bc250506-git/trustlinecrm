@@ -25,6 +25,8 @@ interface AddMandateModalProps {
 export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalProps) {
   const {
     currentUser,
+    isBroker,
+    users,
     properties,
     customers,
     addMandateContract,
@@ -37,6 +39,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
   const [formStartDate, setFormStartDate] = useState("");
   const [formEndDate, setFormEndDate] = useState("");
   const [formContractNumber, setFormContractNumber] = useState("");
+  const [formAdvisorId, setFormAdvisorId] = useState(currentUser.id);
   const [formNotes, setFormNotes] = useState("");
 
   const [isAddPropertyModalOpen, setIsAddPropertyModalOpen] = useState(false);
@@ -59,6 +62,7 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
       setFormStartDate(startStr);
       setFormEndDate(endStr);
       setFormContractNumber(`TL-YET-${now.getFullYear()}-${Math.floor(100 + Math.random() * 900)}`);
+      setFormAdvisorId(currentUser.id);
       setFormNotes("");
     }
     prevIsOpenRef.current = isOpen;
@@ -72,6 +76,11 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
 
     const selectedProp = properties.find((p) => p.id === formPropertyId);
     const selectedOwner = customers.find((c) => c.id === formOwnerCustomerId);
+
+    const assignedUser =
+      users.find((u) => u.id === (isBroker ? formAdvisorId : currentUser.id)) || currentUser;
+    const finalAdvisorId = isBroker ? formAdvisorId : currentUser.id;
+    const finalAdvisorName = isBroker ? assignedUser.name : currentUser.name;
 
     const newMandate = addMandateContract({
       propertyId: formPropertyId,
@@ -90,8 +99,8 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
       status: "active",
       contractNumber: formContractNumber,
       notes: formNotes,
-      assignedToId: currentUser.id,
-      assignedToName: currentUser.name,
+      assignedToId: finalAdvisorId,
+      assignedToName: finalAdvisorName,
     });
 
     onClose();
@@ -99,8 +108,8 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <FileCheck className="w-4 h-4 text-[#00adb5]" />
@@ -249,18 +258,44 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
             </div>
           </div>
 
-          {/* 5. Sözleşme Numarası */}
-          <div>
-            <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-              Sözleşme / Dosya No (Opsiyonel)
-            </label>
-            <input
-              type="text"
-              value={formContractNumber}
-              onChange={(e) => setFormContractNumber(e.target.value)}
-              placeholder="Örn: TL-YET-2026-041"
-              className="sharp-input w-full p-2 font-mono"
-            />
+          {/* 5. Sözleşme Numarası & Sorumlu Danışman */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                Sözleşme / Dosya No (Opsiyonel)
+              </label>
+              <input
+                type="text"
+                value={formContractNumber}
+                onChange={(e) => setFormContractNumber(e.target.value)}
+                placeholder="Örn: TL-YET-2026-041"
+                className="sharp-input w-full p-2 font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                Sorumlu Danışman
+              </label>
+              {isBroker ? (
+                <select
+                  value={formAdvisorId}
+                  onChange={(e) => setFormAdvisorId(e.target.value)}
+                  className="sharp-input w-full p-2 bg-white font-mono text-xs"
+                >
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                  <span className="truncate">{currentUser.name}</span>
+                  <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 6. Sözleşme Notları */}
@@ -277,17 +312,17 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer text-xs font-medium"
             >
               İptal
             </button>
             <button
               type="submit"
-              className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
+              className="sharp-btn-primary px-5 py-2 font-bold text-white shadow-2xs cursor-pointer text-xs"
             >
               Yetki Sözleşmesini Kaydet
             </button>

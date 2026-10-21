@@ -119,7 +119,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
       {/* Yazdırma Medyası Stilleri */}
       <style jsx global>{`
         @media print {
@@ -146,7 +146,7 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
         }
       `}</style>
 
-      <div className="bg-white w-full max-w-4xl border border-slate-300 shadow-2xl flex flex-col max-h-[95vh] my-auto overflow-hidden">
+      <div className="bg-white w-full h-full sm:h-auto sm:max-h-[95vh] max-w-4xl border-0 sm:border border-slate-300 shadow-2xl flex flex-col rounded-none sm:rounded-lg sm:my-auto overflow-hidden">
         {/* Üst Modal Kontrol Başlığı (Yazdırmada görünmez) */}
         <div className="no-print bg-[#1d2566] text-white px-5 py-3 flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-md">
           <div className="flex items-center gap-2.5">

@@ -594,8 +594,10 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* SOL: 7 KOLONLU KARELİ AY TAKVİMİ (xl:col-span-8) */}
         <div className="xl:col-span-8 sharp-card bg-white border border-slate-200 shadow-2xs overflow-hidden flex flex-col justify-between">
-          {/* Hafta Günleri Başlık Satırı */}
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-mono font-bold text-slate-600 shrink-0">
+          <div className="overflow-x-auto">
+            <div className="min-w-[500px] sm:min-w-0 flex flex-col">
+              {/* Hafta Günleri Başlık Satırı */}
+              <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-mono font-bold text-slate-600 shrink-0">
             {WEEKDAY_NAMES.map((w, idx) => (
               <div
                 key={w.short}
@@ -731,6 +733,8 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                 </div>
               );
             })}
+          </div>
+            </div>
           </div>
         </div>
 

@@ -32,6 +32,7 @@ import {
   Hourglass,
   FileWarning,
   Users,
+  Building2,
 } from "lucide-react";
 
 interface NotificationCenterDrawerProps {
@@ -90,7 +91,8 @@ export function NotificationCenterDrawer({
         (res.brokerApprovalAlerts || 0) +
         (res.staleAlerts || 0) +
         (res.missingMandateAlerts || 0) +
-        (res.internalDealAlerts || 0);
+        (res.internalDealAlerts || 0) +
+        (res.duesAlerts || 0);
       setScanResult(
         totalNew > 0
           ? `✓ Tarama tamamlandı: ${totalNew} yeni otomasyon bildirimi oluşturuldu.`
@@ -113,6 +115,10 @@ export function NotificationCenterDrawer({
         return <Sparkles className="w-4 h-4 text-[#00adb5]" />;
       case "rent_due":
         return <Clock className="w-4 h-4 text-amber-500" />;
+      case "dues_due":
+        return <Building2 className="w-4 h-4 text-amber-500" />;
+      case "dues_overdue":
+        return <AlertTriangle className="w-4 h-4 text-rose-600" />;
       case "rent_paid":
         return <KeyRound className="w-4 h-4 text-emerald-600" />;
       case "lead_decay":
@@ -150,6 +156,10 @@ export function NotificationCenterDrawer({
         return <span className="bg-[#00adb5]/10 text-[#00adb5] border border-[#00adb5]/20 px-2 py-0.5 text-[10px] font-mono font-bold">AKILLI EŞLEŞME</span>;
       case "rent_due":
         return <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-mono font-bold">KİRA VADESİ</span>;
+      case "dues_due":
+        return <span className="bg-amber-50 text-amber-800 border border-amber-300 px-2 py-0.5 text-[10px] font-mono font-bold">🏢 AİDAT VADESİ</span>;
+      case "dues_overdue":
+        return <span className="bg-rose-50 text-rose-800 border border-rose-300 px-2 py-0.5 text-[10px] font-mono font-bold animate-pulse">🚨 AİDAT GECİKMESİ</span>;
       case "rent_paid":
         return <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[10px] font-mono font-bold">KİRA TAHSİLATI</span>;
       case "lead_decay":

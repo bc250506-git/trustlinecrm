@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useStore } from "@/lib/store";
-import { Deal, Currency, DealSharingType, isOfficeSystemAccount } from "@/lib/types";
+import { Deal, Currency, DealSharingType, isOfficeSystemAccount, isVolkanUser, isVolkanDeal } from "@/lib/types";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
@@ -119,9 +119,17 @@ export function FinanceView() {
     return isBroker
       ? deals
       : deals.filter(
-          (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
+          (d) =>
+            d.createdById === currentUser.id ||
+            d.partnerAdvisorId === currentUser.id ||
+            (d.createdByName &&
+              currentUser.name &&
+              d.createdByName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+            (d.partnerAdvisorName &&
+              currentUser.name &&
+              d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
         );
-  }, [deals, isBroker, currentUser.id]);
+  }, [deals, isBroker, currentUser]);
 
   // Yardımcı: İşlemin tarihini alma
   const getDealDate = useCallback((d: Deal): Date => {
@@ -255,6 +263,13 @@ export function FinanceView() {
   const totalAgreedGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.agreedPrice, 0);
   const totalCommissionGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.commissionExpected, 0);
   const totalAdvisorGbp = gbpFilteredDeals.reduce((sum, d) => {
+    const isVolkan = isVolkanDeal(d);
+    if (isVolkan) {
+      const partRate = d.sharingType === "external" ? 0.5 : d.sharingType === "internal" ? 0.25 : 0;
+      const advRate = 1 - partRate;
+      return sum + Math.round(d.commissionExpected * advRate);
+    }
+
     if (!isBroker) {
       // Eğer kullanıcı 2. danışman ise kendi payı d.partnerShareAmount'tur
       if (d.partnerAdvisorId === currentUser.id) {
@@ -266,8 +281,7 @@ export function FinanceView() {
         );
       }
       if (d.advisorShareAmount !== undefined) return sum + d.advisorShareAmount;
-      const isVolkan = d.createdById === "usr-volkan";
-      const rate = isVolkan ? 1.0 : d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
+      const rate = d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
       return sum + Math.round(d.commissionExpected * rate);
     } else {
       // Broker tüm danışmanlara ödenecek toplam danışman hakedişini görür (Danışman 1 + Danışman 2)
@@ -281,9 +295,9 @@ export function FinanceView() {
     }
   }, 0);
   const totalOfficeGbp = gbpFilteredDeals.reduce((sum, d) => {
+    if (isVolkanDeal(d)) return sum + 0;
     if (d.officeShareAmount !== undefined) return sum + d.officeShareAmount;
-    const isVolkan = d.createdById === "usr-volkan";
-    const rate = isVolkan ? 0.0 : d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
+    const rate = d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
     return sum + Math.round(d.commissionExpected * rate);
   }, 0);
   const totalPartnerGbp = gbpFilteredDeals.reduce((sum, d) => {
@@ -332,7 +346,11 @@ export function FinanceView() {
     setEditPaymentDue(
       deal.closingDate || deal.paymentDue || (deal.createdAt ? deal.createdAt.split("T")[0] : "")
     );
-    setEditAdvisorId(deal.createdById || currentUser.id);
+    const dealAdvisorId =
+      !deal.createdById || isOfficeSystemAccount({ id: deal.createdById, name: deal.createdByName })
+        ? "usr-volkan"
+        : deal.createdById;
+    setEditAdvisorId(dealAdvisorId);
     setEditBrokerApproval(!!deal.brokerApproval);
   };
 
@@ -347,32 +365,53 @@ export function FinanceView() {
   let editOfficeRate = 0.4;
   let editPartnerRate = 0;
 
-  if (editSharingType === "external") {
-    editPartnerRate = 0.5;
-    if (editOrigin === "advisor") {
-      editAdvisorRate = 0.3;
-      editOfficeRate = 0.2;
+  const isVolkanEdit =
+    editAdvisorId === "usr-volkan" ||
+    isVolkanUser({ id: editAdvisorId, name: users.find((u) => u.id === editAdvisorId)?.name }) ||
+    isOfficeSystemAccount({ id: editAdvisorId });
+
+  if (isVolkanEdit) {
+    if (editSharingType === "external") {
+      editPartnerRate = 0.5;
+      editAdvisorRate = 0.5;
+      editOfficeRate = 0.0;
+    } else if (editSharingType === "internal") {
+      editPartnerRate = 0.25;
+      editAdvisorRate = 0.75;
+      editOfficeRate = 0.0;
     } else {
-      editAdvisorRate = 0.25;
-      editOfficeRate = 0.25;
-    }
-  } else if (editSharingType === "internal") {
-    editPartnerRate = 0.25;
-    if (editOrigin === "advisor") {
-      editAdvisorRate = 0.3;
-      editOfficeRate = 0.45;
-    } else {
-      editAdvisorRate = 0.25;
-      editOfficeRate = 0.5;
+      editPartnerRate = 0.0;
+      editAdvisorRate = 1.0;
+      editOfficeRate = 0.0;
     }
   } else {
-    // none (tek danışman)
-    if (editOrigin === "advisor") {
-      editAdvisorRate = 0.6;
-      editOfficeRate = 0.4;
+    if (editSharingType === "external") {
+      editPartnerRate = 0.5;
+      if (editOrigin === "advisor") {
+        editAdvisorRate = 0.3;
+        editOfficeRate = 0.2;
+      } else {
+        editAdvisorRate = 0.25;
+        editOfficeRate = 0.25;
+      }
+    } else if (editSharingType === "internal") {
+      editPartnerRate = 0.25;
+      if (editOrigin === "advisor") {
+        editAdvisorRate = 0.3;
+        editOfficeRate = 0.45;
+      } else {
+        editAdvisorRate = 0.25;
+        editOfficeRate = 0.5;
+      }
     } else {
-      editAdvisorRate = 0.5;
-      editOfficeRate = 0.5;
+      // none (tek danışman)
+      if (editOrigin === "advisor") {
+        editAdvisorRate = 0.6;
+        editOfficeRate = 0.4;
+      } else {
+        editAdvisorRate = 0.5;
+        editOfficeRate = 0.5;
+      }
     }
   }
 
@@ -391,15 +430,14 @@ export function FinanceView() {
     const cust = customers.find((c) => c.id === editCustomerId);
     const prop = properties.find((p) => p.id === editPropertyId);
 
-    const selectedAdvisor = isBroker
-      ? users.find((u) => u.id === editAdvisorId) || {
-          id: editingDeal.createdById || currentUser.id,
-          name: editingDeal.createdByName || currentUser.name,
-        }
-      : {
-          id: editingDeal.createdById || currentUser.id,
-          name: editingDeal.createdByName || currentUser.name,
-        };
+    let targetAdvisorId = isBroker ? editAdvisorId : (editingDeal.createdById || currentUser.id);
+    if (!targetAdvisorId || targetAdvisorId === "usr-ofis" || isOfficeSystemAccount({ id: targetAdvisorId })) {
+      targetAdvisorId = "usr-volkan";
+    }
+    const foundUser = users.find((u) => u.id === targetAdvisorId);
+    const selectedAdvisor = foundUser
+      ? { id: foundUser.id, name: foundUser.name }
+      : { id: "usr-volkan", name: "Volkan Affan Kanıgür" };
 
     const partnerAdv =
       editSharingType === "internal"
@@ -521,7 +559,7 @@ export function FinanceView() {
             <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
               <div className="flex items-center justify-between text-xs font-mono mb-2">
                 <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-                  Toplam Anlaşma
+                  {isBroker ? "Toplam Anlaşma" : "Kişisel Kapanan İşlem"}
                 </span>
                 <TrendingUp className="w-4 h-4 text-[#00adb5]" />
               </div>
@@ -529,14 +567,14 @@ export function FinanceView() {
                 {filteredDeals.length} <span className="text-xs font-normal text-slate-500">İşlem</span>
               </div>
               <div className="text-[11px] font-mono text-slate-500 mt-1">
-                {gbpFilteredDeals.length} GBP Portföy Satışı
+                {isBroker ? `${gbpFilteredDeals.length} GBP Portföy Satışı` : `${gbpFilteredDeals.length} GBP İşleminiz`}
               </div>
             </div>
 
             <div className="sharp-card p-4 border-t-3 border-t-[#1d2566]">
               <div className="flex items-center justify-between text-xs font-mono mb-2">
                 <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-                  Toplam Satış Hacmi (GBP)
+                  {isBroker ? "Toplam Satış Hacmi (GBP)" : "Kişisel Satış Hacmim (GBP)"}
                 </span>
                 <Building className="w-4 h-4 text-[#1d2566]" />
               </div>
@@ -545,14 +583,14 @@ export function FinanceView() {
                 <span className="text-xs font-normal text-slate-500">GBP</span>
               </div>
               <div className="text-[11px] font-mono text-slate-500 mt-1">
-                Anlaşılan toplam mülk bedeli
+                {isBroker ? "Anlaşılan toplam mülk bedeli" : "Sorumlu olduğunuz işlemlerin bedeli"}
               </div>
             </div>
 
             <div className="sharp-card p-4 border-t-3 border-t-emerald-600">
               <div className="flex items-center justify-between text-xs font-mono mb-2">
                 <span className="font-bold text-emerald-800 px-2 py-0.5 bg-emerald-50 border border-emerald-200 uppercase">
-                  Toplam Komisyon (GBP)
+                  {isBroker ? "Toplam Komisyon (GBP)" : "Üretilen Komisyon (GBP)"}
                 </span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               </div>
@@ -561,41 +599,51 @@ export function FinanceView() {
                 <span className="text-xs font-normal text-slate-500">GBP</span>
               </div>
               <div className="text-[11px] font-mono text-emerald-600 mt-1">
-                Tahsil edilen toplam komisyon
+                {isBroker ? "Tahsil edilen toplam komisyon" : "İşlemlerinizden üretilen brüt komisyon"}
               </div>
             </div>
 
-            <div className="sharp-card p-4 border-t-3 border-t-[#00adb5]">
+            <div className="sharp-card p-4 border-t-3 border-t-purple-600">
               <div className="flex items-center justify-between text-xs font-mono mb-2">
-                <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
-                  Komisyon Dağılımı (GBP)
+                <span className="font-bold text-purple-900 px-2 py-0.5 bg-purple-50 border border-purple-200 uppercase">
+                  {isBroker ? "Komisyon Dağılımı (GBP)" : "Prim Hak Edişim (GBP)"}
                 </span>
-                <PieChart className="w-4 h-4 text-[#00adb5]" />
+                <Coins className="w-4 h-4 text-purple-600" />
               </div>
-              <div className="space-y-1 mt-1 font-mono text-xs">
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">
-                    {isBroker ? "Danışman Payları:" : "Hakediş Payım:"}
-                  </span>
-                  <span className="text-[#00adb5] font-bold">
-                    {totalAdvisorGbp.toLocaleString("tr-TR")} GBP
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Ofis Payı:</span>
-                  <span className="text-[#1d2566] font-bold">
-                    {totalOfficeGbp.toLocaleString("tr-TR")} GBP
-                  </span>
-                </div>
-                {totalPartnerGbp > 0 && (
-                  <div className="flex justify-between items-center pt-1 border-t border-slate-100">
-                    <span className="text-purple-600">Dış / Ortak Payı:</span>
-                    <span className="text-purple-700 font-bold">
-                      {totalPartnerGbp.toLocaleString("tr-TR")} GBP
+              {isBroker ? (
+                <div className="space-y-1 mt-1 font-mono text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Danışman Payları:</span>
+                    <span className="text-[#00adb5] font-bold">
+                      {totalAdvisorGbp.toLocaleString("tr-TR")} GBP
                     </span>
                   </div>
-                )}
-              </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-500">Ofis Payı:</span>
+                    <span className="text-[#1d2566] font-bold">
+                      {totalOfficeGbp.toLocaleString("tr-TR")} GBP
+                    </span>
+                  </div>
+                  {totalPartnerGbp > 0 && (
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                      <span className="text-purple-600">Dış / Ortak Payı:</span>
+                      <span className="text-purple-700 font-bold">
+                        {totalPartnerGbp.toLocaleString("tr-TR")} GBP
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="text-xl font-bold font-mono text-purple-700 mt-2">
+                    {totalAdvisorGbp.toLocaleString("tr-TR")}{" "}
+                    <span className="text-xs font-normal text-slate-500">GBP</span>
+                  </div>
+                  <div className="text-[11px] font-mono text-purple-600 mt-1">
+                    Onaylı net prim hak edişiniz
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -823,8 +871,17 @@ export function FinanceView() {
               <div>
                 <strong className="text-[#1d2566] block">1. Tek Danışman</strong>
                 <span className="text-slate-600 text-[11px]">
-                  Kendi Portföyü: %60 GD / %40 Ofis<br />
-                  Ofis Portföyü: %50 GD / %50 Ofis
+                  {isBroker ? (
+                    <>
+                      Kendi Portföyü: %60 GD / %40 Ofis<br />
+                      Ofis Portföyü: %50 GD / %50 Ofis
+                    </>
+                  ) : (
+                    <>
+                      Kendi Portföyünüz: %60 Danışman Primi<br />
+                      Ofis Portföyü: %50 Danışman Primi
+                    </>
+                  )}
                 </span>
               </div>
             </div>
@@ -833,18 +890,36 @@ export function FinanceView() {
               <div>
                 <strong className="text-[#1d2566] block">2. Dış Paylaşım (%50 Dış Ortak)</strong>
                 <span className="text-slate-600 text-[11px]">
-                  Kendi Portföyü: %30 GD / %20 Ofis<br />
-                  Ofis Portföyü: %25 GD / %25 Ofis
+                  {isBroker ? (
+                    <>
+                      Kendi Portföyü: %30 GD / %20 Ofis<br />
+                      Ofis Portföyü: %25 GD / %25 Ofis
+                    </>
+                  ) : (
+                    <>
+                      Kendi Portföyünüz: %30 Danışman Primi<br />
+                      Ofis Portföyü: %25 Danışman Primi
+                    </>
+                  )}
                 </span>
               </div>
             </div>
             <div className="flex items-start gap-2.5 md:border-l md:border-slate-200 md:pl-3">
               <Users className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-[#1d2566] block">3. Şirket İçi 2 Danışman (%25 Müşteri)</strong>
+                <strong className="text-[#1d2566] block">3. Şirket İçi 2 Danışman</strong>
                 <span className="text-slate-600 text-[11px]">
-                  Kendi Portföyü: %30 GD1 / %45 Ofis<br />
-                  Ofis Portföyü: %25 GD1 / %50 Ofis
+                  {isBroker ? (
+                    <>
+                      Kendi Portföyü: %30 GD1 / %45 Ofis<br />
+                      Ofis Portföyü: %25 GD1 / %50 Ofis
+                    </>
+                  ) : (
+                    <>
+                      Portföy Danışmanı (GD1): %30 veya %25 Prim<br />
+                      Müşteri Danışmanı (GD2): %25 Prim
+                    </>
+                  )}
                 </span>
               </div>
             </div>
@@ -869,38 +944,48 @@ export function FinanceView() {
               <tbody className="divide-y divide-slate-100">
                 {filteredDeals.map((d) => {
                   const totalComm = d.commissionExpected;
+                  const isVolkan = isVolkanDeal(d);
 
                   // Oran fallbackleri (Dış ofis, iç paylaşım veya tek danışman kuralları)
-                  let fallbackAdvRate = d.portfolioOrigin === "advisor" ? 60 : 50;
+                  let fallbackAdvRate = 60;
                   let fallbackPartRate = 0;
-                  let fallbackOffRate = d.portfolioOrigin === "advisor" ? 40 : 50;
+                  let fallbackOffRate = 40;
 
-                  if (d.sharingType === "external") {
-                    fallbackPartRate = 50;
-                    fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
-                    fallbackOffRate = d.portfolioOrigin === "advisor" ? 20 : 25;
-                  } else if (d.sharingType === "internal") {
-                    fallbackPartRate = 25;
-                    fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
-                    fallbackOffRate = d.portfolioOrigin === "advisor" ? 45 : 50;
+                  if (isVolkan) {
+                    if (d.sharingType === "external") {
+                      fallbackPartRate = 50;
+                      fallbackAdvRate = 50;
+                      fallbackOffRate = 0;
+                    } else if (d.sharingType === "internal") {
+                      fallbackPartRate = 25;
+                      fallbackAdvRate = 75;
+                      fallbackOffRate = 0;
+                    } else {
+                      fallbackPartRate = 0;
+                      fallbackAdvRate = 100;
+                      fallbackOffRate = 0;
+                    }
+                  } else {
+                    fallbackAdvRate = d.portfolioOrigin === "advisor" ? 60 : 50;
+                    fallbackOffRate = d.portfolioOrigin === "advisor" ? 40 : 50;
+                    if (d.sharingType === "external") {
+                      fallbackPartRate = 50;
+                      fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
+                      fallbackOffRate = d.portfolioOrigin === "advisor" ? 20 : 25;
+                    } else if (d.sharingType === "internal") {
+                      fallbackPartRate = 25;
+                      fallbackAdvRate = d.portfolioOrigin === "advisor" ? 30 : 25;
+                      fallbackOffRate = d.portfolioOrigin === "advisor" ? 45 : 50;
+                    }
                   }
 
-                  const advRate = d.advisorShareRate !== undefined ? d.advisorShareRate : fallbackAdvRate;
-                  const partRate = d.partnerShareRate !== undefined ? d.partnerShareRate : fallbackPartRate;
-                  const offRate = d.officeShareRate !== undefined ? d.officeShareRate : fallbackOffRate;
+                  const advRate = isVolkan ? fallbackAdvRate : (d.advisorShareRate !== undefined ? d.advisorShareRate : fallbackAdvRate);
+                  const partRate = isVolkan ? fallbackPartRate : (d.partnerShareRate !== undefined ? d.partnerShareRate : fallbackPartRate);
+                  const offRate = isVolkan ? 0 : (d.officeShareRate !== undefined ? d.officeShareRate : fallbackOffRate);
 
-                  const advShare =
-                    d.advisorShareAmount !== undefined
-                      ? d.advisorShareAmount
-                      : Math.round((totalComm * advRate) / 100);
-                  const partShare =
-                    d.partnerShareAmount !== undefined
-                      ? d.partnerShareAmount
-                      : Math.round((totalComm * partRate) / 100);
-                  const offShare =
-                    d.officeShareAmount !== undefined
-                      ? d.officeShareAmount
-                      : totalComm - advShare - partShare;
+                  const partShare = Math.round((totalComm * partRate) / 100);
+                  const offShare = isVolkan ? 0 : (d.officeShareAmount !== undefined ? d.officeShareAmount : Math.round((totalComm * offRate) / 100));
+                  const advShare = totalComm - partShare - offShare;
 
                   const rawDate = d.closingDate || d.paymentDue || d.createdAt;
                   const formattedDate = rawDate ? formatDateTR(rawDate) : "—";
@@ -929,9 +1014,9 @@ export function FinanceView() {
                           {d.propertyTitle || d.title}
                         </div>
                         <div className="text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1.5 mt-0.5">
-                          {isBroker && d.createdByName && (
+                          {isBroker && (
                             <span className="text-[#00adb5] font-semibold font-mono">
-                              GD: {d.createdByName}
+                              GD: {isVolkan ? "Volkan Affan Kanıgür" : (d.createdByName || "—")}
                             </span>
                           )}
                           {d.propertyTitle && d.propertyTitle !== d.title && (
@@ -994,14 +1079,18 @@ export function FinanceView() {
                         ) : (
                           <span
                             className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold ${
-                              d.portfolioOrigin === "advisor"
+                              isVolkan
+                                ? "bg-amber-50 text-amber-900 border-amber-300"
+                                : d.portfolioOrigin === "advisor"
                                 ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
                                 : "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
                             }`}
                           >
-                            {d.portfolioOrigin === "advisor"
-                              ? "Kendi Portföyü (%60 / %40)"
-                              : "Ofis Portföyü (%50 / %50)"}
+                            {isVolkan
+                              ? "Broker Kapanışı (%100 Pay)"
+                              : d.portfolioOrigin === "advisor"
+                              ? (isBroker ? "Kendi Portföyü (%60 / %40)" : "Kendi Portföyü (%60 Prim)")
+                              : (isBroker ? "Ofis Portföyü (%50 / %50)" : "Ofis Portföyü (%50 Prim)")}
                           </span>
                         )}
                       </td>
@@ -1033,10 +1122,12 @@ export function FinanceView() {
                           GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advShare.toLocaleString("tr-TR")} {d.currency}{" "}
                           <span className="text-[10px] font-normal text-slate-500">(%{advRate})</span>
                         </div>
-                        <div className="text-[#1d2566] font-bold">
-                          Ofis: {offShare.toLocaleString("tr-TR")} {d.currency}{" "}
-                          <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
-                        </div>
+                        {isBroker && (
+                          <div className="text-[#1d2566] font-bold">
+                            Ofis: {offShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                            <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
+                          </div>
+                        )}
                         {partShare > 0 && (
                           <div
                             className={
@@ -1133,8 +1224,8 @@ export function FinanceView() {
 
       {/* DÜZENLEME MODALI */}
       {editingDeal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="sharp-card w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4">
+          <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] max-w-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg">
             <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
               <div className="flex items-center gap-2">
                 <Edit3 className="w-4 h-4 text-[#00adb5]" />
@@ -1194,7 +1285,7 @@ export function FinanceView() {
                 </label>
                 {isBroker ? (
                   <select
-                    value={editAdvisorId}
+                    value={editAdvisorId || "usr-volkan"}
                     onChange={(e) => setEditAdvisorId(e.target.value)}
                     className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
                   >
@@ -1205,12 +1296,12 @@ export function FinanceView() {
                     ))}
                   </select>
                 ) : (
-                  <div className="sharp-input w-full p-2 bg-slate-50 font-medium text-slate-700 flex items-center justify-between">
+                  <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 font-medium text-slate-700 flex items-center justify-between cursor-not-allowed select-none">
                     <span className="font-bold text-[#1d2566]">
                       {editingDeal?.createdByName || currentUser.name}
                     </span>
-                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 bg-slate-200 text-slate-700 border border-slate-300 font-bold">
-                      Danışman
+                    <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">
+                      🔒 Kilitli
                     </span>
                   </div>
                 )}
@@ -1476,17 +1567,17 @@ export function FinanceView() {
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 border-t border-slate-200 mt-auto flex justify-end gap-2 -mx-5 -mb-5 z-20">
                 <button
                   type="button"
                   onClick={() => setEditingDeal(null)}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer"
+                  className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer text-xs font-medium"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
-                  className="sharp-btn-primary px-4 py-1.5 font-bold text-white shadow-2xs cursor-pointer"
+                  className="sharp-btn-primary px-5 py-2 font-bold text-white shadow-2xs cursor-pointer text-xs"
                 >
                   Değişiklikleri Kaydet
                 </button>

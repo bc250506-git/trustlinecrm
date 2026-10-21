@@ -15,6 +15,9 @@ import {
   MandateContract,
   Currency,
   PropertyStatus,
+  isOfficeSystemAccount,
+  isVolkanUser,
+  isVolkanDeal,
 } from "./types";
 import {
   initialUsers,
@@ -113,6 +116,7 @@ interface StoreContextType {
     internalDealAlerts?: number;
     staleAlerts?: number;
     missingMandateAlerts?: number;
+    duesAlerts?: number;
   };
   // Actions
   addCustomer: (customer: Omit<Customer, "id" | "createdAt" | "updatedAt">) => Customer;
@@ -143,11 +147,13 @@ interface StoreContextType {
   updateRentalContract: (id: string, updates: Partial<RentalContract>) => boolean;
   deleteRentalContract: (id: string) => boolean;
   toggleRentalPayment: (rentalId: string, monthOrPeriodKey: number | string, isPaid: boolean, dueDate?: string) => void;
+  toggleRentalDuesPayment: (rentalId: string, monthOrPeriodKey: number | string, isPaid: boolean, dueDate?: string) => void;
   uploadRentalReceipt: (rentalId: string, monthOrPeriodKey: number | string, fileName: string, dueDate?: string) => void;
   renewRentalContract: (rentalId: string) => boolean;
   relistRentalProperty: (rentalId: string) => boolean;
   loseRentalProperty: (rentalId: string) => boolean;
   reactivateProperty: (propertyId: string) => boolean;
+  deactivateProperty: (propertyId: string) => boolean;
   toggleRentalStamp: (rentalId: string) => void;
   // Permissions & Role
   canManageCustomer: (customer: Customer) => boolean;
@@ -264,6 +270,47 @@ function loadFromStorage<T>(key: string, fallback: T[]): T[] {
 }
 
 /**
+ * Volkan Affan Kanıgür (Ofis Sahibi / Broker) için işlem paylaştırma ve veri eşleme kuralı.
+ * - Broker kendisi olduğu için ofis payı ASLA kesilmez (officeShareRate = 0, officeShareAmount = 0).
+ * - Dış ortaklık: %50 dış ofis, %50 Volkan, %0 ofis.
+ * - İç ortaklık: %25 2. danışman, %75 Volkan, %0 ofis.
+ * - Solo (tek): %100 Volkan, %0 ofis.
+ * - Ofis Yönetimi ('usr-ofis') üzerinden açılan işlemler de Volkan'a bağlanır.
+ */
+export function normalizeVolkanDeal(d: Deal): Deal {
+  if (!isVolkanDeal(d)) return d;
+
+  let advRate = 100;
+  let offRate = 0;
+  let partRate = d.partnerShareRate ?? 0;
+  if (d.sharingType === "external") {
+    partRate = 50;
+    advRate = 50;
+    offRate = 0;
+  } else if (d.sharingType === "internal") {
+    partRate = 25;
+    advRate = 75;
+    offRate = 0;
+  }
+  const comm =
+    d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0);
+  const partAmount = Math.round((comm * partRate) / 100);
+  const advAmount = comm - partAmount;
+
+  return {
+    ...d,
+    createdById: "usr-volkan",
+    createdByName: "Volkan Affan Kanıgür",
+    advisorShareRate: advRate,
+    advisorShareAmount: advAmount,
+    officeShareRate: offRate,
+    officeShareAmount: 0,
+    partnerShareRate: partRate,
+    partnerShareAmount: partAmount,
+  };
+}
+
+/**
  * 5 MB LocalStorage kotasının aşılmasını (QuotaExceededError) önlemek için
  * yüksek çözünürlüklü Base64 resimleri yerel önbellekten arındırır.
  * Böylece 8 MB'lık dev portföy verisi yerel hafızada 70-80 KB'a düşer ve
@@ -352,7 +399,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [deals, setDeals] = useState<Deal[]>(() => {
     const raw = loadFromStorage(DEALS_STORAGE_KEY, initialDeals);
     const deleted = getDeletedIds(DELETED_DEALS_KEY);
-    return raw.filter((d) => !deleted.has(d.id));
+    return raw
+      .filter((d) => !deleted.has(d.id))
+      .map(normalizeVolkanDeal);
   });
 
   const [rentals, setRentals] = useState<RentalContract[]>(() => {
@@ -536,7 +585,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (dealsRes.status === "fulfilled" && Array.isArray(dealsRes.value)) {
           const cloudDeals = dealsRes.value;
-          const filteredDeals = cloudDeals.filter((d) => !deletedDealIds.has(d.id));
+          const filteredDeals = cloudDeals
+            .filter((d) => !deletedDealIds.has(d.id))
+            .map(normalizeVolkanDeal);
           setDeals(filteredDeals);
           try {
             localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(filteredDeals));
@@ -651,11 +702,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             deleteDealFromDb(newRecord.id).catch(() => {});
             return;
           }
+          const normalizedRecord = normalizeVolkanDeal(newRecord);
           setDeals((prev) => {
-            const exists = prev.some((d) => d.id === newRecord.id);
+            const exists = prev.some((d) => d.id === normalizedRecord.id);
             return exists
-              ? prev.map((d) => (d.id === newRecord.id ? { ...d, ...newRecord } : d))
-              : [newRecord, ...prev];
+              ? prev.map((d) => (d.id === normalizedRecord.id ? { ...d, ...normalizedRecord } : d))
+              : [normalizedRecord, ...prev];
           });
         } else if (table === "rentals" && newRecord) {
           const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);
@@ -889,6 +941,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }
           }
         });
+
+        // 1.1 Aidat Vadesi & Gecikme Robotu
+        if (isRuleEnabled("rule-dues-reminder") && r.hasDues && r.duesAmount) {
+          r.payments.forEach((p) => {
+            const isDuesUnpaid = p.duesStatus !== "paid";
+            if (isDuesUnpaid) {
+              const dueDate = new Date(p.dueDate);
+              const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+              if (diffDays <= 3) {
+                const periodKey = p.periodKey || `${p.year || 2026}-${String(p.month).padStart(2, "0")}`;
+                const alreadyNotified = notifications.some(
+                  (n) => n.targetId === r.id && (n.type === "dues_due" || n.type === "dues_overdue") && n.id.includes(`-${periodKey}-`)
+                );
+                if (!alreadyNotified) {
+                  rentAlerts++;
+                  const isOverdue = diffDays < 0;
+                  newNotifications.push({
+                    id: `notif-dues-${r.id}-${periodKey}-${Date.now()}`,
+                    type: isOverdue ? "dues_overdue" : "dues_due",
+                    title: isOverdue
+                      ? `🚨 Aidat Ödenmedi / Gecikti: ${r.tenantName} (${r.duesAmount} ${r.duesCurrency || r.currency})`
+                      : `🏢 Aidat Günü Geliyor: ${r.tenantName} (${r.duesAmount} ${r.duesCurrency || r.currency})`,
+                    message: `${r.propertyTitle} mülkünün ${p.month}. ay aidat ödemesi ${
+                      isOverdue
+                        ? `${Math.abs(diffDays)} gün GECİKTİ! Lütfen tahsilatını yapınız.`
+                        : diffDays === 0
+                        ? "BUGÜN vadesi geldi."
+                        : `${diffDays} gün sonra vadesi geliyor.`
+                    }`,
+                    targetTab: "rentals",
+                    targetId: r.id,
+                    whatsappPhone: r.tenantPhone,
+                    whatsappDraft: `Merhaba ${r.tenantName}, ${r.propertyTitle} mülkünüz için ${p.dueDate} vadeli ${r.duesAmount} ${r.duesCurrency || r.currency} aidat ödemeniz ${
+                      isOverdue ? "gecikmiştir." : "yaklaşmıştır."
+                    } Ödeme ve dekont teyidi için bu hat üzerinden bilgi verebilirsiniz. Teşekkür ederiz.\n\nTrustline Estate`,
+                    read: false,
+                    createdAt: "Az önce",
+                    urgency: isOverdue ? "high" : "medium",
+                  });
+                }
+              }
+            }
+          });
+        }
       });
     }
 
@@ -1615,7 +1711,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const visibleDeals = isBroker
     ? deals
     : deals.filter(
-        (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
+        (d) =>
+          d.createdById === currentUser.id ||
+          d.partnerAdvisorId === currentUser.id ||
+          (d.createdByName &&
+            currentUser.name &&
+            d.createdByName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+          (d.partnerAdvisorName &&
+            currentUser.name &&
+            d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
       );
 
   // Danışmanın kendi kira takibi (Kira takibi YALNIZCA kira sahibi danışman tarafından görülür, diğer danışmanlar kesinlikle göremez)
@@ -1648,8 +1752,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Customer handlers
   const addCustomer = (customerData: Omit<Customer, "id" | "createdAt" | "updatedAt">): Customer => {
+    const finalAssignedToId = isBroker ? (customerData.assignedToId || currentUser.id) : currentUser.id;
+    const finalAssignedToName = isBroker
+      ? (customerData.assignedToName || (users.find((u) => u.id === customerData.assignedToId)?.name || currentUser.name))
+      : currentUser.name;
     const newCustomer: Customer = {
       ...customerData,
+      assignedToId: finalAssignedToId,
+      assignedToName: finalAssignedToName,
       id: `cst-${Date.now()}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1664,7 +1774,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const canManageCustomer = (c: Customer) => isBroker || c.assignedToId === currentUser.id;
   const canManageProperty = (p: Property) => isBroker || p.assignedToId === currentUser.id;
   const canManageFollowUp = (f: FollowUp) => isBroker || f.assignedToId === currentUser.id || f.createdById === currentUser.id;
-  const canManageDeal = (d: Deal) => isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id;
+  const canManageDeal = (d: Deal): boolean =>
+    Boolean(
+      isBroker ||
+      d.createdById === currentUser.id ||
+      d.partnerAdvisorId === currentUser.id ||
+      (d.createdByName &&
+        currentUser.name &&
+        d.createdByName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
+      (d.partnerAdvisorName &&
+        currentUser.name &&
+        d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
+    );
   const canManageRental = (r: RentalContract) => isBroker || isRentalOwner(r);
 
   const updateCustomer = (id: string, updates: Partial<Customer>): boolean => {
@@ -1674,9 +1795,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu müşteri başka bir danışmana aittir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+    const safeUpdates = { ...updates };
+    if (!isBroker) {
+      safeUpdates.assignedToId = cust.assignedToId || currentUser.id;
+      safeUpdates.assignedToName = cust.assignedToName || currentUser.name;
+    }
     const updatedCustomer: Customer = {
       ...cust,
-      ...updates,
+      ...safeUpdates,
       updatedAt: new Date().toISOString(),
     };
     setCustomers((prev) =>
@@ -1881,8 +2007,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       );
     }
 
+    const finalAssignedToId = isBroker ? (propData.assignedToId || currentUser.id) : currentUser.id;
+    const finalAssignedToName = isBroker
+      ? (propData.assignedToName || (users.find((u) => u.id === propData.assignedToId)?.name || currentUser.name))
+      : currentUser.name;
+
     const newProperty: Property = {
       ...propData,
+      assignedToId: finalAssignedToId,
+      assignedToName: finalAssignedToName,
       id: `prp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1905,9 +2038,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu portföy başka bir danışmana aittir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
+    const safeUpdates = { ...updates };
+    if (!isBroker) {
+      safeUpdates.assignedToId = prop.assignedToId || currentUser.id;
+      safeUpdates.assignedToName = prop.assignedToName || currentUser.name;
+    }
     const updatedProperty: Property = {
       ...prop,
-      ...updates,
+      ...safeUpdates,
       updatedAt: new Date().toISOString(),
     };
     setProperties((prev) =>
@@ -2208,6 +2346,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const addDeal = (dealData: Omit<Deal, "id" | "createdAt"> & { createdAt?: string }) => {
+    let finalCreatedById = isBroker ? dealData.createdById : currentUser.id;
+    let finalCreatedByName = isBroker ? dealData.createdByName : currentUser.name;
+
+    if (
+      !finalCreatedById ||
+      finalCreatedById === "usr-ofis" ||
+      (finalCreatedByName && finalCreatedByName.toLowerCase().includes("ofis"))
+    ) {
+      finalCreatedById = "usr-volkan";
+      finalCreatedByName = "Volkan Affan Kanıgür";
+    }
+
+    const isVolkanDeal =
+      finalCreatedById === "usr-volkan" ||
+      (finalCreatedByName && finalCreatedByName.toLowerCase().includes("volkan"));
+
+    let advRate = dealData.advisorShareRate ?? 60;
+    let offRate = dealData.officeShareRate ?? 40;
+    let partRate = dealData.partnerShareRate ?? 0;
+    let advAmount = dealData.advisorShareAmount;
+    let offAmount = dealData.officeShareAmount;
+    let partAmount = dealData.partnerShareAmount;
+
+    if (isVolkanDeal) {
+      const comm =
+        dealData.commissionExpected ||
+        (dealData.agreedPrice ? dealData.agreedPrice * 0.05 : 0);
+      if (dealData.sharingType === "external") {
+        partRate = 50;
+        advRate = 50;
+        offRate = 0;
+      } else if (dealData.sharingType === "internal") {
+        partRate = 25;
+        advRate = 75;
+        offRate = 0;
+      } else {
+        partRate = 0;
+        advRate = 100;
+        offRate = 0;
+      }
+      partAmount = Math.round((comm * partRate) / 100);
+      advAmount = comm - partAmount;
+      offAmount = 0;
+    }
+
     const dealDateIso = dealData.closingDate
       ? `${dealData.closingDate}T12:00:00.000Z`
       : new Date().toISOString();
@@ -2215,6 +2398,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...dealData,
       id: `deal-${Date.now()}`,
       createdAt: dealData.createdAt || dealDateIso,
+      createdById: finalCreatedById,
+      createdByName: finalCreatedByName,
+      advisorShareRate: advRate,
+      advisorShareAmount: advAmount,
+      officeShareRate: offRate,
+      officeShareAmount: offAmount,
+      partnerShareRate: partRate,
+      partnerShareAmount: partAmount,
     };
     removeDeletedId(DELETED_DEALS_KEY, newDeal.id);
     setDeals((prev) => {
@@ -2287,9 +2478,62 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
 
+    let finalCreatedById = isBroker ? (updates.createdById || deal.createdById) : deal.createdById;
+    let finalCreatedByName = isBroker ? (updates.createdByName || deal.createdByName) : deal.createdByName;
+
+    if (
+      !finalCreatedById ||
+      finalCreatedById === "usr-ofis" ||
+      (finalCreatedByName && finalCreatedByName.toLowerCase().includes("ofis"))
+    ) {
+      finalCreatedById = "usr-volkan";
+      finalCreatedByName = "Volkan Affan Kanıgür";
+    }
+
+    const isVolkanDeal =
+      finalCreatedById === "usr-volkan" ||
+      (finalCreatedByName && finalCreatedByName.toLowerCase().includes("volkan"));
+
+    let extraUpdates: Partial<Deal> = {};
+    if (isVolkanDeal) {
+      const comm =
+        updates.commissionExpected ||
+        deal.commissionExpected ||
+        ((updates.agreedPrice || deal.agreedPrice)
+          ? (updates.agreedPrice || deal.agreedPrice) * 0.05
+          : 0);
+      const sharing = updates.sharingType || deal.sharingType || "none";
+      let partRate = 0;
+      let advRate = 100;
+      if (sharing === "external") {
+        partRate = 50;
+        advRate = 50;
+      } else if (sharing === "internal") {
+        partRate = 25;
+        advRate = 75;
+      }
+      const partAmount = Math.round((comm * partRate) / 100);
+      const advAmount = comm - partAmount;
+      extraUpdates = {
+        createdById: finalCreatedById,
+        createdByName: finalCreatedByName,
+        advisorShareRate: advRate,
+        advisorShareAmount: advAmount,
+        officeShareRate: 0,
+        officeShareAmount: 0,
+        partnerShareRate: partRate,
+        partnerShareAmount: partAmount,
+      };
+    } else {
+      extraUpdates = {
+        createdById: finalCreatedById,
+        createdByName: finalCreatedByName,
+      };
+    }
+
     // Broker onayı verildiğinde (önceden onaysızken şimdi onaylandıysa)
     if (updates.brokerApproval === true && !deal.brokerApproval) {
-      const mergedDeal = { ...deal, ...updates };
+      const mergedDeal = { ...deal, ...updates, ...extraUpdates };
       const newNotifs: WorkflowNotification[] = [];
 
       // 1. İkinci Danışmana (İç Paylaşım Müşteri Bacağı) otomatik onay & hak ediş bildirimi
@@ -2327,7 +2571,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const updatedDeal: Deal = { ...deal, ...updates };
+    const updatedDeal: Deal = { ...deal, ...updates, ...extraUpdates };
     setDeals((prev) =>
       prev.map((d) => (d.id === id ? updatedDeal : d))
     );
@@ -2439,6 +2683,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           amount: existing.amount || monthlyRent,
           currency: existing.currency || currency,
           dueDate,
+          duesStatus: existing.duesStatus,
+          duesPaidDate: existing.duesPaidDate,
+          duesPaidAmount: existing.duesPaidAmount,
         });
       } else {
         const isOverdue = dueDate < todayStr;
@@ -2451,6 +2698,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           dueDate,
           status: isOverdue ? "overdue" : "unpaid",
           paidAmount: 0,
+          duesStatus: isOverdue ? "overdue" : "unpaid",
+          duesPaidAmount: 0,
         });
       }
 
@@ -2591,9 +2840,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           )
         : (updates.payments ?? rental.payments);
 
+    const safeUpdates = { ...updates };
+    if (!isBroker) {
+      safeUpdates.assignedToId = rental.assignedToId || currentUser.id;
+      safeUpdates.assignedToName = rental.assignedToName || currentUser.name;
+    }
+
     const updatedRental: RentalContract = {
       ...rental,
-      ...updates,
+      ...safeUpdates,
       payments: newPayments,
     };
 
@@ -2659,6 +2914,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               status: "unpaid",
               paidAmount: 0,
               paidDate: undefined,
+            };
+          }),
+        };
+        saveRental(updatedRental).catch(() => {});
+        return updatedRental;
+      })
+    );
+  };
+
+  const toggleRentalDuesPayment = (
+    rentalId: string,
+    monthOrPeriodKey: number | string,
+    isPaid: boolean,
+    dueDate?: string
+  ) => {
+    setRentals((prev) =>
+      prev.map((r) => {
+        if (r.id !== rentalId) return r;
+        if (!canManageRental(r)) return r;
+        const updatedRental: RentalContract = {
+          ...r,
+          payments: r.payments.map((p) => {
+            const matches =
+              typeof monthOrPeriodKey === "string"
+                ? p.periodKey === monthOrPeriodKey || p.dueDate === monthOrPeriodKey || (p.dueDate && p.dueDate.startsWith(monthOrPeriodKey))
+                : dueDate
+                ? p.dueDate === dueDate || p.month === monthOrPeriodKey
+                : p.month === monthOrPeriodKey;
+
+            if (!matches) return p;
+            if (isPaid) {
+              return {
+                ...p,
+                duesStatus: "paid",
+                duesPaidAmount: r.duesAmount || 0,
+                duesPaidDate: new Date().toISOString().split("T")[0],
+              };
+            }
+            return {
+              ...p,
+              duesStatus: "unpaid",
+              duesPaidAmount: 0,
+              duesPaidDate: undefined,
             };
           }),
         };
@@ -2841,6 +3139,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return true;
   };
 
+  const deactivateProperty = (propertyId: string): boolean => {
+    const prop = properties.find((p) => p.id === propertyId);
+    if (!prop) return false;
+    if (!canManageProperty(prop)) {
+      alert("Bu portföyü pasife alma yetkiniz bulunmuyor.");
+      return false;
+    }
+
+    const updatedProp: Property = {
+      ...prop,
+      status: "ARCHIVED",
+      updatedAt: new Date().toISOString(),
+    };
+
+    setProperties((prev) => prev.map((p) => (p.id === propertyId ? updatedProp : p)));
+    saveProperty(updatedProp).catch(() => {});
+    return true;
+  };
+
   // Mandates
   const canManageMandate = (mandate: MandateContract) => {
     if (isBroker) return true;
@@ -2850,8 +3167,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const addMandateContract = (
     data: Omit<MandateContract, "id" | "createdAt">
   ): MandateContract => {
+    const finalAssignedToId = isBroker ? (data.assignedToId || currentUser.id) : currentUser.id;
+    const finalAssignedToName = isBroker
+      ? (data.assignedToName || (users.find((u) => u.id === data.assignedToId)?.name || currentUser.name))
+      : currentUser.name;
+
     const newMandate: MandateContract = {
       ...data,
+      assignedToId: finalAssignedToId,
+      assignedToName: finalAssignedToName,
       id: `mnd-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
@@ -2898,7 +3222,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       alert("Bu yetki sözleşmesi size ait değildir. Yalnızca sahibi veya ofis düzenleyebilir.");
       return false;
     }
-    const updatedMandate: MandateContract = { ...mandate, ...updates };
+    const safeUpdates = { ...updates };
+    if (!isBroker) {
+      safeUpdates.assignedToId = mandate.assignedToId || currentUser.id;
+      safeUpdates.assignedToName = mandate.assignedToName || currentUser.name;
+    }
+    const updatedMandate: MandateContract = { ...mandate, ...safeUpdates };
     setMandates((prev) => {
       const updated = prev.map((m) => (m.id === id ? updatedMandate : m));
       if (typeof window !== "undefined") {
@@ -3143,11 +3472,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         updateRentalContract,
         deleteRentalContract,
         toggleRentalPayment,
+        toggleRentalDuesPayment,
         uploadRentalReceipt,
         renewRentalContract,
         relistRentalProperty,
         loseRentalProperty,
         reactivateProperty,
+        deactivateProperty,
         toggleRentalStamp,
         canManageCustomer,
         canManageProperty,

@@ -245,6 +245,9 @@ export async function getRentals(): Promise<RentalContract[]> {
       let isStamped = r.isStamped ?? false;
       let stampedAt = r.stampedAt ?? undefined;
       let paymentPeriod = r.paymentPeriod ?? "monthly";
+      let hasDues = r.hasDues ?? false;
+      let duesAmount = r.duesAmount ?? undefined;
+      let duesCurrency = r.duesCurrency ?? undefined;
       let notes = r.notes ?? "";
 
       if (notes && notes.includes("<!--RENTAL_META:")) {
@@ -255,6 +258,9 @@ export async function getRentals(): Promise<RentalContract[]> {
             if (parsed.isStamped !== undefined) isStamped = parsed.isStamped;
             if (parsed.stampedAt !== undefined) stampedAt = parsed.stampedAt;
             if (parsed.paymentPeriod !== undefined) paymentPeriod = parsed.paymentPeriod;
+            if (parsed.hasDues !== undefined) hasDues = parsed.hasDues;
+            if (parsed.duesAmount !== undefined) duesAmount = parsed.duesAmount;
+            if (parsed.duesCurrency !== undefined) duesCurrency = parsed.duesCurrency;
           }
           notes = notes.replace(/<!--RENTAL_META:.*?-->/g, "").trim();
         } catch {}
@@ -265,6 +271,9 @@ export async function getRentals(): Promise<RentalContract[]> {
         isStamped,
         stampedAt,
         paymentPeriod,
+        hasDues,
+        duesAmount,
+        duesCurrency,
         notes,
       } as RentalContract;
     });
@@ -306,11 +315,14 @@ export async function saveRental(rental: Partial<RentalContract>): Promise<boole
       payments: rental.payments || [],
     };
 
-    if (rental.isStamped || rental.stampedAt || rental.paymentPeriod) {
+    if (rental.isStamped || rental.stampedAt || rental.paymentPeriod || rental.hasDues || rental.duesAmount) {
       const meta = {
         isStamped: rental.isStamped,
         stampedAt: rental.stampedAt,
         paymentPeriod: rental.paymentPeriod,
+        hasDues: rental.hasDues,
+        duesAmount: rental.duesAmount,
+        duesCurrency: rental.duesCurrency,
       };
       const cleanNotes = (safePayload.notes || "").replace(/<!--RENTAL_META:.*?-->/g, "").trim();
       safePayload.notes = cleanNotes

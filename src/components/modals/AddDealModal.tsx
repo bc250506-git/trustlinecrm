@@ -73,9 +73,7 @@ export function AddDealModal({
   const [formDealNumber, setFormDealNumber] = useState("");
   const [formReportDate, setFormReportDate] = useState(getTodayStr());
   const [formAdvisorId, setFormAdvisorId] = useState(() =>
-    isOfficeSystemAccount(currentUser)
-      ? users.find((u) => !isOfficeSystemAccount(u))?.id || currentUser.id
-      : currentUser.id
+    isOfficeSystemAccount(currentUser) ? "usr-volkan" : currentUser.id
   );
   const [formTitle, setFormTitle] = useState("");
 
@@ -145,7 +143,10 @@ export function AddDealModal({
       // Modal açıldığında form değerlerini sıfırlayıp hazırlar (sadece ilk açılışta!)
       setFormDealNumber(autoDealNo);
       setFormReportDate(today);
-      setFormAdvisorId(currentUser.id);
+      const defaultAdvId = isOfficeSystemAccount(currentUser)
+        ? "usr-volkan"
+        : currentUser.id;
+      setFormAdvisorId(defaultAdvId);
       setFormTitle("");
       setFormDealType("sale");
       setFormPropertyId("");
@@ -347,44 +348,73 @@ export function AddDealModal({
       ? numericPrice
       : Math.round((numericPrice * formCommissionRate) / 100);
 
+  const effectiveAdvisorId = isBroker
+    ? (!formAdvisorId || isOfficeSystemAccount({ id: formAdvisorId })
+        ? "usr-volkan"
+        : formAdvisorId)
+    : currentUser.id;
+  const assignedUser =
+    users.find((u) => u.id === effectiveAdvisorId) ||
+    users.find((u) => u.id === "usr-volkan") ||
+    currentUser;
+
+  const isVolkanAdvisor =
+    effectiveAdvisorId === "usr-volkan" ||
+    Boolean(assignedUser.name && assignedUser.name.toLowerCase().includes("volkan"));
+
   let advisorShareRate = 0; // Danışman A (Satış GD / Portföy Sahibi GD)
   let partnerShareRate = 0; // Ortak (Dış Ofis veya Danışman B)
   let officeShareRate = 0;  // Trustline Ofis
 
-  if (formSharingType === "none") {
-    // Tek Danışman
-    if (formOrigin === "advisor") {
-      advisorShareRate = 60;
-      officeShareRate = 40;
+  if (isVolkanAdvisor) {
+    // 1-VOLKAN AFFAN KANIGÜR (BROKER) İSTİSNASI:
+    // Kendisi Broker olduğu için ofis kesintisi yapılmaz, payın tamamı kendisine aittir.
+    if (formSharingType === "none") {
+      advisorShareRate = 100;
+      officeShareRate = 0;
       partnerShareRate = 0;
-    } else {
-      advisorShareRate = 50;
-      officeShareRate = 50;
-      partnerShareRate = 0;
+    } else if (formSharingType === "external") {
+      partnerShareRate = 50; // Dış Emlak Ofisi
+      advisorShareRate = 50; // Volkan Affan Kanıgür
+      officeShareRate = 0;
+    } else if (formSharingType === "internal") {
+      partnerShareRate = 25; // 2. Danışman
+      advisorShareRate = 75; // Volkan Affan Kanıgür
+      officeShareRate = 0;
     }
-  } else if (formSharingType === "external") {
-    // Dış Ofis Paylaşımı
-    partnerShareRate = 50; // Dış Emlak Ofisi
-    if (formOrigin === "advisor") {
-      advisorShareRate = 30; // Trustline GD
-      officeShareRate = 20;  // Trustline Ofis
-    } else {
-      advisorShareRate = 25; // Trustline GD
-      officeShareRate = 25;  // Trustline Ofis
-    }
-  } else if (formSharingType === "internal") {
-    // Şirket İçi 2 Danışman Paylaşımı
-    partnerShareRate = 25; // Danışman B (Müşteri Bacağı: %50 Brüt - %50 Ofis Payı = Net %25)
-    if (formOrigin === "advisor") {
-      // Danışman A (Portföy Sahibi GD: %50 Brüt - %40 Ofis Payı = Net %30)
-      advisorShareRate = 30;
-      // Ofis: Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45 (450 GBP)
-      officeShareRate = 45;
-    } else {
-      // Ofis Portföyü: Her iki danışman da %50 brüt - %50 ofis payı = Net %25'er
-      advisorShareRate = 25;
-      // Ofis: %25 + %25 = Toplam %50 (500 GBP)
-      officeShareRate = 50;
+  } else {
+    // DİĞER TÜM DANIŞMANLAR İÇİN MEVCUT SİSTEM VE STANDARTLAR KORUNUR
+    if (formSharingType === "none") {
+      // Tek Danışman
+      if (formOrigin === "advisor") {
+        advisorShareRate = 60;
+        officeShareRate = 40;
+        partnerShareRate = 0;
+      } else {
+        advisorShareRate = 50;
+        officeShareRate = 50;
+        partnerShareRate = 0;
+      }
+    } else if (formSharingType === "external") {
+      // Dış Ofis Paylaşımı
+      partnerShareRate = 50; // Dış Emlak Ofisi
+      if (formOrigin === "advisor") {
+        advisorShareRate = 30; // Trustline GD
+        officeShareRate = 20;  // Trustline Ofis
+      } else {
+        advisorShareRate = 25; // Trustline GD
+        officeShareRate = 25;  // Trustline Ofis
+      }
+    } else if (formSharingType === "internal") {
+      // Şirket İçi 2 Danışman Paylaşımı
+      partnerShareRate = 25; // Danışman B (Müşteri Bacağı: %50 Brüt - %50 Ofis Payı = Net %25)
+      if (formOrigin === "advisor") {
+        advisorShareRate = 30;
+        officeShareRate = 45;
+      } else {
+        advisorShareRate = 25;
+        officeShareRate = 50;
+      }
     }
   }
 
@@ -392,7 +422,6 @@ export function AddDealModal({
   const calculatedPartnerShare = Math.round((calculatedCommission * partnerShareRate) / 100);
   const calculatedOfficeShare = calculatedCommission - calculatedAdvisorShare - calculatedPartnerShare;
 
-  const assignedUser = users.find((u) => u.id === formAdvisorId) || currentUser;
   const internalPartnerUser = users.find((u) => u.id === formPartnerAdvisorId);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -485,7 +514,7 @@ export function AddDealModal({
       brokerApprovedBy: isBroker && formBrokerApproval ? (currentUser.name || "Volkan Affan Kanıgür") : undefined,
       closingDate: formClosingDate || getTodayStr(),
       paymentDue: formCollectionDate || getTodayStr(),
-      createdById: formAdvisorId,
+      createdById: effectiveAdvisorId,
       createdByName: assignedUser.name,
       notes: formNotes || "İşlem kapama formu üzerinden kaydedildi.",
     });
@@ -530,8 +559,8 @@ export function AddDealModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="sharp-card w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-300 bg-white shadow-2xl my-auto">
+    <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[92vh] max-w-4xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         {/* ÜST RESMİ OFİS FORMU BAŞLIĞI */}
         <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50 flex items-start justify-between gap-3 shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="space-y-1">
@@ -584,10 +613,10 @@ export function AddDealModal({
                   ))}
                 </select>
               ) : (
-                <div className="sharp-input w-full p-2 bg-white font-medium text-slate-800 flex items-center justify-between">
-                  <span className="font-bold text-[#1d2566]">{currentUser.name}</span>
-                  <span className="text-[10px] font-mono px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-300 font-bold">
-                    GD
+                <div className="sharp-input w-full p-2 bg-slate-100 border border-slate-300 font-medium text-slate-700 flex items-center justify-between cursor-not-allowed select-none">
+                  <span className="font-bold text-[#1d2566] truncate">{currentUser.name}</span>
+                  <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">
+                    🔒 Kilitli
                   </span>
                 </div>
               )}
@@ -873,7 +902,7 @@ export function AddDealModal({
                   )}
                   {customers.filter((c) => !c.deletedAt).map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "SELLER" ? "• Satıcı/Ev Sahibi" : ""}
+                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "SELLER" ? "• Mal Sahibi" : ""}
                     </option>
                   ))}
                 </select>
@@ -1377,7 +1406,13 @@ export function AddDealModal({
                           {formSharingType === "internal" ? "Danışman A — Portföy Sahibi" : "GD"} ({assignedUser.name})
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          {formSharingType === "internal"
+                          {isVolkanAdvisor
+                            ? formSharingType === "internal"
+                              ? "Broker / Yönetici Ortak (2. Danışman %25 Payı Sonrası Kalan %75 Tamamı Kendisine)"
+                              : formSharingType === "external"
+                              ? "Broker / Yönetici Ortak (Dış Ortak %50 Payı Sonrası Kalan %50 Tamamı Kendisine)"
+                              : "Broker / Yönetici Ortak (Ofis kesintisi yapılmaz, %100 tam hak ediş)"
+                            : formSharingType === "internal"
                             ? formOrigin === "advisor"
                               ? "Kendi Portföyü: %50 Brüt Paylaşım — %40 Ofis Kesintisi = Net %30"
                               : "Ofis Portföyü: %50 Brüt Paylaşım — %50 Ofis Kesintisi = Net %25"
@@ -1430,7 +1465,9 @@ export function AddDealModal({
                           <span>OFİS PAYI (Trustline Real Estate)</span>
                         </div>
                         <div className="text-[10px] text-emerald-700">
-                          {formSharingType === "internal"
+                          {isVolkanAdvisor
+                            ? "Broker (Yönetici) işlemi olduğu için ofis kasası kesintisi uygulanmaz (%0)"
+                            : formSharingType === "internal"
                             ? formOrigin === "advisor"
                               ? "Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45"
                               : "Danışman A'dan %25 (250 GBP) + Danışman B'den %25 (250 GBP) = Toplam %50"
@@ -1519,21 +1556,21 @@ export function AddDealModal({
           </div>
 
           {/* İPTAL VE KAYIT BUTONLARI */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+          <div className="sticky bottom-0 bg-white/95 backdrop-blur-xs p-3.5 sm:p-4 border-t border-slate-200 mt-auto flex items-center justify-between -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 z-20">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-mono font-bold"
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:text-slate-900 cursor-pointer font-mono font-bold text-xs"
             >
               İptal
             </button>
 
             <button
               type="submit"
-              className="sharp-btn-primary px-6 py-2.5 font-bold text-white shadow-sm cursor-pointer flex items-center gap-2 text-xs uppercase tracking-wider"
+              className="sharp-btn-primary px-4 sm:px-6 py-2.5 font-bold text-white shadow-sm cursor-pointer flex items-center gap-1.5 sm:gap-2 text-xs uppercase tracking-wider"
             >
-              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              <span>İşlemi Kapat ve Raporu Kaydet</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
+              <span className="truncate">İşlemi Kapat ve Kaydet</span>
             </button>
           </div>
         </form>

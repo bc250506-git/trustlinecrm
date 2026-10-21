@@ -77,12 +77,12 @@ export function PhoneInput({
 
   return (
     <div
-      className={`flex items-center border border-slate-300 bg-white transition focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5] ${
+      className={`flex items-center border border-slate-300 bg-white transition focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5] h-[38px] ${
         disabled ? "opacity-60 cursor-not-allowed bg-slate-50" : ""
-      }`}
+      } ${className}`}
     >
       {/* Sabit Prefiks: +90 (5 */}
-      <span className="px-2.5 py-2 bg-slate-100 border-r border-slate-200 text-[#1d2566] font-mono font-bold text-xs select-none shrink-0 flex items-center gap-1">
+      <span className="px-2.5 h-full bg-slate-100 border-r border-slate-200 text-[#1d2566] font-mono font-bold text-xs select-none shrink-0 flex items-center gap-1">
         <span className="text-[10px] text-slate-500 font-semibold">TR/KKTC</span>
         <span className="text-[#00adb5] font-black">+90</span>
         <span className="text-slate-800 font-bold">(5</span>
@@ -100,7 +100,7 @@ export function PhoneInput({
         disabled={disabled}
         required={required}
         autoComplete="tel"
-        className={`w-full p-2 font-mono text-xs text-slate-800 bg-transparent outline-none placeholder:text-slate-400 font-semibold ${className}`}
+        className="w-full h-full px-2 font-mono text-xs text-slate-800 bg-transparent outline-none placeholder:text-slate-400 font-semibold"
         {...rest}
       />
     </div>

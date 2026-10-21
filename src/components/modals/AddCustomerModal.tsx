@@ -294,7 +294,7 @@ export function AddCustomerModal({
       style={{ zIndex: zIndex || 120 }}
       className="fixed inset-0 z-[120] bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-0 sm:p-4 overflow-y-auto"
     >
-      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
+      <div className="sharp-card w-full h-full sm:h-auto sm:max-h-[90vh] max-w-2xl flex flex-col overflow-hidden border-0 sm:border border-slate-300 bg-white shadow-2xl rounded-none sm:rounded-lg sm:my-auto">
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 sticky top-0 z-20 shadow-2xs">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-[#00adb5]" />
@@ -347,10 +347,10 @@ export function AddCustomerModal({
             </div>
           </div>
 
-          {/* WhatsApp, Instagram, E-Posta, Doğum Tarihi (Hizalı Grid) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 items-end">
+          {/* WhatsApp & Instagram */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 WhatsApp (Aynı ise boş)
               </label>
               <PhoneInput
@@ -361,7 +361,7 @@ export function AddCustomerModal({
             </div>
 
             <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 Instagram
               </label>
               <input
@@ -372,9 +372,12 @@ export function AddCustomerModal({
                 className="sharp-input w-full px-2.5 h-[38px] font-mono text-xs"
               />
             </div>
+          </div>
 
+          {/* E-Posta & Doğum Tarihi */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
             <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
                 E-Posta
               </label>
               <input
@@ -387,7 +390,7 @@ export function AddCustomerModal({
             </div>
 
             <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1.5 h-8 flex items-end gap-1 font-semibold text-[#1d2566]">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end gap-1 text-[#1d2566]">
                 <Cake className="w-3.5 h-3.5 text-pink-500 shrink-0 mb-0.5" />
                 <span>Doğum Tarihi (Ops.)</span>
               </label>

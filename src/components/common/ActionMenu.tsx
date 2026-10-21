@@ -134,7 +134,7 @@ export function ActionMenu({
     };
   }, [isOpen]);
 
-  if (!canEdit && !canDelete && !onCloseDeal) return null;
+  if (!canEdit && !canDelete && !onCloseDeal && !(canDeactivate && onDeactivate)) return null;
 
   const menuDropdown = (
     <div

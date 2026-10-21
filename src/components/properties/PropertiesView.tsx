@@ -890,17 +890,8 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
                     {canManageProperty(p) && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="flex items-center gap-1.5"
+                        className="flex items-center"
                       >
-                        <button
-                          type="button"
-                          onClick={() => handleDeactivateProperty(p)}
-                          className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 hover:border-amber-400 text-[10px] font-mono font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                          title="İşlem kapama yapmadan ilanı geçici olarak pasife al"
-                        >
-                          <Archive className="w-3 h-3 text-amber-600" />
-                          <span>Pasife Al</span>
-                        </button>
                         <ActionMenu
                           onEdit={() => handleOpenEditModal(p)}
                           onDelete={() => setPropertyToDelete(p)}

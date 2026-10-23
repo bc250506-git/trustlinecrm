@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
-import { RentalContract, Currency } from "@/lib/types";
+import { RentalContract, Currency, Property } from "@/lib/types";
 import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
@@ -365,12 +365,20 @@ export function RentalsView() {
     setIsAddModalOpen(false);
     setSubNotice(null);
 
-    // Otomatik portföy ve müşteri eşleme (id yoksa başlık/isimden bul)
-    const matchedProp = properties.find(
-      (p) =>
-        (r.propertyId && p.id === r.propertyId) ||
-        (r.propertyTitle && p.title.trim().toLowerCase() === r.propertyTitle.trim().toLowerCase())
-    );
+    // Otomatik portföy ve müşteri eşleme (id yoksa başlık/isimden bul - ÖNCE KİRALIK OLANLAR!)
+    const matchedProp =
+      properties.find(
+        (p) =>
+          (r.propertyId && p.id === r.propertyId) ||
+          (r.propertyTitle &&
+            p.title.trim().toLowerCase() === r.propertyTitle.trim().toLowerCase() &&
+            p.listingType === "rent")
+      ) ||
+      properties.find(
+        (p) =>
+          r.propertyTitle &&
+          p.title.trim().toLowerCase() === r.propertyTitle.trim().toLowerCase()
+      );
     const matchedTenant = customers.find(
       (c) =>
         (r.tenantCustomerId && c.id === r.tenantCustomerId) ||
@@ -441,12 +449,44 @@ export function RentalsView() {
       s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
     const formTitleNorm = norm(formData.propertyTitle);
 
-    const targetProp = properties.find(
-      (p) =>
-        (formData.selectedPropertyId && p.id === formData.selectedPropertyId) ||
-        (formTitleNorm && norm(p.title) === formTitleNorm) ||
-        (formTitleNorm && (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title))))
-    );
+    // KİRALIK PORTFÖY ÇÖZÜMLEME:
+    let targetProp: Property | undefined;
+    if (formData.selectedPropertyId) {
+      const sel = properties.find((p) => p.id === formData.selectedPropertyId);
+      if (sel) {
+        if (sel.listingType === "rent") {
+          targetProp = sel;
+        } else {
+          // Satılık seçilmişse kiralık eşini bul
+          targetProp =
+            properties.find(
+              (p) =>
+                !p.deletedAt &&
+                p.listingType === "rent" &&
+                (p.linkedPropertyId === sel.id ||
+                  sel.linkedPropertyId === p.id ||
+                  norm(p.title) === norm(sel.title))
+            ) || sel;
+        }
+      }
+    }
+    if (!targetProp && formTitleNorm) {
+      targetProp =
+        properties.find(
+          (p) => !p.deletedAt && p.listingType === "rent" && norm(p.title) === formTitleNorm
+        ) ||
+        properties.find(
+          (p) =>
+            !p.deletedAt &&
+            p.listingType === "rent" &&
+            (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title)))
+        ) ||
+        properties.find(
+          (p) =>
+            !p.deletedAt &&
+            (norm(p.title) === formTitleNorm || norm(p.title).includes(formTitleNorm))
+        );
+    }
     const resolvedPropId = targetProp ? targetProp.id : (formData.selectedPropertyId || editingRental.propertyId);
     const resolvedPropTitle = targetProp ? targetProp.title : formData.propertyTitle;
 
@@ -479,8 +519,23 @@ export function RentalsView() {
       assignedToName: assignedUser ? assignedUser.name : (editingRental.assignedToName || currentUser.name),
     });
 
-    if (resolvedPropId && resolvedPropId !== editingRental.propertyId) {
-      updateProperty(resolvedPropId, { status: "RENTED" });
+    if (resolvedPropId) {
+      const propToUpdate = properties.find((p) => p.id === resolvedPropId);
+      if (propToUpdate && propToUpdate.listingType === "rent") {
+        updateProperty(resolvedPropId, { status: "RENTED" });
+      }
+      // GÜVENLİK: Bu mülkün satılık eşi varsa ASLA RENTED kalmasın, aktife (AVAILABLE) al
+      const saleTwin = properties.find(
+        (p) =>
+          !p.deletedAt &&
+          p.listingType === "sale" &&
+          (p.linkedPropertyId === resolvedPropId ||
+            (propToUpdate && propToUpdate.linkedPropertyId === p.id) ||
+            (propToUpdate && norm(p.title) === norm(propToUpdate.title)))
+      );
+      if (saleTwin && saleTwin.status === "RENTED") {
+        updateProperty(saleTwin.id, { status: "AVAILABLE" });
+      }
     }
 
     setActionFeedback(`✓ "${resolvedPropTitle}" kira sözleşmesi başarıyla güncellendi.`);
@@ -620,7 +675,25 @@ export function RentalsView() {
       }));
       return;
     }
-    const prop = properties.find((p) => p.id === propId);
+    const norm = (s?: string) =>
+      s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+
+    let prop = properties.find((p) => p.id === propId);
+    // Eğer satılık bir portföy seçildiyse ve bu mülkün kiralık bir eşi varsa, kira sözleşmesi için kiralık eşi seç
+    if (prop && prop.listingType === "sale") {
+      const rentTwin = properties.find(
+        (p) =>
+          !p.deletedAt &&
+          p.listingType === "rent" &&
+          (p.linkedPropertyId === prop!.id ||
+            prop!.linkedPropertyId === p.id ||
+            norm(p.title) === norm(prop!.title))
+      );
+      if (rentTwin) {
+        prop = rentTwin;
+      }
+    }
+
     if (prop) {
       setFormData((prev) => ({
         ...prev,
@@ -710,12 +783,44 @@ export function RentalsView() {
       s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
     const formTitleNorm = norm(formData.propertyTitle);
 
-    const targetProp = properties.find(
-      (p) =>
-        (formData.selectedPropertyId && p.id === formData.selectedPropertyId) ||
-        (formTitleNorm && norm(p.title) === formTitleNorm) ||
-        (formTitleNorm && (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title))))
-    );
+    // KİRALIK PORTFÖY ÇÖZÜMLEME:
+    let targetProp: Property | undefined;
+    if (formData.selectedPropertyId) {
+      const sel = properties.find((p) => p.id === formData.selectedPropertyId);
+      if (sel) {
+        if (sel.listingType === "rent") {
+          targetProp = sel;
+        } else {
+          // Satılık seçilmişse kiralık eşini bul
+          targetProp =
+            properties.find(
+              (p) =>
+                !p.deletedAt &&
+                p.listingType === "rent" &&
+                (p.linkedPropertyId === sel.id ||
+                  sel.linkedPropertyId === p.id ||
+                  norm(p.title) === norm(sel.title))
+            ) || sel;
+        }
+      }
+    }
+    if (!targetProp && formTitleNorm) {
+      targetProp =
+        properties.find(
+          (p) => !p.deletedAt && p.listingType === "rent" && norm(p.title) === formTitleNorm
+        ) ||
+        properties.find(
+          (p) =>
+            !p.deletedAt &&
+            p.listingType === "rent" &&
+            (norm(p.title).includes(formTitleNorm) || formTitleNorm.includes(norm(p.title)))
+        ) ||
+        properties.find(
+          (p) =>
+            !p.deletedAt &&
+            (norm(p.title) === formTitleNorm || norm(p.title).includes(formTitleNorm))
+        );
+    }
     const resolvedPropId = targetProp ? targetProp.id : (formData.selectedPropertyId || undefined);
     const resolvedPropTitle = targetProp ? targetProp.title : formData.propertyTitle;
 
@@ -748,7 +853,22 @@ export function RentalsView() {
     });
 
     if (resolvedPropId) {
-      updateProperty(resolvedPropId, { status: "RENTED" });
+      const propToUpdate = properties.find((p) => p.id === resolvedPropId);
+      if (propToUpdate && propToUpdate.listingType === "rent") {
+        updateProperty(resolvedPropId, { status: "RENTED" });
+      }
+      // GÜVENLİK KORUMASI: Bu mülkün satılık eşi varsa, satılık eşinin ASLA RENTED kalmadığından emin ol
+      const saleTwin = properties.find(
+        (p) =>
+          !p.deletedAt &&
+          p.listingType === "sale" &&
+          (p.linkedPropertyId === resolvedPropId ||
+            (propToUpdate && propToUpdate.linkedPropertyId === p.id) ||
+            (propToUpdate && norm(p.title) === norm(propToUpdate.title)))
+      );
+      if (saleTwin && saleTwin.status === "RENTED") {
+        updateProperty(saleTwin.id, { status: "AVAILABLE" });
+      }
     }
 
     setActionFeedback(
@@ -1603,16 +1723,29 @@ export function RentalsView() {
                   <select
                     value={formData.selectedPropertyId}
                     onChange={(e) => handleSelectProperty(e.target.value)}
-                    className="sharp-input w-full p-2 text-xs bg-white"
+                    className="sharp-input w-full p-2 text-xs bg-white font-medium"
                   >
                     <option value="">
-                      -- Mevcut portföylerden seçin veya aşağıya elle yazın --
+                      -- Portföy havuzundan kiralık mülk seçin veya aşağıya elle yazın --
                     </option>
-                    {properties.filter((p) => !p.deletedAt).map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title} ({p.region || "KKTC"}) - {p.price} {p.currency}
-                      </option>
-                    ))}
+                    <optgroup label="📋 KİRALIK PORTFÖYLER (Öncelikli)">
+                      {properties
+                        .filter((p) => !p.deletedAt && p.listingType === "rent")
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [KİRALIK] {p.title} ({p.region || "KKTC"}) - {p.price.toLocaleString("tr-TR")} {p.currency}
+                          </option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="🏢 DİĞER / SATILIK PORTFÖYLER">
+                      {properties
+                        .filter((p) => !p.deletedAt && p.listingType === "sale")
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            [SATILIK] {p.title} ({p.region || "KKTC"}) - {p.price.toLocaleString("tr-TR")} {p.currency}
+                          </option>
+                        ))}
+                    </optgroup>
                   </select>
                 </div>
 

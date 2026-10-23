@@ -579,6 +579,8 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
 
   // Bu portföye bağlı aktif bir kira sözleşmesi var mı?
   const isRentedByContract = (p: Property) => {
+    // SATILIK portföy ASLA kira sözleşmesiyle kiralandı sayılamaz!
+    if (p.listingType === "sale") return false;
     if (p.status === "RENTED") return true;
     const pTitleNorm = norm(p.title);
     return rentals.some((r) => {
@@ -594,11 +596,14 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
 
   // Bu portföye bağlı kazanılmış (Won) bir satış/kiralama işlemi var mı?
   const isSoldOrRentedByDeal = (p: Property) => {
+    if (p.listingType === "sale" && p.status === "RENTED") return null; // Satılık ilan RENTED olamaz
     if (p.status === "SOLD") return "SOLD";
-    if (p.status === "RENTED") return "RENTED";
+    if (p.status === "RENTED" && p.listingType === "rent") return "RENTED";
     const pTitleNorm = norm(p.title);
     const wonDeal = deals.find((d) => {
       if (d.stage !== "won") return false;
+      if (d.dealType === "rent" && p.listingType === "sale") return false;
+      if (d.dealType === "sale" && p.listingType === "rent") return false;
       if (d.propertyId && d.propertyId === p.id) return true;
       if (!d.propertyId && (d.propertyTitle || d.title) && pTitleNorm) {
         const dTitleNorm = norm(d.propertyTitle || d.title);
@@ -607,6 +612,8 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
       return false;
     });
     if (wonDeal) {
+      if (wonDeal.dealType === "rent" && p.listingType === "sale") return null;
+      if (wonDeal.dealType === "sale" && p.listingType === "rent") return null;
       return wonDeal.dealType === "rent" ? "RENTED" : "SOLD";
     }
     return null;
@@ -1107,7 +1114,7 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {items.map((p) => {
           const isSold = p.status === "SOLD" || isSoldOrRentedByDeal(p) === "SOLD";
-          const isRented = p.status === "RENTED" || isRentedByContract(p) || isSoldOrRentedByDeal(p) === "RENTED";
+          const isRented = p.listingType === "rent" && (p.status === "RENTED" || isRentedByContract(p) || isSoldOrRentedByDeal(p) === "RENTED");
 
           return (
             <div

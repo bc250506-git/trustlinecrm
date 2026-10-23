@@ -380,8 +380,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 function sanitizeLoadedProperties(list: Property[]): Property[] {
   if (!Array.isArray(list)) return [];
   return list.map((p) => {
-    // Gerçek portföyler için (test olan '123' ve '123123' dışındakiler)
-    // yanlışlıkla silinmiş işaretlenen veya 'Bilinmiyor' müşterisinden dolayı silinen tüm portföyleri canlıya döndür
+    let modified = p;
+    // 1. Gerçek portföyler için yanlışlıkla silinmiş işaretlenenleri canlıya döndür
     if (
       p.deletedAt &&
       p.title !== "123" &&
@@ -390,13 +390,24 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         p.ownerCustomerId === "cst-1792140797141" ||
         p.title.length > 5)
     ) {
-      return {
-        ...p,
+      modified = {
+        ...modified,
         deletedAt: null,
         ownerCustomerId: p.ownerCustomerId === "cst-1792140797141" ? undefined : p.ownerCustomerId,
       };
     }
-    return p;
+
+    // 2. KESİN GÜVENLİK KORUMASI:
+    // Satılık ilanlar (listingType === 'sale') ASLA 'RENTED' olamaz!
+    // Eğer bir satılık ilanın durumu yanlışlıkla RENTED yapılmışsa, derhal 'AVAILABLE' (Aktif) durumuna çekilir.
+    if (modified.listingType === "sale" && modified.status === "RENTED") {
+      modified = {
+        ...modified,
+        status: "AVAILABLE",
+      };
+    }
+
+    return modified;
   });
 }
 
@@ -798,8 +809,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   }, []);
 
   // BİRBİRİYLE BAĞIL VERİ BÜTÜNLÜĞÜ OTOMATİK MUTABAKAT MOTORU (Relational Data Integrity Engine)
-  // 1. Kira takibinde aktif olan her portföy KESİNLİKLE 'RENTED' (Kiralandı) durumuna çekilir.
+  // 1. Kira takibinde aktif olan her KİRALIK portföy KESİNLİKLE 'RENTED' (Kiralandı) durumuna çekilir.
   // 2. Kazanılmış (Won) durumdaki her işlemdeki portföy KESİNLİKLE 'SOLD' veya 'RENTED' durumuna çekilir.
+  // 3. SATILIK PORTFÖYLER KESİNLİKLE KİRA TAKİBİ VEYA SÖZLEŞME İLE 'RENTED' YAPILAMAZ!
   useEffect(() => {
     if (properties.length === 0) return;
 
@@ -812,16 +824,32 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 
       const pTitleNorm = norm(p.title);
 
-      // Aktif kira sözleşmesi var mı? (Öncelikli olarak propertyId ile, yoksa tam başlık eşleşmesi)
-      const activeRental = rentals.find((r) => {
-        if (r.active === false) return false;
-        if (r.propertyId && r.propertyId === p.id) return true;
-        if (!r.propertyId && r.propertyTitle && pTitleNorm) {
-          const rTitleNorm = norm(r.propertyTitle);
-          return rTitleNorm === pTitleNorm && rTitleNorm.length >= 6;
-        }
-        return false;
-      });
+      // KURAL 1: SATILIK İLAN GÜVENLİK KORUMASI
+      // Satılık bir mülk ASLA 'RENTED' olamaz! Eğer yanlışlıkla RENTED yapılmışsa, derhal 'AVAILABLE' (Aktif) durumuna çekilir.
+      if (p.listingType === "sale" && p.status === "RENTED") {
+        hasChanges = true;
+        const restored: Property = {
+          ...p,
+          status: "AVAILABLE",
+          updatedAt: new Date().toISOString(),
+        };
+        saveProperty(restored).catch(() => {});
+        return restored;
+      }
+
+      // Aktif kira sözleşmesi var mı? (SADECE VE SADECE KİRALIK PORTFÖYLER İÇİN!)
+      // Satılık ilanlar kira sözleşmesiyle ASLA kiralandı yapılamaz.
+      const activeRental = p.listingType === "rent"
+        ? rentals.find((r) => {
+            if (r.active === false) return false;
+            if (r.propertyId && r.propertyId === p.id) return true;
+            if (!r.propertyId && r.propertyTitle && pTitleNorm) {
+              const rTitleNorm = norm(r.propertyTitle);
+              return rTitleNorm === pTitleNorm && rTitleNorm.length >= 6;
+            }
+            return false;
+          })
+        : undefined;
 
       if (activeRental && p.status !== "RENTED") {
         hasChanges = true;
@@ -834,9 +862,11 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         return updated;
       }
 
-      // Kazanılmış (Won) işlem var mı? (Öncelikli olarak propertyId ile, yoksa tam başlık eşleşmesi)
+      // Kazanılmış (Won) işlem var mı? (İşlem tipi ile ilan tipi örtüşmelidir)
       const wonDeal = deals.find((d) => {
         if (d.stage !== "won") return false;
+        if (d.dealType === "rent" && p.listingType === "sale") return false;
+        if (d.dealType === "sale" && p.listingType === "rent") return false;
         if (d.propertyId && d.propertyId === p.id) return true;
         if (!d.propertyId && (d.propertyTitle || d.title) && pTitleNorm) {
           const dTitleNorm = norm(d.propertyTitle || d.title);
@@ -2746,15 +2776,45 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     // BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (RENTED)
     const norm = (s?: string) =>
       s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
-    const targetPropId = contractData.propertyId;
+    let targetPropId = contractData.propertyId;
     const targetPropTitle = norm(contractData.propertyTitle);
+
+    // Güvenlik Düzeltmesi: Eğer satılık bir portföy ID'si seçilmişse, onun kiralık eşini bulup bağla!
+    if (targetPropId) {
+      const explicitProp = properties.find((p) => p.id === targetPropId);
+      if (explicitProp && explicitProp.listingType === "sale") {
+        const rentTwin = properties.find(
+          (p) =>
+            !p.deletedAt &&
+            p.listingType === "rent" &&
+            (p.linkedPropertyId === explicitProp.id ||
+              explicitProp.linkedPropertyId === p.id ||
+              norm(p.title) === norm(explicitProp.title))
+        );
+        if (rentTwin) {
+          targetPropId = rentTwin.id;
+          newContract.propertyId = rentTwin.id;
+          saveRental(newContract).catch(() => {});
+        }
+      }
+    }
 
     if (contractData.active !== false) {
       setProperties((prev) =>
         prev.map((p) => {
+          // Satılık ilan asla RENTED yapılamaz, yanlışlıkla yapılmışsa AVAILABLE'a çek
+          if (p.listingType === "sale") {
+            if (p.status === "RENTED") {
+              const restored: Property = { ...p, status: "AVAILABLE", updatedAt: new Date().toISOString() };
+              saveProperty(restored).catch(() => {});
+              return restored;
+            }
+            return p;
+          }
+
           const pTitleNorm = norm(p.title);
           const isMatch =
-            Boolean(targetPropId && p.id === targetPropId) ||
+            Boolean(targetPropId && p.id === targetPropId && p.listingType === "rent") ||
             Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6 && p.listingType === "rent");
 
           if (isMatch && p.status !== "RENTED") {

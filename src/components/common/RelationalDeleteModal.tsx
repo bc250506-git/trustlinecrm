@@ -535,15 +535,25 @@ export function RelationalDeleteModal({
                   <span>Nasıl bir silme işlemi yapmak istersiniz?</span>
                 </div>
                 <ul className="list-disc list-inside space-y-0.5 pl-1 pt-1 text-[10.5px]">
-                  <li>
-                    <strong className="text-rose-700">Tüm Bağlı Verilerle Birlikte Sil (Önerilen):</strong> Ana kaydı
-                    ve bağlı portföyleri siler; kira sözleşmelerini pasife alır; yetki belgeleri ve fırsatları
-                    iptal ederek veri bütünlüğünü sağlar.
-                  </li>
-                  <li>
-                    <strong className="text-slate-800">Yalnızca Bu Kaydı Sil:</strong> Yalnızca seçilen kaydı siler,
-                    bağlı diğer tüm form ve portföyler sistemde muhatapsız / sahipsiz olarak kalır.
-                  </li>
+                  {type === "customer" ? (
+                    <>
+                      <li>
+                        <strong className="text-emerald-700">Mülk Güvenlik Garantisi:</strong> Müşteri silinse dahi gayrimenkul portföyleriniz, kira sözleşmeleriniz ve yetki belgeleriniz ASLA SİLİNMEZ, portföy havuzunuzda eksiksiz korunur.
+                      </li>
+                      <li>
+                        <strong className="text-rose-700">Müşteriyi Sil:</strong> Seçilen müşterinin kartını ve bu müşteriye ait açık takip görevlerini temizler.
+                      </li>
+                    </>
+                  ) : (
+                    <>
+                      <li>
+                        <strong className="text-rose-700">Tüm Bağlı Verilerle Birlikte Sil:</strong> Ana portföy kaydını ve bağlı kira/sözleşme kayıtlarını pasife alır.
+                      </li>
+                      <li>
+                        <strong className="text-slate-800">Yalnızca Bu Kaydı Sil:</strong> Yalnızca seçilen portföyü siler.
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
             </div>
@@ -567,7 +577,7 @@ export function RelationalDeleteModal({
                   type="button"
                   onClick={() => onConfirm(false)}
                   className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-mono font-bold cursor-pointer transition"
-                  title="Yalnızca seçilen kaydı siler, bağlı kayıtları sahipsiz bırakır"
+                  title="Yalnızca seçilen kaydı siler"
                 >
                   Yalnızca Bu Kaydı Sil
                 </button>
@@ -575,10 +585,10 @@ export function RelationalDeleteModal({
                   type="button"
                   onClick={() => onConfirm(true)}
                   className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition"
-                  title="Bağlı portföy, kira ve sözleşmelerle birlikte tam temizlik yapar"
+                  title={type === "customer" ? "Müşteriyi siler ve açık görevleri kapatır (portföyleriniz korunur)" : "Bağlı portföy ve sözleşmelerle birlikte tam temizlik yapar"}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Tüm Bağlı Verilerle Birlikte Sil</span>
+                  <span>{type === "customer" ? "Müşteriyi ve Görevleri Sil" : "Tüm Bağlı Verilerle Birlikte Sil"}</span>
                 </button>
               </>
             ) : (

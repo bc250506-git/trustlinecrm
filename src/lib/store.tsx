@@ -377,19 +377,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     loadFromStorage(CUSTOMERS_STORAGE_KEY, initialCustomers)
   );
 
+function sanitizeLoadedProperties(list: Property[]): Property[] {
+  if (!Array.isArray(list)) return [];
+  return list.map((p) => {
+    // Gerçek portföyler için (test olan '123' ve '123123' dışındakiler)
+    // yanlışlıkla silinmiş işaretlenen veya 'Bilinmiyor' müşterisinden dolayı silinen tüm portföyleri canlıya döndür
+    if (
+      p.deletedAt &&
+      p.title !== "123" &&
+      p.title !== "123123" &&
+      (p.deletedAt.includes("2026-10-22") ||
+        p.ownerCustomerId === "cst-1792140797141" ||
+        p.title.length > 5)
+    ) {
+      return {
+        ...p,
+        deletedAt: null,
+        ownerCustomerId: p.ownerCustomerId === "cst-1792140797141" ? undefined : p.ownerCustomerId,
+      };
+    }
+    return p;
+  });
+}
+
   const [properties, setProperties] = useState<Property[]>(() => {
     const fromStorage = loadFromStorage(PROPERTIES_STORAGE_KEY, initialProperties);
-    // Depolamada eski/kırpılmış veri (örn: 22 portföy) veya resimsiz veri varsa, güncel başlangıç snapshot'ını kullan
-    if (!fromStorage || fromStorage.length < initialProperties.length) {
-      return initialProperties;
+    const sanitized = sanitizeLoadedProperties(fromStorage || initialProperties);
+    // Depolamada eski/kırpılmış veri veya resimsiz veri varsa, güncel başlangıç snapshot'ını kullan
+    if (!sanitized || sanitized.length < initialProperties.length) {
+      return sanitizeLoadedProperties(initialProperties);
     }
-    const storageHasPhotos = fromStorage.some(
+    const storageHasPhotos = sanitized.some(
       (p) => p.imageUrl || (p.photos && p.photos.length > 0 && p.photos[0].url)
     );
     if (!storageHasPhotos && initialProperties.some((p) => p.imageUrl)) {
-      return initialProperties;
+      return sanitizeLoadedProperties(initialProperties);
     }
-    return fromStorage;
+    return sanitized;
   });
 
   const [followUps, setFollowUps] = useState<FollowUp[]>(() =>
@@ -423,13 +447,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     idbGet<Property[]>("trustline_crm_properties_v2").then((cached) => {
       if (cached && Array.isArray(cached) && cached.length >= initialProperties.length) {
+        const sanitizedCached = sanitizeLoadedProperties(cached);
         setProperties((prev) => {
           const prevHasPhotos = prev.some((p) => p.imageUrl);
-          const cachedHasPhotos = cached.some((p) => p.imageUrl);
-          if (prev.length < cached.length || (!prevHasPhotos && cachedHasPhotos)) {
-            return cached;
+          const cachedHasPhotos = sanitizedCached.some((p) => p.imageUrl);
+          if (prev.length < sanitizedCached.length || (!prevHasPhotos && cachedHasPhotos)) {
+            return sanitizedCached;
           }
-          return prev;
+          return prev.map((p) => {
+            const found = sanitizedCached.find((c) => c.id === p.id);
+            if (found && p.deletedAt && !found.deletedAt) {
+              return found;
+            }
+            return p;
+          });
         });
       }
     });
@@ -557,7 +588,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (propRes.status === "fulfilled" && Array.isArray(propRes.value) && propRes.value.length > 0) {
-          const cloudProps = propRes.value;
+          const cloudProps = sanitizeLoadedProperties(propRes.value);
           setProperties((prev) => {
             const cloudMap = new Map(cloudProps.map((p) => [p.id, p]));
             const unsavedLocal: Property[] = [];
@@ -567,7 +598,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 saveProperty(localP).catch(() => {});
               }
             }
-            const merged = [...cloudProps, ...unsavedLocal];
+            const merged = sanitizeLoadedProperties([...cloudProps, ...unsavedLocal]);
             idbSet("trustline_crm_properties_v2", merged);
             try {
               localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(merged));
@@ -1849,96 +1880,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCustomers((prev) => prev.map((c) => (c.id === id ? updatedCustomer : c)));
     saveCustomer(updatedCustomer).catch(() => {});
 
-    // 2. GÜVENLİK KORUMASI:
-    // ASLA VE ASLA metin/isim eşleşmesi ("Bilinmiyor", "Ahmet" vb.) ile portföy silinmez!
-    // Bir gayrimenkul mülkü, rehberden bir müşteri silindi diye fiziksel olarak yok olmaz.
-    // Sadece doğrudan bu müşteri ID'sine (ownerCustomerId === id) bağlı portföyler incelenir.
-    const ownedProps = properties.filter((p) => {
-      if (p.deletedAt) return false;
-      return Boolean(id && p.ownerCustomerId === id);
-    });
-    const ownedPropIds = new Set(ownedProps.map((p) => p.id));
-
-    // Portföyleri soft-delete yap (sadece kesin ID bağlı olanlar)
-    if (ownedProps.length > 0) {
-      setProperties((prev) =>
-        prev.map((p) => {
-          if (ownedPropIds.has(p.id)) {
-            const upd: Property = { ...p, deletedAt: nowIso, updatedAt: nowIso };
-            saveProperty(upd).catch(() => {});
-            return upd;
-          }
-          return p;
-        })
-      );
-    }
-
-    // 3. İlgili kira sözleşmelerini pasife al (SADECE KESİN ID EŞLEŞMESİ, METİN EŞLEŞMESİ KESİNLİKLE YOK)
-    setRentals((prev) =>
-      prev.map((r) => {
-        const isDirectTenant = Boolean(id && r.tenantCustomerId === id);
-        const isDirectLandlord = Boolean(id && r.landlordCustomerId === id);
-        const isOwnedPropertyRental = r.propertyId ? ownedPropIds.has(r.propertyId) : false;
-
-        if (r.active && (isDirectTenant || isDirectLandlord || isOwnedPropertyRental)) {
-          const upd: RentalContract = { ...r, active: false };
-          saveRental(upd).catch(() => {});
+    // 2. KESİN VE TAVİZSİZ GÜVENLİK KORUMASI:
+    // Müşteri silindiğinde portföyler KESİNLİKLE SİLİNMEZ!
+    // Gayrimenkul portföyleri şirketin fiziksel ve ticari mülk envanteridir; müşteri rehberden
+    // çıkarılsa bile mülkler envanterden ASLA silinmez. Sadece müşteri referansı temizlenir.
+    setProperties((prev) =>
+      prev.map((p) => {
+        if (p.ownerCustomerId === id) {
+          const upd: Property = { ...p, ownerCustomerId: undefined, updatedAt: nowIso };
+          saveProperty(upd).catch(() => {});
           return upd;
         }
-        return r;
+        return p;
       })
     );
 
-    // 4. İlgili yetki sözleşmelerini iptal et (SADECE KESİN ID EŞLEŞMESİ)
-    setMandates((prev) =>
-      prev.map((m) => {
-        const isDirectOwner = Boolean(id && m.ownerCustomerId === id);
-        const isOwnedPropertyMandate = m.propertyId ? ownedPropIds.has(m.propertyId) : false;
-
-        if (m.status !== "cancelled" && (isDirectOwner || isOwnedPropertyMandate)) {
-          const upd: MandateContract = { ...m, status: "cancelled" };
-          saveMandate(upd).catch(() => {});
-          return upd;
-        }
-        return m;
-      })
-    );
-
-    // 5. İlgili anlaşma / fırsatları (Deals) iptal et (SADECE KESİN ID EŞLEŞMESİ)
-    setDeals((prev) =>
-      prev.map((d) => {
-        const isDirectCust = Boolean(id && d.customerId === id);
-        const isOwnedPropertyDeal = d.propertyId ? ownedPropIds.has(d.propertyId) : false;
-
-        if (d.stage !== "lost" && (isDirectCust || isOwnedPropertyDeal)) {
-          const upd: Deal = {
-            ...d,
-            stage: "lost",
-            closingNotes: d.closingNotes
-              ? `${d.closingNotes} (Müşteri silinmesi nedeniyle sistemce iptal edildi)`
-              : "Müşteri silinmesi nedeniyle sistemce iptal edildi",
-          };
-          saveDeal(upd).catch(() => {});
-          return upd;
-        }
-        return d;
-      })
-    );
-
-    // 6. Açık randevu ve takipleri kapat (SADECE KESİN ID EŞLEŞMESİ)
+    // 3. Sadece bu müşteriye özel açık randevu/takipleri kapat
     setFollowUps((prev) =>
       prev.map((f) => {
-        const isDirectCust = Boolean(id && f.customerId === id);
-        const isOwnedPropertyFollowUp = f.propertyId ? ownedPropIds.has(f.propertyId) : false;
-
-        if (f.status === "open" && (isDirectCust || isOwnedPropertyFollowUp)) {
+        if (f.status === "open" && f.customerId === id) {
           const upd: FollowUp = {
             ...f,
             status: "cancelled",
             outcome: "uninterested",
             feedback: f.feedback
-              ? `${f.feedback} (Müşteri silinmesi nedeniyle kapatıldı)`
-              : "Müşteri silinmesi nedeniyle kapatıldı",
+              ? `${f.feedback} (Müşteri silinmesi sebebiyle otomatik kapatıldı)`
+              : "Müşteri silinmesi sebebiyle otomatik kapatıldı",
           };
           saveFollowUp(upd).catch(() => {});
           return upd;

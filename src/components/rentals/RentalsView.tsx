@@ -194,7 +194,7 @@ export function RentalsView() {
   ];
 
   // Min ve Max yılları sözleşmelerden dinamik tespit et (en az 2025-2030 kapsar, sözleşme daha ilerideyse otomatik genişler)
-  const timelineYears = React.useMemo(() => {
+  const minMaxKey = React.useMemo(() => {
     const now = currentDate || new Date();
     const currentYear = now.getFullYear();
 
@@ -213,12 +213,17 @@ export function RentalsView() {
       }
     });
 
+    return `${minYear}-${maxYear}`;
+  }, [filteredRentals, currentDate]);
+
+  const timelineYears = React.useMemo(() => {
+    const [minY, maxY] = minMaxKey.split("-").map(Number);
     const years: number[] = [];
-    for (let y = minYear; y <= maxYear; y++) {
+    for (let y = minY; y <= maxY; y++) {
       years.push(y);
     }
     return years;
-  }, [filteredRentals, currentDate]);
+  }, [minMaxKey]);
 
   // Zaman çizelgesindeki tüm aylar
   const allTimelineMonths = React.useMemo(() => {
@@ -314,12 +319,17 @@ export function RentalsView() {
     el.scrollBy({ left: monthDelta * monthColWidth, behavior: "smooth" });
   };
 
-  // İlk açılışta cari aya dinamik ve akıcı şekilde konumlan
+  const hasAutoScrolledRef = React.useRef(false);
+
+  // İlk açılışta cari aya SADECE 1 KEZ dinamik şekilde konumlan (Ödeme işaretlerken başa/sağa atmayı kesinlikle engeller)
   useEffect(() => {
+    if (hasAutoScrolledRef.current || allTimelineMonths.length === 0) return;
     const timer = setTimeout(() => {
+      if (hasAutoScrolledRef.current) return;
       const now = new Date();
       const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
       scrollToMonthKey(currentMonthKey, false);
+      hasAutoScrolledRef.current = true;
     }, 150);
     return () => clearTimeout(timer);
   }, [allTimelineMonths]);
@@ -891,11 +901,18 @@ export function RentalsView() {
 
   const stampedCount = filteredRentals.filter((r) => !!r.isStamped).length;
   const unstampedCount = filteredRentals.length - stampedCount;
-  const displayedRentals = filteredRentals.filter((r) => {
-    if (stampFilter === "STAMPED") return !!r.isStamped;
-    if (stampFilter === "UNSTAMPED") return !r.isStamped;
-    return true;
-  });
+  const displayedRentals = filteredRentals
+    .filter((r) => {
+      if (stampFilter === "STAMPED") return !!r.isStamped;
+      if (stampFilter === "UNSTAMPED") return !r.isStamped;
+      return true;
+    })
+    .sort((a, b) => {
+      const dayA = Number(a.dueDay) || 5;
+      const dayB = Number(b.dueDay) || 5;
+      if (dayA !== dayB) return dayA - dayB;
+      return (a.propertyTitle || "").localeCompare(b.propertyTitle || "", "tr-TR");
+    });
 
   return (
     <div className="space-y-6">
@@ -1356,6 +1373,17 @@ export function RentalsView() {
                             ({formatPeriodRange(r.contractStart, r.contractEnd)})
                           </span>
                         )}
+                      </div>
+
+                      {/* 5. Kira Ödeme Günü Rozeti (Kira Tarihlerinin Altında) */}
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className="text-[10px] font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 inline-flex items-center gap-1 shadow-2xs"
+                          title={`Bu mülk için her ayın ${r.dueDay || 5}. gününde kira ödemesi tekrarlanır.`}
+                        >
+                          <Calendar className="w-3 h-3 text-indigo-600 shrink-0" />
+                          <span>Kira Ödeme Günü: Her ayın {r.dueDay || 5}. günü</span>
+                        </span>
                       </div>
 
                       {/* KKTC Vergi Dairesi Pullat / Pullatıldı Butonu (Rozet Görevli) */}

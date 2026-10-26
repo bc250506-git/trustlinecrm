@@ -218,12 +218,23 @@ export function extractPhone9Digits(raw: string | undefined | null): string {
 }
 
 /**
- * Girilen 9 haneyi veya ham telefon numarasını +90 (5xx) xxx xx xx formatına dönüştürür
+ * Girilen telefon numarasını biçimlendirir.
+ * Yabancı numaralar (+ ile başlayan veya standart 9 haneden farklı olanlar) olduğu gibi korunur.
  */
 export function formatPhoneWithPrefix(raw: string | undefined | null): string {
   if (!raw) return "";
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("+")) {
+    return trimmed;
+  }
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  // Yabancı numara veya standart dışı uzunluk
+  if (digitsOnly.length > 11 || (digitsOnly.length > 0 && !digitsOnly.startsWith("5") && !digitsOnly.startsWith("05") && !digitsOnly.startsWith("905") && digitsOnly.length !== 9 && digitsOnly.length !== 10)) {
+    return trimmed;
+  }
+
   const d = extractPhone9Digits(raw);
-  if (!d) return "";
+  if (!d || d.length < 5) return trimmed;
   
   let res = "+90 (5";
   if (d.length > 0) {
@@ -245,7 +256,7 @@ export function formatPhoneWithPrefix(raw: string | undefined | null): string {
 }
 
 /**
- * WhatsApp mesajlaşma API'si için (wa.me) temiz 905XXXXXXXXX formatı üretir
+ * WhatsApp mesajlaşma API'si için (wa.me) temiz telefon numarası formatı üretir
  */
 export function cleanWhatsAppNumber(phone: string | undefined | null): string {
   if (!phone) return "";
@@ -264,6 +275,10 @@ export function cleanWhatsAppNumber(phone: string | undefined | null): string {
     return "905" + digits;
   }
   if (digits.startsWith("90")) {
+    return digits;
+  }
+  // Yabancı ülke kodlu numaralar (örneğin İngiltere 44..., Rusya 7..., Almanya 49...)
+  if (digits.length >= 10 && !digits.startsWith("0")) {
     return digits;
   }
   return `90${digits}`;

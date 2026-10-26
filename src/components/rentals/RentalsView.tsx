@@ -61,36 +61,10 @@ export function RentalsView() {
     toggleRentalStamp,
   } = useStore();
 
-  const [advisorFilter, setAdvisorFilter] = useState<string>("ALL");
-
-  // Danışman İzolasyonu: Danışmanlar KESİNLİKLE sadece kendi kira sözleşmelerini görebilir
+  // Kira Sözleşmeleri İzolasyonu: Herkes yalnızca kendininkini (Ofis ve Broker dahil) görür ve yönetir
   const filteredRentals = React.useMemo(() => {
-    if (!isBroker) {
-      // Danışman: KESİNLİKLE VE YALNIZCA KENDİSİNE AİT SÖZLEŞMELERİ GÖRÜR
-      return rentals.filter(
-        (r) =>
-          r.assignedToId === currentUser.id ||
-          (r.assignedToName &&
-            currentUser.name &&
-            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
-          (!r.assignedToId &&
-            r.propertyId &&
-            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id))
-      );
-    }
-    // Broker: Tüm ofis veya filtreli danışman görünümü
-    if (advisorFilter === "ALL") return rentals;
-    if (advisorFilter === "MY") {
-      return rentals.filter(
-        (r) =>
-          r.assignedToId === currentUser.id ||
-          (r.assignedToName &&
-            currentUser.name &&
-            r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
-      );
-    }
-    return rentals.filter((r) => r.assignedToId === advisorFilter);
-  }, [rentals, isBroker, advisorFilter, currentUser, properties]);
+    return rentals.filter((r) => r.active !== false);
+  }, [rentals]);
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
@@ -924,69 +898,24 @@ export function RentalsView() {
               YILLIK FİNANSAL YÖNETİM
             </span>
             <span className="text-slate-300">•</span>
-            {isBroker ? (
-              <span className="text-xs text-slate-500 font-mono font-bold">
-                {advisorFilter === "ALL"
-                  ? `Ofis Geneli (${filteredRentals.length} Sözleşme)`
-                  : advisorFilter === "MY"
-                  ? `Şahsi Kiralarınız (${filteredRentals.length} Sözleşme)`
-                  : `${users.find((u) => u.id === advisorFilter)?.name || "Danışman"} (${filteredRentals.length} Sözleşme)`}
-              </span>
-            ) : (
-              <span className="text-xs text-emerald-800 font-mono font-bold bg-emerald-50 px-2.5 py-0.5 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                Şahsi Kira Defteriniz ({filteredRentals.length} Sözleşme)
-              </span>
-            )}
-            {!isBroker && (
-              <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 border border-slate-200">
-                🔒 İzolasyon Koruması: Yalnızca kendi kira sözleşmelerinizi görüntülüyorsunuz
-              </span>
-            )}
+            <span className="text-xs text-emerald-800 font-mono font-bold bg-emerald-50 px-2.5 py-0.5 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              Şahsi Kira Defteriniz ({filteredRentals.length} Sözleşme)
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 border border-slate-200">
+              🔒 Kira İzolasyonu: Yalnızca kendi kira sözleşmelerinizi görüntülüyorsunuz
+            </span>
           </div>
           <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
             <KeyRound className="w-5 h-5 text-emerald-600" />
             Kira Takip Matrisi ve Dekont Defteri
           </h1>
           <p className="text-xs text-slate-600 mt-0.5">
-            {isBroker
-              ? "Ofis geneli ve danışman bazlı 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları yönetim defteri."
-              : "Sorumlu olduğunuz şahsi kira sözleşmelerinizin 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları defteri."}
+            Sorumlu olduğunuz şahsi kira sözleşmelerinizin 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları defteri.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Danışman Filtresi (Yalnızca Broker için) */}
-          {isBroker && (
-            <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200">
-              <span className="text-xs font-mono font-bold text-slate-600 pl-1.5 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-[#00adb5]" />
-                <span className="hidden sm:inline">Danışman:</span>
-              </span>
-              <select
-                value={advisorFilter}
-                onChange={(e) => setAdvisorFilter(e.target.value)}
-                className="sharp-input px-2.5 py-1 text-xs font-mono bg-white font-bold border border-slate-300 cursor-pointer"
-              >
-                <option value="ALL">Tüm Ofis ({rentals.length})</option>
-                <option value="MY">
-                  Sadece Benim Kiralarım ({rentals.filter((r) => r.assignedToId === currentUser.id || (r.assignedToName && r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())).length})
-                </option>
-                <optgroup label="Danışmanlar">
-                  {users
-                    .filter((u) => u.id !== currentUser.id)
-                    .map((u) => {
-                      const count = rentals.filter((r) => r.assignedToId === u.id || (r.assignedToName && r.assignedToName.trim().toLowerCase() === u.name.trim().toLowerCase())).length;
-                      return (
-                        <option key={u.id} value={u.id}>
-                          {u.name} ({count})
-                        </option>
-                      );
-                    })}
-                </optgroup>
-              </select>
-            </div>
-          )}
 
           {/* KKTC Vergi Dairesi Damga Pulu Filtresi */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200">
@@ -1265,11 +1194,7 @@ export function RentalsView() {
             Henüz Kayıtlı Kira Sözleşmesi Bulunmuyor
           </h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            {isBroker
-              ? advisorFilter === "ALL"
-                ? "Ofis portföyünde henüz aktif bir kira sözleşmesi kaydı girilmedi. Yeni bir kira takibi başlatmak için yukarıdaki butonu kullanın."
-                : "Seçili danışmana ait kayıtlı kira sözleşmesi bulunmuyor."
-              : "Sorumlu olduğunuz şahsi bir kira sözleşmesi bulunmuyor. Yeni bir sözleşme eklemek için yukarıdaki '+ Yeni Kira Sözleşmesi Ekle' butonuna tıklayın."}
+            Sorumlu olduğunuz şahsi bir kira sözleşmesi bulunmuyor. Yeni bir sözleşme eklemek için yukarıdaki '+ Yeni Kira Sözleşmesi Ekle' butonuna tıklayın.
           </p>
           <button
             onClick={() => setIsAddModalOpen(true)}
@@ -1337,158 +1262,81 @@ export function RentalsView() {
                 return (
                   <tr key={r.id} className="group hover:bg-slate-50 transition">
                     {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Pullatılmış / Pullatılmamış Renk Farkı */}
-                    <td className={`py-3 px-4 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] bg-white group-hover:bg-slate-50 transition ${
+                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - 7 Temel Bilgi */}
+                    <td className={`py-3 px-3.5 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] bg-white group-hover:bg-slate-50 transition ${
                       r.isStamped
                         ? "border-l-4 border-l-emerald-500"
                         : "border-l-4 border-l-amber-400"
                     }`}>
                       {/* 1. Portföy Adı */}
-                      <div className="font-bold text-[#1d2566] text-xs leading-snug">
-                        {r.propertyTitle}
+                      <div className="font-bold text-[#1d2566] text-xs leading-snug line-clamp-1" title={r.propertyTitle}>
+                        {r.propertyTitle || "İsimsiz Portföy"}
                       </div>
 
-                      {/* 2. GD Adı */}
-                      <div className="text-[11px] text-slate-600 font-mono mt-1 flex items-center gap-1.5">
-                        <span className="text-slate-400 font-semibold">GD:</span>
-                        <span className="font-bold text-[#1d2566]">{r.assignedToName || "Atanmadı"}</span>
+                      {/* 2. Mal Sahibi & 3. Kiracı */}
+                      <div className="mt-1 space-y-0.5 text-[11px] font-mono">
+                        <div className="flex items-center gap-1 text-slate-700">
+                          <span className="text-slate-400 font-semibold shrink-0">Mal Sahibi:</span>
+                          <span className="font-medium text-slate-900 truncate">{r.landlordName || "-"}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-700">
+                          <span className="text-slate-400 font-semibold shrink-0">Kiracı:</span>
+                          <span className="font-semibold text-slate-900 truncate">{r.tenantName || "-"}</span>
+                        </div>
                       </div>
 
-                      {/* 3. Mal Sahibi */}
-                      <div className="text-[11px] text-slate-600 font-mono mt-0.5 flex items-center gap-1 flex-wrap">
-                        <span className="text-slate-400 font-semibold">Mal Sahibi:</span>
-                        <span className="font-medium text-slate-800">{r.landlordName || "-"}</span>
-                        {r.landlordPhone && r.landlordPhone !== "-" && (
-                          <span className="text-slate-400">({formatPhoneWithPrefix(r.landlordPhone) || r.landlordPhone})</span>
-                        )}
-                      </div>
-
-                      {/* 4. Sözleşme Başlangıç - Bitiş Tarihi */}
-                      <div className="text-[11px] text-slate-600 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
-                        <span className="text-slate-400 font-semibold">Sözleşme:</span>
+                      {/* 4. Sözleşme Tarihleri */}
+                      <div className="mt-1 text-[10.5px] font-mono text-slate-600 flex items-center gap-1">
+                        <span className="text-slate-400 font-semibold shrink-0">Sözleşme:</span>
                         <span className="font-medium text-slate-800">
                           {formatDateTR(r.contractStart)} - {formatDateTR(r.contractEnd)}
                         </span>
-                        {r.contractStart && r.contractEnd && (
-                          <span className="text-[10px] px-1 py-0.2 bg-slate-100 text-slate-600 border border-slate-200 font-bold" title="Sözleşme Süresi">
-                            ({formatPeriodRange(r.contractStart, r.contractEnd)})
-                          </span>
-                        )}
                       </div>
 
-                      {/* 5. Kira Ödeme Günü Rozeti (Kira Tarihlerinin Altında) */}
-                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                      {/* Rozetler: 5. Kira Ödeme Tarihi, 6. Ödeme Periyodu, 7. Pul Durumu */}
+                      <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
+                        {/* 5. Kira Ödeme Tarihi */}
                         <span
-                          className="text-[10px] font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-2 py-0.5 inline-flex items-center gap-1 shadow-2xs"
+                          className="text-[9.5px] font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-1 shadow-2xs"
                           title={`Bu mülk için her ayın ${r.dueDay || 5}. gününde kira ödemesi tekrarlanır.`}
                         >
-                          <Calendar className="w-3 h-3 text-indigo-600 shrink-0" />
-                          <span>Kira Ödeme Günü: Her ayın {r.dueDay || 5}. günü</span>
+                          <Calendar className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                          <span>Ayın {r.dueDay || 5}. günü</span>
                         </span>
+
+                        {/* 6. Ödeme Periyodu */}
+                        <span
+                          className="text-[9.5px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 inline-flex items-center shadow-2xs"
+                          title="Kira Tahsilat Periyodu"
+                        >
+                          {r.paymentPeriod === "quarterly"
+                            ? "3 Aylık Peşin"
+                            : r.paymentPeriod === "semi_annual"
+                            ? "6 Aylık Peşin"
+                            : r.paymentPeriod === "annual"
+                            ? "12 Aylık Peşin"
+                            : "Aylık"}
+                        </span>
+
+                        {/* 7. Pul Durumu (Pullatıldı / Pul Bekliyor Butonu) */}
+                        <button
+                          type="button"
+                          onClick={() => toggleRentalStamp(r.id)}
+                          className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 inline-flex items-center gap-1 border transition cursor-pointer shadow-2xs active:scale-95 ${
+                            r.isStamped
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                              : "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100"
+                          }`}
+                          title={
+                            r.isStamped
+                              ? `KKTC Vergi Dairesi Damga Pulu ile Pullatıldı ${r.stampedAt ? `(${formatDateTR(r.stampedAt)})` : ""}. Durumu değiştirmek için tıklayın.`
+                              : "Bu sözleşme henüz Vergi Dairesi damga pulu ile pullatılmadı! 'Pullatıldı' yapmak için tıklayın."
+                          }
+                        >
+                          <Stamp className={`w-2.5 h-2.5 ${r.isStamped ? "text-emerald-600" : "text-amber-600"} shrink-0`} />
+                          <span>{r.isStamped ? "Pullatıldı" : "Pul Bekliyor"}</span>
+                        </button>
                       </div>
-
-                      {/* KKTC Vergi Dairesi Pullat / Pullatıldı Butonu (Rozet Görevli) */}
-                      <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
-                        {r.isStamped ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleRentalStamp(r.id)}
-                            className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 active:scale-95 border border-emerald-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                            title={`KKTC Vergi Dairesi Damga Pulu ile Pullatıldı ${r.stampedAt ? `(${formatDateTR(r.stampedAt)})` : ""}. Durumu değiştirmek için tıklayın.`}
-                          >
-                            <Stamp className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span>Pullatıldı</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => toggleRentalStamp(r.id)}
-                            className="text-[10px] font-mono font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 active:scale-95 border border-amber-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                            title="Bu sözleşme henüz Vergi Dairesi damga pulu ile pullatılmadı! 'Pullatıldı' olarak işaretlemek için tıklayın."
-                          >
-                            <Stamp className="w-3 h-3 text-amber-600 shrink-0" />
-                            <span>Pullat</span>
-                          </button>
-                        )}
-                        {r.paymentPeriod && r.paymentPeriod !== "monthly" && (
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 shadow-2xs">
-                            📅 {r.paymentPeriod === "quarterly" ? "3 Aylık Peşin" : r.paymentPeriod === "semi_annual" ? "6 Aylık Peşin" : "12 Aylık Peşin"}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Kira Vade Hatırlatması */}
-                      {reminderStatus && (
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = encodeURIComponent(
-                                `Merhaba ${r.tenantName || "Kiracımız"}, ${r.propertyTitle} mülkünüz için her ayın ${r.dueDay}. günü vadeli ${r.monthlyRent} ${r.currency} kira ödemeniz ${
-                                  reminderStatus.isOverdue
-                                    ? "vadesi geçmiş durumdadır."
-                                    : reminderStatus.diffDays === 0
-                                    ? "için bugün son gündür."
-                                    : `${reminderStatus.diffDays} gün sonra vadesi dolacaktır.`
-                                } Ödeme ve dekont detayları için bu hat üzerinden iletişime geçebilirsiniz. Teşekkür ederiz.\n\nTrustline Estate`
-                              );
-                              const phone = cleanWhatsAppNumber(r.tenantPhone);
-                              window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
-                            }}
-                            className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                            title="Kiracıya tek tıkla resmi WhatsApp kira hatırlatması gönder"
-                          >
-                            <MessageCircle className="w-3 h-3 text-emerald-600 shrink-0" />
-                            <span>
-                              WhatsApp Kira Vade{" "}
-                              {reminderStatus.isOverdue
-                                ? "(Gecikmiş)"
-                                : reminderStatus.diffDays === 0
-                                ? "(Bugün)"
-                                : `(${reminderStatus.diffDays} Gün Kaldı)`}
-                            </span>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Aidat Vade Hatırlatması */}
-                      {duesReminderStatus && (
-                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = encodeURIComponent(
-                                `Merhaba ${r.tenantName || "Kiracımız"}, ${r.propertyTitle} mülkünüz için ${r.duesAmount} ${r.duesCurrency || "TRY"} tutarındaki aylık aidat ödemeniz ${
-                                  duesReminderStatus.isOverdue
-                                    ? "vadesi geçmiş durumdadır."
-                                    : duesReminderStatus.diffDays === 0
-                                    ? "için bugün son gündür."
-                                    : `${duesReminderStatus.diffDays} gün sonra vadesi dolacaktır.`
-                                } Aidat ödemenizi site yönetimine / ilgili hesaba iletip dekont/bilgi paylaşmanızı rica ederiz. Teşekkür ederiz.\n\nTrustline Estate`
-                              );
-                              const phone = cleanWhatsAppNumber(r.tenantPhone);
-                              window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
-                            }}
-                            className="text-[10px] font-mono font-bold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-300 px-2 py-0.5 inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
-                            title="Kiracıya tek tıkla resmi WhatsApp aidat hatırlatması gönder"
-                          >
-                            <Building className="w-3 h-3 text-indigo-600 shrink-0" />
-                            <span>
-                              WhatsApp Aidat Vade{" "}
-                              {duesReminderStatus.isOverdue
-                                ? "(Gecikmiş)"
-                                : duesReminderStatus.diffDays === 0
-                                ? "(Bugün)"
-                                : `(${duesReminderStatus.diffDays} Gün Kaldı)`}
-                            </span>
-                          </button>
-                        </div>
-                      )}
-
-                      {r.tenantPhone && r.tenantPhone !== "-" && !reminderStatus && !duesReminderStatus && (
-                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400 font-mono">
-                          <span>Kiracı İletişim: {formatPhoneWithPrefix(r.tenantPhone) || r.tenantPhone}</span>
-                        </div>
-                      )}
                     </td>
 
                     {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) */}

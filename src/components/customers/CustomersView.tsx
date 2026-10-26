@@ -104,10 +104,22 @@ export function CustomersView({
       if (c.deletedAt) return false;
       if (vipOnly && !c.isVip) return false;
       if (categoryFilter !== "ALL") {
-        if (categoryFilter === "BUYER" && c.category !== "BUYER" && c.category !== "SELLER_AND_BUYER") return false;
-        if (categoryFilter === "SELLER" && c.category !== "SELLER" && c.category !== "SELLER_AND_BUYER") return false;
-        if (categoryFilter === "TENANT" && c.category !== "TENANT") return false;
-        if (categoryFilter === "SELLER_AND_BUYER" && c.category !== "SELLER_AND_BUYER") return false;
+        const isBuyer =
+          c.category === "BUYER" ||
+          c.category === "SELLER_AND_BUYER" ||
+          c.category === "TENANT_AND_BUYER" ||
+          Boolean(c.isAlsoBuyer);
+        const isSeller =
+          c.category === "SELLER" ||
+          c.category === "SELLER_AND_BUYER";
+        const isTenant =
+          c.category === "TENANT" ||
+          c.category === "TENANT_AND_BUYER";
+
+        if (categoryFilter === "BUYER" && !isBuyer) return false;
+        if (categoryFilter === "SELLER" && !isSeller) return false;
+        if (categoryFilter === "TENANT" && !isTenant) return false;
+        if (categoryFilter === "SELLER_AND_BUYER" && !(c.category === "SELLER_AND_BUYER" || (isSeller && isBuyer))) return false;
       }
       if (temperatureFilter !== "ALL" && c.temperature !== temperatureFilter)
         return false;
@@ -231,30 +243,34 @@ export function CustomersView({
                 <td className="py-3 px-4">
                   {(() => {
                     const isActiveTenant = c.category === "TENANT" && isCustomerActiveTenant(c, rentals);
-                    const isDual = c.category === "SELLER_AND_BUYER" || c.isAlsoBuyer;
+                    const isTenant = c.category === "TENANT" || c.category === "TENANT_AND_BUYER";
+                    const isSeller = c.category === "SELLER" || c.category === "SELLER_AND_BUYER";
+                    const isBuyer = c.category === "BUYER" || Boolean(c.isAlsoBuyer);
+                    const isDualSeller = c.category === "SELLER_AND_BUYER" || (isSeller && isBuyer);
+                    const isDualTenant = c.category === "TENANT_AND_BUYER" || (isTenant && isBuyer);
+                    let badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                    let label = "Kiracı Adayı";
+
+                    if (isDualSeller) {
+                      badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+                      label = "Mal Sahibi & Alıcı";
+                    } else if (isDualTenant) {
+                      badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                      label = "Kiracı & Alıcı";
+                    } else if (c.category === "BUYER") {
+                      badgeClass = "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30";
+                      label = "Alıcı";
+                    } else if (c.category === "SELLER") {
+                      badgeClass = "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20";
+                      label = "Mal Sahibi";
+                    } else if (isActiveTenant) {
+                      badgeClass = "bg-slate-100 text-slate-700 border-slate-300";
+                      label = "Aktif Kiracı";
+                    }
+
                     return (
-                      <span
-                        className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${
-                          isDual
-                            ? "bg-purple-50 text-purple-700 border-purple-200"
-                            : c.category === "BUYER"
-                            ? "bg-[#00adb5]/10 text-[#00adb5] border-[#00adb5]/30"
-                            : c.category === "SELLER"
-                            ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/20"
-                            : isActiveTenant
-                            ? "bg-slate-100 text-slate-700 border-slate-300"
-                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        }`}
-                      >
-                        {isDual
-                          ? "Mal Sahibi & Alıcı"
-                          : c.category === "BUYER"
-                          ? "Alıcı"
-                          : c.category === "SELLER"
-                          ? "Mal Sahibi"
-                          : isActiveTenant
-                          ? "Aktif Kiracı"
-                          : "Kiracı Adayı"}
+                      <span className={`text-xs font-mono uppercase px-2.5 py-1 border font-bold ${badgeClass}`}>
+                        {label}
                       </span>
                     );
                   })()}

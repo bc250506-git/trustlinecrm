@@ -80,10 +80,23 @@ export function AddCustomerModal({
         setFormEmail(customerToEdit.email || "");
         setFormBirthDate(customerToEdit.birthDate || "");
 
-        const isDual =
-          customerToEdit.category === "SELLER_AND_BUYER" || !!customerToEdit.isAlsoBuyer;
-        setFormCategory(isDual ? "SELLER" : customerToEdit.category || "BUYER");
-        setIsAlsoBuyer(isDual);
+        const isDualSeller =
+          customerToEdit.category === "SELLER_AND_BUYER" ||
+          (customerToEdit.category === "SELLER" && Boolean(customerToEdit.isAlsoBuyer));
+        const isDualTenant =
+          customerToEdit.category === "TENANT_AND_BUYER" ||
+          (customerToEdit.category === "TENANT" && Boolean(customerToEdit.isAlsoBuyer));
+
+        if (isDualSeller) {
+          setFormCategory("SELLER");
+          setIsAlsoBuyer(true);
+        } else if (isDualTenant) {
+          setFormCategory("TENANT");
+          setIsAlsoBuyer(true);
+        } else {
+          setFormCategory(customerToEdit.category || "BUYER");
+          setIsAlsoBuyer(Boolean(customerToEdit.isAlsoBuyer));
+        }
         setFormTemperature(customerToEdit.temperature || "warm");
 
         const parsedRegs =
@@ -206,8 +219,12 @@ export function AddCustomerModal({
     const isTenant = formCategory === "TENANT";
     const shouldSaveCriteria = isBuyerCandidate;
 
-    const finalCategory: CustomerCategory =
-      isSeller && isAlsoBuyer ? "SELLER_AND_BUYER" : formCategory;
+    let finalCategory: CustomerCategory = formCategory;
+    if (isSeller && isAlsoBuyer) {
+      finalCategory = "SELLER_AND_BUYER";
+    } else if (isTenant && isAlsoBuyer) {
+      finalCategory = "TENANT_AND_BUYER";
+    }
     const finalIsAlsoBuyer = (isSeller || isTenant) && isAlsoBuyer;
 
     const finalRegion = shouldSaveCriteria && selectedRegions.length > 0 ? selectedRegions.join(", ") : "";

@@ -93,7 +93,18 @@ export async function getCustomers(): Promise<Customer[]> {
     if (error || !data) {
       return [];
     }
-    return data as Customer[];
+    return data.map((c: any) => {
+      const isAlsoBuyer =
+        c.isAlsoBuyer !== undefined
+          ? Boolean(c.isAlsoBuyer)
+          : c.is_also_buyer !== undefined
+          ? Boolean(c.is_also_buyer)
+          : c.category === "SELLER_AND_BUYER" || c.category === "TENANT_AND_BUYER";
+      return {
+        ...c,
+        isAlsoBuyer,
+      };
+    }) as Customer[];
   } catch {
     return [];
   }
@@ -101,10 +112,15 @@ export async function getCustomers(): Promise<Customer[]> {
 
 export async function saveCustomer(customer: Partial<Customer>): Promise<boolean> {
   try {
-    const { error } = await supabase.from("customers").upsert(customer);
+    const payload: any = { ...customer };
+    if (customer.isAlsoBuyer !== undefined) {
+      payload.isAlsoBuyer = Boolean(customer.isAlsoBuyer);
+      payload.is_also_buyer = Boolean(customer.isAlsoBuyer);
+    }
+    const { error } = await supabase.from("customers").upsert(payload);
     if (!error) return true;
     if (error.code === "PGRST204" || error.message?.includes("column")) {
-      const { isAlsoBuyer, ...safeCust } = customer as any;
+      const { isAlsoBuyer, is_also_buyer, ...safeCust } = payload;
       const { error: safeErr } = await supabase.from("customers").upsert(safeCust);
       return !safeErr;
     }
@@ -248,6 +264,7 @@ export async function getRentals(): Promise<RentalContract[]> {
       let hasDues = r.hasDues ?? false;
       let duesAmount = r.duesAmount ?? undefined;
       let duesCurrency = r.duesCurrency ?? undefined;
+      let dealId = r.dealId ?? undefined;
       let notes = r.notes ?? "";
 
       if (notes && notes.includes("<!--RENTAL_META:")) {
@@ -261,6 +278,7 @@ export async function getRentals(): Promise<RentalContract[]> {
             if (parsed.hasDues !== undefined) hasDues = parsed.hasDues;
             if (parsed.duesAmount !== undefined) duesAmount = parsed.duesAmount;
             if (parsed.duesCurrency !== undefined) duesCurrency = parsed.duesCurrency;
+            if (parsed.dealId !== undefined) dealId = parsed.dealId;
           }
           notes = notes.replace(/<!--RENTAL_META:.*?-->/g, "").trim();
         } catch {}
@@ -274,6 +292,7 @@ export async function getRentals(): Promise<RentalContract[]> {
         hasDues,
         duesAmount,
         duesCurrency,
+        dealId,
         notes,
       } as RentalContract;
     });
@@ -288,8 +307,7 @@ export async function saveRental(rental: Partial<RentalContract>): Promise<boole
     const { error } = await supabase.from("rentals").upsert(rental);
     if (!error) return true;
 
-    // 2. Eğer şema uyumsuzluğu varsa (isStamped / stampedAt / paymentPeriod kolonu henüz veritabanında açılmamışsa)
-    // Güvenli kolonlara indirge ve ek metaveriyi notes alanına göm
+    // 2. Eğer şema uyumsuzluğu varsa
     const safePayload: any = {
       id: rental.id,
       propertyId: rental.propertyId || null,
@@ -315,7 +333,7 @@ export async function saveRental(rental: Partial<RentalContract>): Promise<boole
       payments: rental.payments || [],
     };
 
-    if (rental.isStamped || rental.stampedAt || rental.paymentPeriod || rental.hasDues || rental.duesAmount) {
+    if (rental.isStamped || rental.stampedAt || rental.paymentPeriod || rental.hasDues || rental.duesAmount || rental.dealId) {
       const meta = {
         isStamped: rental.isStamped,
         stampedAt: rental.stampedAt,
@@ -323,6 +341,7 @@ export async function saveRental(rental: Partial<RentalContract>): Promise<boole
         hasDues: rental.hasDues,
         duesAmount: rental.duesAmount,
         duesCurrency: rental.duesCurrency,
+        dealId: rental.dealId,
       };
       const cleanNotes = (safePayload.notes || "").replace(/<!--RENTAL_META:.*?-->/g, "").trim();
       safePayload.notes = cleanNotes

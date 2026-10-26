@@ -13,7 +13,7 @@ export type PipelineStage =
 
 export type Currency = "TRY" | "USD" | "EUR" | "GBP";
 
-export type CustomerCategory = "BUYER" | "SELLER" | "TENANT" | "SELLER_AND_BUYER";
+export type CustomerCategory = "BUYER" | "SELLER" | "TENANT" | "SELLER_AND_BUYER" | "TENANT_AND_BUYER";
 
 export type PropertyStatus =
   | "AVAILABLE"
@@ -278,6 +278,7 @@ export interface RentalMonthPayment {
 
 export interface RentalContract {
   id: string;
+  dealId?: string; // İşlem kapamadan otomatik türetilmişse bağlı işlem ID'si
   propertyId?: string;
   propertyTitle: string;
   region: string;

@@ -965,14 +965,16 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       rentals.forEach((r) => {
         if (!r.active) return;
         const isAssigned =
-          currentUser.role === "ADMIN" ||
-          (r.assignedToId && r.assignedToId === currentUser.id) ||
+          (r.assignedToId && (
+            r.assignedToId === currentUser.id ||
+            ((currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") && (r.assignedToId === "usr-volkan" || r.assignedToId === "usr-ofis"))
+          )) ||
           (r.assignedToName &&
             currentUser.name &&
             r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
           (!r.assignedToId &&
             r.propertyId &&
-            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id));
+            properties.some((p) => p.id === r.propertyId && (p.assignedToId === currentUser.id || ((currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") && (p.assignedToId === "usr-volkan" || p.assignedToId === "usr-ofis")))));
         if (!isAssigned) return;
         r.payments.forEach((p) => {
           if (p.status === "unpaid" || p.status === "overdue") {
@@ -1133,14 +1135,16 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       rentals.forEach((r) => {
         if (!r.active || !r.contractEnd) return;
         const isAssigned =
-          currentUser.role === "ADMIN" ||
-          (r.assignedToId && r.assignedToId === currentUser.id) ||
+          (r.assignedToId && (
+            r.assignedToId === currentUser.id ||
+            ((currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") && (r.assignedToId === "usr-volkan" || r.assignedToId === "usr-ofis"))
+          )) ||
           (r.assignedToName &&
             currentUser.name &&
             r.assignedToName.trim().toLowerCase() === currentUser.name.trim().toLowerCase()) ||
           (!r.assignedToId &&
             r.propertyId &&
-            properties.some((p) => p.id === r.propertyId && p.assignedToId === currentUser.id));
+            properties.some((p) => p.id === r.propertyId && (p.assignedToId === currentUser.id || ((currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") && (p.assignedToId === "usr-volkan" || p.assignedToId === "usr-ofis")))));
         if (!isAssigned) return;
         const end = new Date(r.contractEnd);
         const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
@@ -1783,9 +1787,17 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
             d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
       );
 
-  // Danışmanın kendi kira takibi (Kira takibi YALNIZCA kira sahibi danışman tarafından görülür, diğer danışmanlar kesinlikle göremez)
+  // Danışmanın kendi kira takibi (HERKES KENDİNİNİNKİNİ GÖRÜR VE YÖNETİR, OFİS DAHİL)
   const isRentalOwner = (r: RentalContract) => {
-    if (r.assignedToId && r.assignedToId === currentUser.id) return true;
+    if (r.assignedToId) {
+      if (r.assignedToId === currentUser.id) return true;
+      if (
+        (currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") &&
+        (r.assignedToId === "usr-volkan" || r.assignedToId === "usr-ofis")
+      ) {
+        return true;
+      }
+    }
     if (
       r.assignedToName &&
       currentUser.name &&
@@ -1795,7 +1807,15 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     }
     if (!r.assignedToId && r.propertyId) {
       const prop = properties.find((p) => p.id === r.propertyId);
-      if (prop && prop.assignedToId === currentUser.id) return true;
+      if (prop) {
+        if (prop.assignedToId === currentUser.id) return true;
+        if (
+          (currentUser.id === "usr-volkan" || currentUser.id === "usr-ofis") &&
+          (prop.assignedToId === "usr-volkan" || prop.assignedToId === "usr-ofis")
+        ) {
+          return true;
+        }
+      }
     }
     if (!r.assignedToId && r.landlordCustomerId) {
       const cust = customers.find((c) => c.id === r.landlordCustomerId);
@@ -1809,7 +1829,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   };
 
   const myRentals = rentals.filter((r) => isRentalOwner(r));
-  const visibleRentals = isBroker ? rentals : myRentals;
+  const visibleRentals = myRentals;
 
   // Customer handlers
   const addCustomer = (customerData: Omit<Customer, "id" | "createdAt" | "updatedAt">): Customer => {
@@ -1847,7 +1867,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         currentUser.name &&
         d.partnerAdvisorName.trim().toLowerCase() === currentUser.name.trim().toLowerCase())
     );
-  const canManageRental = (r: RentalContract) => isBroker || isRentalOwner(r);
+  const canManageRental = (r: RentalContract) => isRentalOwner(r);
 
   const updateCustomer = (id: string, updates: Partial<Customer>): boolean => {
     const cust = customers.find((c) => c.id === id);
@@ -2068,6 +2088,19 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       prev.map((p) => (p.id === id ? updatedProperty : p))
     );
     saveProperty(updatedProperty).catch(() => {});
+
+    // Bağlı aktif kira sözleşmelerini de pasife al
+    setRentals((prev) =>
+      prev.map((r) => {
+        if (r.active !== false && r.propertyId === id) {
+          const upd: RentalContract = { ...r, active: false };
+          saveRental(upd).catch(() => {});
+          return upd;
+        }
+        return r;
+      })
+    );
+
     return true;
   };
 
@@ -2288,12 +2321,267 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     return true;
   };
 
+  const normText = (s?: string) =>
+    s ? s.trim().replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr-TR") : "";
+
+  /**
+   * Sözleşme başlangıç ve bitiş tarihlerine tam sadık kalarak
+   * ilgili aylar için ödeme taksitleri üretir (3 ay ise 3, 6 ay ise 6 taksit).
+   */
+  const generateRentalPayments = (
+    contractStart: string,
+    contractEnd: string,
+    dueDay: number,
+    monthlyRent: number,
+    currency: Currency,
+    existingPayments?: RentalMonthPayment[]
+  ): RentalMonthPayment[] => {
+    const startDate = new Date(contractStart || "2026-01-01");
+    const endDate = new Date(contractEnd || "2026-12-31");
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    const payments: RentalMonthPayment[] = [];
+
+    let currentYear = startDate.getFullYear();
+    let currentMonth = startDate.getMonth() + 1; // 1-12
+
+    const endYear = endDate.getFullYear();
+    const endMonth = endDate.getMonth() + 1; // 1-12
+
+    while (
+      currentYear < endYear ||
+      (currentYear === endYear && currentMonth <= endMonth)
+    ) {
+      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+      const adjDay = Math.min(Math.max(dueDay, 1), daysInMonth);
+      const mStr = String(currentMonth).padStart(2, "0");
+      const dStr = String(adjDay).padStart(2, "0");
+      const dueDate = `${currentYear}-${mStr}-${dStr}`;
+      const periodKey = `${currentYear}-${mStr}`;
+
+      const existing = existingPayments?.find(
+        (p) =>
+          p.periodKey === periodKey ||
+          p.dueDate === dueDate ||
+          (p.dueDate && p.dueDate.startsWith(periodKey)) ||
+          (existingPayments && existingPayments.length <= 12 && p.month === currentMonth && !p.year && String(currentYear) === "2026")
+      );
+
+      if (existing) {
+        payments.push({
+          ...existing,
+          month: currentMonth,
+          year: currentYear,
+          periodKey,
+          amount: existing.amount || monthlyRent,
+          currency: existing.currency || currency,
+          dueDate,
+          duesStatus: existing.duesStatus,
+          duesPaidDate: existing.duesPaidDate,
+          duesPaidAmount: existing.duesPaidAmount,
+        });
+      } else {
+        const isOverdue = dueDate < todayStr;
+        payments.push({
+          month: currentMonth,
+          year: currentYear,
+          periodKey,
+          amount: monthlyRent,
+          currency,
+          dueDate,
+          status: isOverdue ? "overdue" : "unpaid",
+          paidAmount: 0,
+          duesStatus: isOverdue ? "overdue" : "unpaid",
+          duesPaidAmount: 0,
+        });
+      }
+
+      currentMonth++;
+      if (currentMonth > 12) {
+        currentMonth = 1;
+        currentYear++;
+      }
+
+      if (payments.length > 120) break;
+    }
+
+    return payments;
+  };
+
+  // Kiralık bir işlem kapandığında (won) otomatik Kira Sözleşmesi oluşturma
+  const autoCreateRentalContractFromDeal = (deal: Deal) => {
+    if (deal.dealType !== "rent") return;
+
+    // Halihazırda bu işleme bağlı bir kira sözleşmesi var mı kontrol et
+    const existingContract = rentals.find(
+      (r) =>
+        r.dealId === deal.id ||
+        (deal.propertyId && r.propertyId === deal.propertyId && r.active !== false)
+    );
+    if (existingContract) {
+      return;
+    }
+
+    const matchedProp =
+      properties.find((p) => p.id === deal.propertyId) ||
+      properties.find(
+        (p) =>
+          normText(p.title) === normText(deal.propertyTitle || deal.title) &&
+          p.listingType === "rent"
+      );
+
+    const startDate = deal.closingDate || new Date().toISOString().split("T")[0];
+    const sDate = new Date(startDate);
+    const eDate = new Date(sDate.getFullYear() + 1, sDate.getMonth(), sDate.getDate());
+    const endDate = eDate.toISOString().split("T")[0];
+
+    const monthlyRent = deal.agreedPrice || deal.offeredPrice || deal.askingPrice || matchedProp?.price || 0;
+    const currency = deal.currency || matchedProp?.currency || "GBP";
+    const dueDay = 1;
+
+    let period: NonNullable<RentalContract["paymentPeriod"]> = "monthly";
+    const dealPm = ((deal.paymentMethod || "") + " " + (deal.durationText || "")).toLowerCase();
+    if (dealPm.includes("quarter") || dealPm.includes("3 ay") || dealPm.includes("üç ay")) {
+      period = "quarterly";
+    } else if (dealPm.includes("semi") || dealPm.includes("6 ay") || dealPm.includes("altı ay")) {
+      period = "semi_annual";
+    } else if (dealPm.includes("annual") || dealPm.includes("yıllık") || dealPm.includes("12 ay") || dealPm.includes("peşin")) {
+      period = "annual";
+    }
+
+    let payments = generateRentalPayments(
+      startDate,
+      endDate,
+      dueDay,
+      monthlyRent,
+      currency
+    );
+
+    let upfrontCount = 0;
+    if (period === "quarterly") upfrontCount = 3;
+    else if (period === "semi_annual") upfrontCount = 6;
+    else if (period === "annual") upfrontCount = 12;
+
+    if (upfrontCount > 0) {
+      const todayStr = new Date().toISOString().split("T")[0];
+      payments = payments.map((p, idx) => {
+        if (idx < upfrontCount) {
+          return {
+            ...p,
+            status: "paid",
+            paidAmount: p.amount,
+            paidDate: todayStr,
+            notes: (p.notes ? p.notes + " • " : "") + `${upfrontCount} Aylık Peşin Tahsilat`,
+          };
+        }
+        return p;
+      });
+    }
+
+    const newContract: RentalContract = {
+      id: `rnt-deal-${deal.id}`,
+      dealId: deal.id,
+      propertyId: matchedProp?.id || deal.propertyId || undefined,
+      propertyTitle: deal.propertyTitle || deal.title || matchedProp?.title || "Kiralık Portföy",
+      region: matchedProp?.region || "Girne",
+      landlordCustomerId: matchedProp?.ownerCustomerId || undefined,
+      landlordName: deal.landlordName || matchedProp?.ownerName || "Mal Sahibi",
+      landlordPhone: deal.landlordPhone || matchedProp?.ownerPhone || "",
+      tenantCustomerId: deal.customerId && deal.customerId !== "custom-cst" ? deal.customerId : undefined,
+      tenantName: deal.customerName || "Kiracı",
+      tenantPhone: deal.customerPhone || "",
+      monthlyRent,
+      currency,
+      depositAmount: monthlyRent,
+      dueDay,
+      paymentPeriod: period,
+      contractStart: startDate,
+      contractEnd: endDate,
+      assignedToId: deal.createdById || currentUser.id,
+      assignedToName: deal.createdByName || currentUser.name,
+      payments,
+      active: true,
+      isStamped: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    removeDeletedId(DELETED_RENTALS_KEY, newContract.id);
+    setRentals((prev) => [newContract, ...prev.filter((r) => r.id !== newContract.id)]);
+    saveRental(newContract).catch(() => {});
+  };
+
+  // Bir işlem silindiğinde veya iptal/kaybedildi (lost) olduğunda kira takipten kaldırma
+  const autoRemoveRentalContractFromDeal = (dealId: string) => {
+    const target = rentals.find((r) => r.dealId === dealId);
+    if (target) {
+      addDeletedId(DELETED_RENTALS_KEY, target.id);
+      setRentals((prev) => prev.filter((r) => r.id !== target.id));
+      deleteRentalFromDb(target.id).catch(() => {});
+    }
+  };
+
+  // Portföyün durumunu yeniden değerlendirip, aktif bir sözleşme/işlem kalmadıysa AVAILABLE'a çekme
+  const restorePropertyAvailabilityIfNoActiveDealsOrRentals = (propId?: string, propTitle?: string) => {
+    if (!propId && !propTitle) return;
+
+    setProperties((prev) =>
+      prev.map((p) => {
+        const isMatch =
+          Boolean(propId && p.id === propId) ||
+          Boolean(!propId && propTitle && normText(p.title) === normText(propTitle));
+
+        if (!isMatch) return p;
+
+        // Satılık ilanın durumunu kontrol et
+        if (p.listingType === "sale") {
+          const hasWonSaleDeal = deals.some(
+            (d) =>
+              d.stage === "won" &&
+              d.dealType === "sale" &&
+              (d.propertyId === p.id || normText(d.propertyTitle || d.title) === normText(p.title))
+          );
+          if (!hasWonSaleDeal && (p.status === "SOLD" || p.status === "RENTED")) {
+            const restored: Property = { ...p, status: "AVAILABLE", updatedAt: new Date().toISOString() };
+            saveProperty(restored).catch(() => {});
+            return restored;
+          }
+        }
+
+        // Kiralık ilanın durumunu kontrol et
+        if (p.listingType === "rent") {
+          const hasActiveContract = rentals.some(
+            (r) =>
+              r.active !== false &&
+              (r.propertyId === p.id || normText(r.propertyTitle) === normText(p.title))
+          );
+          const hasWonRentDeal = deals.some(
+            (d) =>
+              d.stage === "won" &&
+              d.dealType === "rent" &&
+              (d.propertyId === p.id || normText(d.propertyTitle || d.title) === normText(p.title))
+          );
+
+          if (!hasActiveContract && !hasWonRentDeal && p.status === "RENTED") {
+            const restored: Property = { ...p, status: "AVAILABLE", updatedAt: new Date().toISOString() };
+            saveProperty(restored).catch(() => {});
+            return restored;
+          }
+        }
+
+        return p;
+      })
+    );
+  };
+
   // Deals
   const updateDealStage = (
     id: string,
     newStage: "offer" | "won" | "lost",
     closingNotes?: string
   ) => {
+    let targetDeal: Deal | undefined = deals.find((d) => d.id === id);
+
     setDeals((prev) =>
       prev.map((d) => {
         if (d.id !== id) return d;
@@ -2306,39 +2594,52 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
               ? new Date().toISOString().split("T")[0]
               : d.closingDate,
         };
+        targetDeal = updated;
         saveDeal(updated).catch(() => {});
         return updated;
       })
     );
 
-    // EĞER İŞLEM KAZANILDIYSA (WON) BAĞLI PORTFÖYÜ PASİFE ÇEK
-    if (newStage === "won") {
-      const deal = deals.find((d) => d.id === id);
-      if (deal) {
-        const targetPropId = deal.propertyId;
-        const targetPropTitle = (deal.propertyTitle || deal.title)?.trim().toLowerCase();
-        const newStatus: PropertyStatus = deal.dealType === "rent" ? "RENTED" : "SOLD";
+    // EĞER İŞLEM KAZANILDIYSA (WON) BAĞLI PORTFÖYÜ PASİFE ÇEK VE KİRA TAKİBE EKLE
+    if (newStage === "won" && targetDeal) {
+      const deal = targetDeal;
+      const targetPropId = deal.propertyId;
+      const targetPropTitle = normText(deal.propertyTitle || deal.title);
+      const isRent = deal.dealType === "rent";
+      const newStatus: PropertyStatus = isRent ? "RENTED" : "SOLD";
 
-        setProperties((prev) =>
-          prev.map((p) => {
-            const pTitleNorm = p.title.trim().toLowerCase();
-            const isMatch =
-              Boolean(targetPropId && p.id === targetPropId) ||
-              Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
+      setProperties((prev) =>
+        prev.map((p) => {
+          // İkiz ilan koruması: Kiralık ise satılık olan eş bozulmaz, satılık ise kiralık olan eş bozulmaz
+          if (isRent && p.listingType === "sale") return p;
+          if (!isRent && p.listingType === "rent") return p;
 
-            if (isMatch && p.status !== newStatus) {
-              const updatedP: Property = {
-                ...p,
-                status: newStatus,
-                updatedAt: new Date().toISOString(),
-              };
-              saveProperty(updatedP).catch(() => {});
-              return updatedP;
-            }
-            return p;
-          })
-        );
+          const pTitleNorm = normText(p.title);
+          const isMatch =
+            Boolean(targetPropId && p.id === targetPropId) ||
+            Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
+
+          if (isMatch && p.status !== newStatus) {
+            const updatedP: Property = {
+              ...p,
+              status: newStatus,
+              updatedAt: new Date().toISOString(),
+            };
+            saveProperty(updatedP).catch(() => {});
+            return updatedP;
+          }
+          return p;
+        })
+      );
+
+      if (isRent) {
+        autoCreateRentalContractFromDeal(deal);
       }
+    } else if (newStage === "lost" && targetDeal) {
+      if (targetDeal.dealType === "rent") {
+        autoRemoveRentalContractFromDeal(targetDeal.id);
+      }
+      restorePropertyAvailabilityIfNoActiveDealsOrRentals(targetDeal.propertyId, targetDeal.propertyTitle || targetDeal.title);
     }
   };
 
@@ -2418,13 +2719,17 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 
     // İŞLEM KAPANDIĞINDA BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (SOLD veya RENTED)
     const targetPropId = dealData.propertyId;
-    const targetPropTitle = (dealData.propertyTitle || dealData.title)?.trim().toLowerCase();
-    const newStatus: PropertyStatus = dealData.dealType === "rent" ? "RENTED" : "SOLD";
+    const targetPropTitle = normText(dealData.propertyTitle || dealData.title);
+    const isRentDeal = newDeal.dealType === "rent";
+    const newStatus: PropertyStatus = isRentDeal ? "RENTED" : "SOLD";
 
     if (dealData.stage === "won" || !dealData.stage) {
       setProperties((prev) =>
         prev.map((p) => {
-          const pTitleNorm = p.title.trim().toLowerCase();
+          if (isRentDeal && p.listingType === "sale") return p;
+          if (!isRentDeal && p.listingType === "rent") return p;
+
+          const pTitleNorm = normText(p.title);
           const isMatch =
             Boolean(targetPropId && p.id === targetPropId) ||
             Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
@@ -2441,6 +2746,10 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           return p;
         })
       );
+
+      if (isRentDeal) {
+        autoCreateRentalContractFromDeal(newDeal);
+      }
     }
 
     // Eğer iç paylaşımlı bir işlemse ve 2. Danışman seçildiyse anlık bildirim oluştur
@@ -2576,15 +2885,19 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 
     // EĞER İŞLEM WON AŞAMASINA GEÇTİYSE BAĞLI PORTFÖYÜ PASİFE ÇEK
     const finalStage = updates.stage || deal.stage;
+    const finalDealType = updates.dealType || deal.dealType;
     if (finalStage === "won") {
       const targetPropId = updates.propertyId || deal.propertyId;
-      const targetPropTitle = (updates.propertyTitle || deal.propertyTitle || updates.title || deal.title)?.trim().toLowerCase();
-      const finalDealType = updates.dealType || deal.dealType;
-      const newStatus: PropertyStatus = finalDealType === "rent" ? "RENTED" : "SOLD";
+      const targetPropTitle = normText(updates.propertyTitle || deal.propertyTitle || updates.title || deal.title);
+      const isRent = finalDealType === "rent";
+      const newStatus: PropertyStatus = isRent ? "RENTED" : "SOLD";
 
       setProperties((prev) =>
         prev.map((p) => {
-          const pTitleNorm = p.title.trim().toLowerCase();
+          if (isRent && p.listingType === "sale") return p;
+          if (!isRent && p.listingType === "rent") return p;
+
+          const pTitleNorm = normText(p.title);
           const isMatch =
             Boolean(targetPropId && p.id === targetPropId) ||
             Boolean(!targetPropId && targetPropTitle && pTitleNorm === targetPropTitle && targetPropTitle.length >= 6);
@@ -2601,6 +2914,15 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           return p;
         })
       );
+
+      if (isRent) {
+        autoCreateRentalContractFromDeal(updatedDeal);
+      }
+    } else if (finalStage === "lost") {
+      if (deal.dealType === "rent") {
+        autoRemoveRentalContractFromDeal(deal.id);
+      }
+      restorePropertyAvailabilityIfNoActiveDealsOrRentals(deal.propertyId, deal.propertyTitle || deal.title);
     }
 
     return true;
@@ -2624,92 +2946,13 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       return updated;
     });
     deleteDealFromDb(id).catch(() => {});
-    return true;
-  };
 
-  /**
-   * Sözleşme başlangıç ve bitiş tarihlerine tam sadık kalarak
-   * ilgili aylar için ödeme taksitleri üretir (3 ay ise 3, 6 ay ise 6 taksit).
-   */
-  const generateRentalPayments = (
-    contractStart: string,
-    contractEnd: string,
-    dueDay: number,
-    monthlyRent: number,
-    currency: Currency,
-    existingPayments?: RentalMonthPayment[]
-  ): RentalMonthPayment[] => {
-    const startDate = new Date(contractStart || "2026-01-01");
-    const endDate = new Date(contractEnd || "2026-12-31");
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-    const payments: RentalMonthPayment[] = [];
-
-    let currentYear = startDate.getFullYear();
-    let currentMonth = startDate.getMonth() + 1; // 1-12
-
-    const endYear = endDate.getFullYear();
-    const endMonth = endDate.getMonth() + 1; // 1-12
-
-    while (
-      currentYear < endYear ||
-      (currentYear === endYear && currentMonth <= endMonth)
-    ) {
-      const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
-      const adjDay = Math.min(Math.max(dueDay, 1), daysInMonth);
-      const mStr = String(currentMonth).padStart(2, "0");
-      const dStr = String(adjDay).padStart(2, "0");
-      const dueDate = `${currentYear}-${mStr}-${dStr}`;
-      const periodKey = `${currentYear}-${mStr}`;
-
-      const existing = existingPayments?.find(
-        (p) =>
-          p.periodKey === periodKey ||
-          p.dueDate === dueDate ||
-          (p.dueDate && p.dueDate.startsWith(periodKey)) ||
-          (existingPayments && existingPayments.length <= 12 && p.month === currentMonth && !p.year && String(currentYear) === "2026")
-      );
-
-      if (existing) {
-        payments.push({
-          ...existing,
-          month: currentMonth,
-          year: currentYear,
-          periodKey,
-          amount: existing.amount || monthlyRent,
-          currency: existing.currency || currency,
-          dueDate,
-          duesStatus: existing.duesStatus,
-          duesPaidDate: existing.duesPaidDate,
-          duesPaidAmount: existing.duesPaidAmount,
-        });
-      } else {
-        const isOverdue = dueDate < todayStr;
-        payments.push({
-          month: currentMonth,
-          year: currentYear,
-          periodKey,
-          amount: monthlyRent,
-          currency,
-          dueDate,
-          status: isOverdue ? "overdue" : "unpaid",
-          paidAmount: 0,
-          duesStatus: isOverdue ? "overdue" : "unpaid",
-          duesPaidAmount: 0,
-        });
-      }
-
-      currentMonth++;
-      if (currentMonth > 12) {
-        currentMonth = 1;
-        currentYear++;
-      }
-
-      if (payments.length > 120) break;
+    if (deal.dealType === "rent") {
+      autoRemoveRentalContractFromDeal(deal.id);
     }
+    restorePropertyAvailabilityIfNoActiveDealsOrRentals(deal.propertyId, deal.propertyTitle || deal.title);
 
-    return payments;
+    return true;
   };
 
   // Rentals & Dinamik Taksit Motoru
@@ -2904,6 +3147,34 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       return updated;
     });
     deleteRentalFromDb(id).catch(() => {});
+
+    // Bu sözleşme silindiğinde, eğer bağlı portföyde başka aktif kira sözleşmesi veya won deal kalmadıysa portföyü AVAILABLE yap!
+    if (rental.propertyId || rental.propertyTitle) {
+      const remainingRentals = rentals.filter((r) => r.id !== id && r.active !== false);
+      const hasOtherRental = remainingRentals.some(
+        (r) =>
+          (rental.propertyId && r.propertyId === rental.propertyId) ||
+          normText(r.propertyTitle) === normText(rental.propertyTitle)
+      );
+
+      if (!hasOtherRental) {
+        setProperties((prev) =>
+          prev.map((p) => {
+            const isMatch =
+              (rental.propertyId && p.id === rental.propertyId) ||
+              normText(p.title) === normText(rental.propertyTitle);
+
+            if (isMatch && p.status === "RENTED" && p.listingType === "rent") {
+              const restored: Property = { ...p, status: "AVAILABLE", updatedAt: new Date().toISOString() };
+              saveProperty(restored).catch(() => {});
+              return restored;
+            }
+            return p;
+          })
+        );
+      }
+    }
+
     return true;
   };
 

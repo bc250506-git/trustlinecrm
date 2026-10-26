@@ -379,8 +379,19 @@ export function findMatchesForProperty(
   return customers
     .filter((c) => {
       if (c.deletedAt) return false;
-      // Satıcılar hiçbir portföye alıcı/kiracı olarak önerilemez
-      if (c.category === "SELLER") return false;
+
+      const isBuyerCandidate =
+        c.category === "BUYER" ||
+        c.category === "SELLER_AND_BUYER" ||
+        c.category === "TENANT_AND_BUYER" ||
+        Boolean(c.isAlsoBuyer);
+
+      const isTenantCandidate =
+        (c.category === "TENANT" || c.category === "TENANT_AND_BUYER") &&
+        !isCustomerActiveTenant(c, rentals);
+
+      // Sadece satıcı olanlar (aynı zamanda alıcı olmayanlar) hiçbir portföye alıcı/kiracı önerilemez
+      if (c.category === "SELLER" && !c.isAlsoBuyer) return false;
 
       // Mülk sahibi kendi portföyüne müşteri olarak önerilemez
       const isOwner =
@@ -389,15 +400,14 @@ export function findMatchesForProperty(
         (property.ownerName && c.fullName && property.ownerName.trim().toLowerCase() === c.fullName.trim().toLowerCase());
       if (isOwner) return false;
 
-      // Satılık portföye YALNIZCA ALICI (BUYER)
+      // Satılık portföye ALICI (BUYER, SELLER_AND_BUYER, TENANT_AND_BUYER veya isAlsoBuyer)
       if (property.listingType === "sale") {
-        return c.category === "BUYER";
+        return isBuyerCandidate;
       }
 
       // Kiralık portföye YALNIZCA KİRACI ADAYI (Aktif sözleşmesi bulunmayan TENANT)
       if (property.listingType === "rent") {
-        if (c.category !== "TENANT") return false;
-        return !isCustomerActiveTenant(c, rentals);
+        return isTenantCandidate;
       }
 
       return false;

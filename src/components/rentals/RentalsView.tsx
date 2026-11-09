@@ -1455,38 +1455,25 @@ export function RentalsView() {
                     key={r.id}
                     className={`group transition ${
                       hasOverdue
-                        ? "bg-rose-50/90 hover:bg-rose-100/95 border-y-2 border-rose-400 shadow-sm"
+                        ? "bg-rose-50/60 hover:bg-rose-100/60"
                         : "hover:bg-slate-50"
                     }`}
                   >
-                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Pullatılmış / Pullatılmamış / Günü Geçmiş Renk Farkı */}
+                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Sönük Kırmızı Arkaplan */}
                     <td
                       className={`py-3 px-3.5 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
                         hasOverdue
-                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] border-l-4 border-l-rose-600 ring-1 ring-rose-200"
-                          : r.isStamped
-                          ? "bg-white group-hover:bg-slate-50 border-l-4 border-l-emerald-500"
-                          : "bg-white group-hover:bg-slate-50 border-l-4 border-l-amber-400"
+                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
+                          : "bg-white group-hover:bg-slate-50"
+                      } ${
+                        r.isStamped
+                          ? "border-l-4 border-l-emerald-500"
+                          : "border-l-4 border-l-amber-400"
                       }`}
                     >
-                      {/* 🚨 GÜNÜ GEÇEN KİRA UYARI ŞERİDİ */}
-                      {hasOverdue && (
-                        <div className="mb-2 px-2 py-1 bg-rose-600 text-white font-mono text-[10.5px] font-bold flex items-center justify-between gap-1 shadow-xs border border-rose-700 animate-pulse">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-white" />
-                            <span className="tracking-wide uppercase">GÜNÜ GEÇTİ • {overdueInfo.maxOverdueDays} GÜN GECİKTİ</span>
-                          </div>
-                          <span className="text-[9px] bg-rose-800 text-rose-100 px-1.5 py-0.2 shrink-0 font-bold">
-                            {overdueInfo.overdueLabels.slice(0, 2).join(", ")}
-                          </span>
-                        </div>
-                      )}
-
                       {/* 1. Portföy Adı */}
                       <div
-                        className={`font-bold text-xs leading-snug line-clamp-1 ${
-                          hasOverdue ? "text-rose-950 font-extrabold" : "text-[#1d2566]"
-                        }`}
+                        className="font-bold text-[#1d2566] text-xs leading-snug line-clamp-1"
                         title={r.propertyTitle}
                       >
                         {r.propertyTitle || "İsimsiz Portföy"}
@@ -1560,23 +1547,17 @@ export function RentalsView() {
 
                     {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) */}
                     <td
-                      className={`py-3 px-3 text-right font-mono font-bold whitespace-nowrap sticky left-[300px] z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                      className={`py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
                         hasOverdue
-                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] text-rose-950 border-r border-rose-200"
-                          : "bg-white group-hover:bg-slate-50 text-[#1d2566]"
+                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
+                          : "bg-white group-hover:bg-slate-50"
                       }`}
                     >
-                      <div className={`text-xs ${hasOverdue ? "text-rose-900 font-extrabold" : ""}`}>
+                      <div className="text-xs">
                         {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
                       </div>
                       {r.hasDues && r.duesAmount ? (
-                        <div
-                          className={`text-[10px] font-sans font-semibold px-1.5 py-0.5 mt-1 border inline-block shadow-2xs ${
-                            overdueInfo.overdueDuesCount > 0
-                              ? "bg-rose-100 text-rose-900 border-rose-300 font-bold"
-                              : "text-indigo-700 bg-indigo-50/90 border-indigo-200"
-                          }`}
-                        >
+                        <div className="text-[10px] font-sans font-semibold text-indigo-700 bg-indigo-50/90 px-1.5 py-0.5 mt-1 border border-indigo-200 inline-block shadow-2xs">
                           Aidat: {r.duesAmount.toLocaleString("tr-TR")} {r.duesCurrency || "TRY"}
                         </div>
                       ) : (
@@ -1603,16 +1584,16 @@ export function RentalsView() {
                         return (
                           <td
                             key={m.key}
-                            className={`py-2 px-1 text-center border-r transition ${
+                            className={`py-2 px-1 text-center border-r border-slate-100 transition ${
                               hasOverdue
-                                ? "bg-[#fff1f2]/50 group-hover:bg-[#ffe4e6]/60 border-rose-200/50 text-rose-300"
+                                ? "bg-rose-50/40 group-hover:bg-rose-100/50"
                                 : isCurrentRealMonth
-                                ? "bg-cyan-50/25 border-slate-100 text-slate-300"
-                                : "bg-slate-50/30 border-slate-100 text-slate-300"
+                                ? "bg-cyan-50/25"
+                                : "bg-slate-50/30"
                             }`}
                           >
                             <div
-                              className="h-10 flex items-center justify-center font-mono text-sm select-none border border-transparent"
+                              className="h-10 flex items-center justify-center font-mono text-sm text-slate-300 select-none border border-transparent"
                               title={`${r.propertyTitle} — Bu ay (${m.fullName} ${m.year}) sözleşme kapsamında değil`}
                             >
                               —
@@ -1649,40 +1630,24 @@ export function RentalsView() {
                       return (
                         <td
                           key={m.key}
-                          className={`py-2 px-1 text-center border-r transition ${
-                            isOverdue
-                              ? "bg-rose-100/95 border-rose-300"
-                              : hasOverdue
-                              ? "bg-[#fff1f2]/70 group-hover:bg-[#ffe4e6]/80 border-rose-200/60"
+                          className={`py-2 px-1 text-center border-r border-slate-100 transition ${
+                            hasOverdue
+                              ? "bg-rose-50/50 group-hover:bg-rose-100/60"
                               : isCurrentRealMonth
-                              ? "bg-cyan-50/20 border-slate-100"
-                              : "border-slate-100"
+                              ? "bg-cyan-50/20"
+                              : ""
                           }`}
                         >
                           <div
                             className={`p-1 border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                               isPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
-                                : isOverdue
-                                ? "bg-rose-100 border-rose-500 text-rose-950 font-bold shadow-xs ring-1 ring-rose-400"
                                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                             }`}
                           >
-                            <div
-                              className={`text-[10px] font-mono leading-none flex items-center justify-center gap-0.5 ${
-                                isOverdue ? "text-rose-900 font-extrabold" : ""
-                              }`}
-                            >
-                              {isOverdue && <AlertTriangle className="w-2.5 h-2.5 text-rose-600 shrink-0" />}
-                              <span>{dueDayLabel}</span>
+                            <div className="text-[10px] font-mono leading-none">
+                              {dueDayLabel}
                             </div>
-
-                            {/* Gecikti rozeti */}
-                            {isOverdue && (
-                              <span className="text-[7.5px] font-mono font-bold bg-rose-600 text-white px-1 py-0.2 rounded-2xs uppercase tracking-tight shadow-2xs">
-                                Gecikti
-                              </span>
-                            )}
 
                             {/* Kira Ödeme Durumu & Buton */}
                             <div
@@ -1703,13 +1668,9 @@ export function RentalsView() {
                                 title={
                                   isPaid
                                     ? `${m.fullName} ${m.year}: Kira Ödendi olarak işaretli (Tıkla ve kaldır)`
-                                    : isOverdue
-                                    ? `${m.fullName} ${m.year}: Kira GÜNÜ GEÇTİ! Ödendi olarak işaretlemek için tıkla`
                                     : `${m.fullName} ${m.year}: Kira Ödendi olarak işaretle`
                                 }
-                                className={`w-3.5 h-3.5 rounded-none cursor-pointer ${
-                                  isOverdue ? "accent-rose-600 ring-1 ring-rose-400" : "accent-emerald-600"
-                                }`}
+                                className="w-3.5 h-3.5 accent-emerald-600 rounded-none cursor-pointer"
                               />
 
                               {/* Dekont Butonu */}
@@ -1747,15 +1708,11 @@ export function RentalsView() {
                                 className={`w-full mt-1 pt-0.5 border-t flex items-center justify-between px-1 text-[9px] font-mono transition ${
                                   isDuesPaid
                                     ? "border-indigo-200 bg-indigo-50/70 text-indigo-900 font-semibold"
-                                    : isDuesOverdue
-                                    ? "border-rose-400 bg-rose-200 text-rose-950 font-bold"
                                     : "border-slate-200/80 bg-slate-50/60 text-slate-500"
                                 }`}
                                 title={
                                   isDuesPaid
                                     ? `${m.fullName}: Aidat Ödendi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
-                                    : isDuesOverdue
-                                    ? `${m.fullName}: Aidat Vadesi Geçti! (${r.duesAmount} ${r.duesCurrency || "TRY"})`
                                     : `${m.fullName}: Aidat Ödenmedi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
                                 }
                               >
@@ -1789,7 +1746,7 @@ export function RentalsView() {
                     <td
                       className={`py-2 px-2 text-center sticky right-0 z-10 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
                         hasOverdue
-                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] border-l border-rose-200"
+                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
                           : "bg-white group-hover:bg-slate-50"
                       }`}
                     >

@@ -436,7 +436,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
               type="button"
               onClick={() => setIsNotificationDrawerOpen(true)}
               className="sharp-card p-4 border-t-3 border-t-rose-500 text-left transition-all hover:shadow-md hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between col-span-2 lg:col-span-1"
-              title="Otomasyon & Bildirim Masasını Aç"
+              title="Bildirimler & Alarmlar Masasını Aç"
             >
               <div>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 font-bold mb-1.5 flex items-center justify-between">
@@ -455,7 +455,7 @@ export function DashboardView({ onNavigate, onOpenCustomer }: DashboardViewProps
                 </div>
               </div>
               <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2 font-mono pt-2 border-t border-slate-100">
-                <span className="truncate">Otomasyon Bildirimleri</span>
+                <span className="truncate">Bildirimler & Alarmlar</span>
                 <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-500 shrink-0 transition-colors" />
               </div>
             </button>

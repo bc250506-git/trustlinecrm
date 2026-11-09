@@ -97,6 +97,7 @@ export interface Customer {
   fullName: string;
   phone: string;
   whatsapp: string;
+  isForeignNumber?: boolean;
   instagramHandle?: string;
   email?: string;
   birthDate?: string; // YYYY-MM-DD (Opsiyonel Doğum Tarihi)
@@ -156,7 +157,7 @@ export interface Property {
   rooms: string;
   status: PropertyStatus;
   address: string;
-  ownerCustomerId?: string;
+  ownerCustomerId?: string | null;
   ownerName: string;
   ownerPhone: string;
   keyHolder?: string;
@@ -178,6 +179,8 @@ export interface Property {
   updatedAt: string;
 }
 
+export type RecurrenceRule = "monthly" | "weekly" | "yearly";
+
 export interface FollowUp {
   id: string;
   customerId?: string;
@@ -198,6 +201,12 @@ export interface FollowUp {
   createdById?: string;
   createdByName?: string;
   createdAt: string;
+
+  // Tekrarlayan Rutin Görev Alanları
+  isRecurring?: boolean;
+  recurrenceRule?: RecurrenceRule;
+  recurrenceGroupId?: string;
+  recurrenceIndex?: number;
 }
 
 export type DealSharingType = "none" | "external" | "internal";
@@ -316,7 +325,7 @@ export interface MandateContract {
   region: string;
   listingPrice: number;
   currency: Currency;
-  ownerCustomerId?: string;
+  ownerCustomerId?: string | null;
   ownerName: string;
   ownerPhone: string;
   mandateType: "exclusive" | "open"; // Tek Yetkili / Genel Yetki

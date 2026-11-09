@@ -15,6 +15,7 @@ import { AddPropertyModal } from "./AddPropertyModal";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix } from "@/lib/formatters";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
 
 interface AddMandateModalProps {
   isOpen: boolean;
@@ -67,6 +68,33 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen]);
+
+  const propertyOptions = React.useMemo<SearchableOption[]>(() => {
+    return properties
+      .filter((p) => !p.deletedAt)
+      .map((p) => ({
+        value: p.id,
+        label: p.title,
+        sublabel: `${p.region || "KKTC"} • ${p.price.toLocaleString("tr-TR")} ${p.currency} • ${p.propertyType || "Gayrimenkul"}`,
+        badge: p.listingType === "rent" ? "KİRALIK" : "SATILIK",
+        badgeColor: p.listingType === "rent" ? "bg-cyan-50 text-cyan-800 border-cyan-200" : "bg-emerald-50 text-emerald-800 border-emerald-200",
+        keywords: `${p.title} ${p.region || ""} ${p.propertyType || ""} ${p.price} ${p.currency}`,
+      }));
+  }, [properties]);
+
+  const ownerCustomerOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone || c.whatsapp) || c.phone || c.whatsapp || "Tel yok"} • ${c.region || "KKTC"}`,
+        group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ / SATICILAR" : "👥 DİĞER MÜŞTERİLER",
+        badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Müşteri",
+        badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
 
   if (!isOpen) return null;
 
@@ -142,26 +170,20 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
                 <Plus className="w-3 h-3" /> + Yeni Portföy Ekle
               </button>
             </div>
-            <select
+            <SearchableSelect
               required
+              options={propertyOptions}
               value={formPropertyId}
-              onChange={(e) => {
-                const pid = e.target.value;
+              onChange={(pid) => {
                 setFormPropertyId(pid);
                 const prop = properties.find((p) => p.id === pid);
                 if (prop && prop.ownerCustomerId) {
                   setFormOwnerCustomerId(prop.ownerCustomerId);
                 }
               }}
-              className="sharp-input w-full p-2 bg-white font-mono"
-            >
-              <option value="">-- Portföy Seçin --</option>
-              {properties.filter((p) => !p.deletedAt).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title} ({p.region}) - {p.price.toLocaleString("tr-TR")} {p.currency}
-                </option>
-              ))}
-            </select>
+              placeholder="-- Portföy havuzundan seçin veya arayın * --"
+              searchPlaceholder="Portföy adı, bölge, fiyat ara..."
+            />
           </div>
 
           {/* 2. Mal Sahibi Seçimi */}
@@ -179,19 +201,14 @@ export function AddMandateModal({ isOpen, onClose, onSuccess }: AddMandateModalP
                 <Plus className="w-3 h-3" /> + Yeni Müşteri Ekle
               </button>
             </div>
-            <select
+            <SearchableSelect
               required
+              options={ownerCustomerOptions}
               value={formOwnerCustomerId}
-              onChange={(e) => setFormOwnerCustomerId(e.target.value)}
-              className="sharp-input w-full p-2 bg-white font-mono"
-            >
-              <option value="">-- Mal Sahibi Seçin --</option>
-              {customers.filter((c) => !c.deletedAt).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.fullName} ({formatPhoneWithPrefix(c.phone || c.whatsapp) || c.phone || c.whatsapp || "Tel yok"}) - {c.category === "SELLER" ? "Satıcı" : "Müşteri"}
-                </option>
-              ))}
-            </select>
+              onChange={setFormOwnerCustomerId}
+              placeholder="-- Mal Sahibi seçin veya arayın * --"
+              searchPlaceholder="Mal sahibi adı, telefon ara..."
+            />
           </div>
 
           {/* 3. Yetki Tipi & Komisyon Oranı */}

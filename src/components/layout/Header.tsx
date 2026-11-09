@@ -89,15 +89,15 @@ export function Header({ onNavigateTab, onOpenCustomer, onOpenProperty }: Header
           </span>
         </div>
 
-        {/* Bildirim Zili ve Otomasyon Masası Butonu */}
+        {/* Bildirim Zili ve Bildirimler Masası Butonu */}
         <button
           type="button"
           onClick={() => setIsNotificationDrawerOpen(true)}
           className="relative px-2 sm:px-3 py-1.5 bg-white border border-slate-300 hover:border-[#00adb5] text-slate-700 hover:text-[#1d2566] transition cursor-pointer shadow-2xs flex items-center gap-1.5 font-mono text-sm shrink-0"
-          title="Akıllı Bildirim & Otomasyon Masası (Faz 2)"
+          title="Bildirimler & Alarmlar"
         >
           <Bell className="w-4 h-4 text-[#1d2566]" />
-          <span className="hidden sm:inline font-bold text-[#1d2566]">Otomasyon</span>
+          <span className="hidden sm:inline font-bold text-[#1d2566]">Bildirimler</span>
           {unreadNotificationCount > 0 ? (
             <span className="bg-rose-500 text-white font-mono text-xs font-bold px-1.5 py-0.2 rounded-full animate-pulse">
               {unreadNotificationCount}

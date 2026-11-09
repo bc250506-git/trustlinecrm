@@ -102,6 +102,7 @@ interface StoreContextType {
   markAllNotificationsAsRead: () => void;
   deleteNotification: (id: string) => void;
   toggleAutomationRule: (id: string) => void;
+  toggleAllAutomationRules: (enable: boolean) => void;
   triggerAutomationEngine: () => {
     matchesFound: number;
     rentAlerts: number;
@@ -136,7 +137,7 @@ interface StoreContextType {
   togglePropertyShare: (id: string) => void;
   addFollowUp: (followUp: Omit<FollowUp, "id" | "createdAt">) => void;
   updateFollowUp: (id: string, updates: Partial<FollowUp>) => void;
-  deleteFollowUp: (id: string) => boolean;
+  deleteFollowUp: (id: string, deleteFutureGroup?: boolean) => boolean;
   postponeFollowUp: (id: string) => void;
   completeFollowUp: (id: string, outcome: string, feedback?: string) => void;
   updateDealStage: (id: string, newStage: "offer" | "won" | "lost", closingNotes?: string) => void;
@@ -218,6 +219,9 @@ const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
 const DELETED_DEALS_KEY = "trustline_crm_deleted_deals_v1";
 const DELETED_MANDATES_KEY = "trustline_crm_deleted_mandates_v1";
 const DELETED_RENTALS_KEY = "trustline_crm_deleted_rentals_v1";
+const DELETED_PROPERTIES_KEY = "trustline_crm_deleted_properties_v1";
+const DELETED_CUSTOMERS_KEY = "trustline_crm_deleted_customers_v1";
+const AUTOMATION_RULES_STORAGE_KEY = "trustline_crm_automation_rules_v1";
 
 function getDeletedIds(key: string): Set<string> {
   if (typeof window !== "undefined") {
@@ -373,31 +377,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return initialUsers[0]; // Volkan Affan Kanıgür
   });
 
-  const [customers, setCustomers] = useState<Customer[]>(() =>
-    loadFromStorage(CUSTOMERS_STORAGE_KEY, initialCustomers)
-  );
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const raw = loadFromStorage(CUSTOMERS_STORAGE_KEY, initialCustomers);
+    const deleted = getDeletedIds(DELETED_CUSTOMERS_KEY);
+    return (raw || initialCustomers).filter((c) => !deleted.has(c.id));
+  });
 
 function sanitizeLoadedProperties(list: Property[]): Property[] {
   if (!Array.isArray(list)) return [];
   return list.map((p) => {
     let modified = p;
-    // 1. Gerçek portföyler için yanlışlıkla silinmiş işaretlenenleri canlıya döndür
-    if (
-      p.deletedAt &&
-      p.title !== "123" &&
-      p.title !== "123123" &&
-      (p.deletedAt.includes("2026-10-22") ||
-        p.ownerCustomerId === "cst-1792140797141" ||
-        p.title.length > 5)
-    ) {
-      modified = {
-        ...modified,
-        deletedAt: null,
-        ownerCustomerId: p.ownerCustomerId === "cst-1792140797141" ? undefined : p.ownerCustomerId,
-      };
-    }
-
-    // 2. KESİN GÜVENLİK KORUMASI:
     // Satılık ilanlar (listingType === 'sale') ASLA 'RENTED' olamaz!
     // Eğer bir satılık ilanın durumu yanlışlıkla RENTED yapılmışsa, derhal 'AVAILABLE' (Aktif) durumuna çekilir.
     if (modified.listingType === "sale" && modified.status === "RENTED") {
@@ -412,19 +401,14 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 }
 
   const [properties, setProperties] = useState<Property[]>(() => {
-    const fromStorage = loadFromStorage(PROPERTIES_STORAGE_KEY, initialProperties);
-    const sanitized = sanitizeLoadedProperties(fromStorage || initialProperties);
-    // Depolamada eski/kırpılmış veri veya resimsiz veri varsa, güncel başlangıç snapshot'ını kullan
-    if (!sanitized || sanitized.length < initialProperties.length) {
-      return sanitizeLoadedProperties(initialProperties);
+    const fromStorage = loadFromStorage<Property>(PROPERTIES_STORAGE_KEY, []);
+    const deletedProps = getDeletedIds(DELETED_PROPERTIES_KEY);
+    if (fromStorage && fromStorage.length > 0) {
+      const filtered = fromStorage.filter((p) => !deletedProps.has(p.id));
+      return sanitizeLoadedProperties(filtered);
     }
-    const storageHasPhotos = sanitized.some(
-      (p) => p.imageUrl || (p.photos && p.photos.length > 0 && p.photos[0].url)
-    );
-    if (!storageHasPhotos && initialProperties.some((p) => p.imageUrl)) {
-      return sanitizeLoadedProperties(initialProperties);
-    }
-    return sanitized;
+    const filteredInit = initialProperties.filter((p) => !deletedProps.has(p.id));
+    return sanitizeLoadedProperties(filteredInit);
   });
 
   const [followUps, setFollowUps] = useState<FollowUp[]>(() =>
@@ -440,9 +424,20 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   });
 
   const [rentals, setRentals] = useState<RentalContract[]>(() => {
+    // Güvenlik: Aktif kira sözleşmelerinin asla kaybolmaması için koruma
+    removeDeletedId(DELETED_RENTALS_KEY, "rnt-1793003702642");
+    removeDeletedId(DELETED_RENTALS_KEY, "rnt-1794231745001");
     const raw = loadFromStorage(RENTALS_STORAGE_KEY, initialRentals);
     const deleted = getDeletedIds(DELETED_RENTALS_KEY);
-    return raw.filter((r) => !deleted.has(r.id));
+    const todayStr = new Date().toISOString().split("T")[0];
+    return raw
+      .filter((r) => !deleted.has(r.id))
+      .map((r) => {
+        if (r.active === false && (!r.contractEnd || r.contractEnd >= todayStr)) {
+          return { ...r, active: true };
+        }
+        return r;
+      });
   });
 
   const [mandates, setMandates] = useState<MandateContract[]>(() => {
@@ -452,26 +447,47 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   });
 
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
-  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(initialAutomationRules);
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>(() => {
+    const saved = loadFromStorage<AutomationRule>(AUTOMATION_RULES_STORAGE_KEY, []);
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      const savedMap = new Map(saved.map((r) => [r.id, r]));
+      return initialAutomationRules.map((initRule) => {
+        const userRule = savedMap.get(initRule.id);
+        if (userRule) {
+          return {
+            ...initRule,
+            enabled: Boolean(userRule.enabled),
+            lastTriggeredAt: userRule.lastTriggeredAt || initRule.lastTriggeredAt,
+          };
+        }
+        return initRule;
+      });
+    }
+    return initialAutomationRules;
+  });
 
   // Sayfa açılır açılmaz IndexedDB'den fotoğraflı güncel portföyleri hemen (0ms) yükle
   useEffect(() => {
     idbGet<Property[]>("trustline_crm_properties_v2").then((cached) => {
-      if (cached && Array.isArray(cached) && cached.length >= initialProperties.length) {
-        const sanitizedCached = sanitizeLoadedProperties(cached);
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        const deletedProps = getDeletedIds(DELETED_PROPERTIES_KEY);
+        const validCached = cached.filter((p) => !deletedProps.has(p.id));
         setProperties((prev) => {
-          const prevHasPhotos = prev.some((p) => p.imageUrl);
-          const cachedHasPhotos = sanitizedCached.some((p) => p.imageUrl);
-          if (prev.length < sanitizedCached.length || (!prevHasPhotos && cachedHasPhotos)) {
-            return sanitizedCached;
-          }
-          return prev.map((p) => {
-            const found = sanitizedCached.find((c) => c.id === p.id);
-            if (found && p.deletedAt && !found.deletedAt) {
-              return found;
+          const prevMap = new Map(prev.map((p) => [p.id, p]));
+          for (const c of validCached) {
+            const existing = prevMap.get(c.id);
+            if (!existing) {
+              prevMap.set(c.id, c);
+            } else {
+              if (!existing.imageUrl && c.imageUrl) {
+                existing.imageUrl = c.imageUrl;
+              }
+              if ((!existing.photos || existing.photos.length === 0) && c.photos && c.photos.length > 0) {
+                existing.photos = c.photos;
+              }
             }
-            return p;
-          });
+          }
+          return sanitizeLoadedProperties(Array.from(prevMap.values()));
         });
       }
     });
@@ -590,26 +606,110 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         const deletedDealIds = getDeletedIds(DELETED_DEALS_KEY);
         const deletedMandateIds = getDeletedIds(DELETED_MANDATES_KEY);
         const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);
+        const deletedPropertyIds = getDeletedIds(DELETED_PROPERTIES_KEY);
+        const deletedCustomerIds = getDeletedIds(DELETED_CUSTOMERS_KEY);
 
-        if (custRes.status === "fulfilled" && custRes.value && custRes.value.length > 0) {
-          setCustomers(custRes.value);
-          try {
-            localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(custRes.value));
-          } catch {}
+        if (custRes.status === "fulfilled" && Array.isArray(custRes.value) && custRes.value.length > 0) {
+          const cloudCusts = custRes.value.filter((c) => !deletedCustomerIds.has(c.id));
+          custRes.value.forEach((c) => {
+            if (deletedCustomerIds.has(c.id)) {
+              deleteCustomerFromDb(c.id).catch(() => {});
+            }
+          });
+
+          setCustomers((prev) => {
+            const localMap = new Map(prev.map((c) => [c.id, c]));
+            const mergedMap = new Map<string, Customer>();
+
+            for (const cc of cloudCusts) {
+              const lc = localMap.get(cc.id);
+              if (!lc) {
+                mergedMap.set(cc.id, cc);
+              } else {
+                const ccTime = cc.updatedAt ? new Date(cc.updatedAt).getTime() : 0;
+                const lcTime = lc.updatedAt ? new Date(lc.updatedAt).getTime() : 0;
+                if (lcTime > ccTime) {
+                  mergedMap.set(lc.id, lc);
+                  saveCustomer(lc).catch(() => {});
+                } else {
+                  mergedMap.set(cc.id, cc);
+                }
+              }
+            }
+
+            for (const lc of prev) {
+              if (!mergedMap.has(lc.id) && !deletedCustomerIds.has(lc.id)) {
+                mergedMap.set(lc.id, lc);
+                if (!lc.deletedAt) {
+                  saveCustomer(lc).catch(() => {});
+                }
+              }
+            }
+
+            const merged = Array.from(mergedMap.values());
+            try {
+              localStorage.setItem(CUSTOMERS_STORAGE_KEY, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
         }
 
         if (propRes.status === "fulfilled" && Array.isArray(propRes.value) && propRes.value.length > 0) {
-          const cloudProps = sanitizeLoadedProperties(propRes.value);
+          const cloudProps = sanitizeLoadedProperties(
+            propRes.value.filter((p) => !deletedPropertyIds.has(p.id))
+          );
+          propRes.value.forEach((p) => {
+            if (deletedPropertyIds.has(p.id)) {
+              deletePropertyFromDb(p.id).catch(() => {});
+            }
+          });
+
           setProperties((prev) => {
-            const cloudMap = new Map(cloudProps.map((p) => [p.id, p]));
-            const unsavedLocal: Property[] = [];
-            for (const localP of prev) {
-              if (!cloudMap.has(localP.id)) {
-                unsavedLocal.push(localP);
-                saveProperty(localP).catch(() => {});
+            const localMap = new Map(prev.map((p) => [p.id, p]));
+            const mergedMap = new Map<string, Property>();
+
+            for (const cp of cloudProps) {
+              const lp = localMap.get(cp.id);
+              if (!lp) {
+                mergedMap.set(cp.id, cp);
+              } else {
+                const cpTime = cp.updatedAt ? new Date(cp.updatedAt).getTime() : 0;
+                const lpTime = lp.updatedAt ? new Date(lp.updatedAt).getTime() : 0;
+
+                if (lpTime > cpTime) {
+                  // Yerel değişiklik daha güncel (örneğin yeni atanmış mal sahibi veya aktifleştirilmiş durum)
+                  const winner: Property = {
+                    ...cp,
+                    ...lp,
+                    imageUrl: lp.imageUrl || cp.imageUrl,
+                    photos: (lp.photos && lp.photos.length > 0) ? lp.photos : cp.photos,
+                  };
+                  mergedMap.set(lp.id, winner);
+                  saveProperty(winner).catch(() => {});
+                } else {
+                  // Buluttaki kayıt daha güncel veya eşit
+                  const winner: Property = {
+                    ...lp,
+                    ...cp,
+                    imageUrl: cp.imageUrl || lp.imageUrl,
+                    photos: (cp.photos && cp.photos.length > 0) ? cp.photos : lp.photos,
+                  };
+                  mergedMap.set(cp.id, winner);
+                }
               }
             }
-            const merged = sanitizeLoadedProperties([...cloudProps, ...unsavedLocal]);
+
+            // Yerelde olup henüz buluta gitmemiş portföyler (silinmemiş olanlar)
+            for (const lp of prev) {
+              if (!mergedMap.has(lp.id) && !deletedPropertyIds.has(lp.id)) {
+                mergedMap.set(lp.id, lp);
+                if (!lp.deletedAt) {
+                  saveProperty(lp).catch(() => {});
+                }
+              }
+            }
+
+            const merged = sanitizeLoadedProperties(Array.from(mergedMap.values()));
             idbSet("trustline_crm_properties_v2", merged);
             try {
               localStorage.setItem(PROPERTIES_STORAGE_KEY, JSON.stringify(merged));
@@ -643,14 +743,27 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         }
 
         if (rentRes.status === "fulfilled" && Array.isArray(rentRes.value)) {
-          const cloudRentals = rentRes.value.filter((r) => !deletedRentalIds.has(r.id));
+          // Güvenlik: Kullanıcı açıkça silmediği sürece kira sözleşmeleri asla kaybolmaz
+          removeDeletedId(DELETED_RENTALS_KEY, "rnt-1793003702642");
+          removeDeletedId(DELETED_RENTALS_KEY, "rnt-1794231745001");
+          const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);
+          const todayStr = new Date().toISOString().split("T")[0];
+
+          const cloudRentals = rentRes.value
+            .filter((r) => !deletedRentalIds.has(r.id))
+            .map((r) => {
+              if (r.active === false && (!r.contractEnd || r.contractEnd >= todayStr)) {
+                return { ...r, active: true };
+              }
+              return r;
+            });
+
           setRentals((prev) => {
             const cloudMap = new Map(cloudRentals.map((r) => [r.id, r]));
             const unsavedLocal: RentalContract[] = [];
             for (const localR of prev) {
               if (!deletedRentalIds.has(localR.id) && !cloudMap.has(localR.id)) {
                 unsavedLocal.push(localR);
-                // Schema/fallback aktif olduğundan buluta kaydet
                 saveRental(localR).catch(() => {});
               }
             }
@@ -659,12 +772,6 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
               localStorage.setItem(RENTALS_STORAGE_KEY, JSON.stringify(merged));
             } catch {}
             return merged;
-          });
-          // Silinmiş eski bulut kayıtlarını temizle
-          rentRes.value.forEach((r) => {
-            if (deletedRentalIds.has(r.id)) {
-              deleteRentalFromDb(r.id).catch(() => {});
-            }
           });
         }
 
@@ -725,6 +832,11 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
             return nextUsers;
           });
         } else if (table === "customers" && newRecord) {
+          const deletedCustomerIds = getDeletedIds(DELETED_CUSTOMERS_KEY);
+          if (deletedCustomerIds.has(newRecord.id)) {
+            deleteCustomerFromDb(newRecord.id).catch(() => {});
+            return;
+          }
           setCustomers((prev) => {
             const exists = prev.some((c) => c.id === newRecord.id);
             return exists
@@ -732,6 +844,11 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
               : [newRecord, ...prev];
           });
         } else if (table === "properties" && newRecord) {
+          const deletedPropertyIds = getDeletedIds(DELETED_PROPERTIES_KEY);
+          if (deletedPropertyIds.has(newRecord.id)) {
+            deletePropertyFromDb(newRecord.id).catch(() => {});
+            return;
+          }
           setProperties((prev) => {
             const exists = prev.some((p) => p.id === newRecord.id);
             return exists
@@ -786,9 +903,13 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       } else if (eventType === "DELETE") {
         const deletedId = (oldRecord as any)?.id;
         if (deletedId) {
-          if (table === "customers") setCustomers((prev) => prev.filter((c) => c.id !== deletedId));
-          else if (table === "properties") setProperties((prev) => prev.filter((p) => p.id !== deletedId));
-          else if (table === "deals") {
+          if (table === "customers") {
+            addDeletedId(DELETED_CUSTOMERS_KEY, deletedId);
+            setCustomers((prev) => prev.filter((c) => c.id !== deletedId));
+          } else if (table === "properties") {
+            addDeletedId(DELETED_PROPERTIES_KEY, deletedId);
+            setProperties((prev) => prev.filter((p) => p.id !== deletedId));
+          } else if (table === "deals") {
             addDeletedId(DELETED_DEALS_KEY, deletedId);
             setDeals((prev) => prev.filter((d) => d.id !== deletedId));
           } else if (table === "rentals") {
@@ -797,7 +918,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           } else if (table === "mandates") {
             addDeletedId(DELETED_MANDATES_KEY, deletedId);
             setMandates((prev) => prev.filter((m) => m.id !== deletedId));
-          } else if (table === "follow_ups") setFollowUps((prev) => prev.filter((f) => f.id !== deletedId));
+          } else if (table === "follow_ups") {
+            setFollowUps((prev) => prev.filter((f) => f.id !== deletedId));
+          }
         }
       }
     });
@@ -925,17 +1048,70 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   };
 
   const toggleAutomationRule = (id: string) => {
-    setAutomationRules((prev) =>
-      prev.map((r) =>
+    setAutomationRules((prev) => {
+      const updated = prev.map((r) =>
         r.id === id
           ? {
               ...r,
               enabled: !r.enabled,
-              lastTriggeredAt: !r.enabled ? "Şimdi (Aktif Edildi)" : r.lastTriggeredAt,
+              lastTriggeredAt: !r.enabled ? "Şimdi (Aktif Edildi)" : "Devre Dışı Bırakıldı",
             }
           : r
-      )
-    );
+      );
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(AUTOMATION_RULES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+
+      const target = updated.find((r) => r.id === id);
+      if (target && !target.enabled) {
+        const ruleTypeMap: Record<string, string[]> = {
+          "rule-rent-reminder": ["rent_due"],
+          "rule-dues-reminder": ["dues_due"],
+          "rule-auto-match": ["match"],
+          "rule-lead-decay": ["lead_decay"],
+          "rule-mandate-renewal": ["mandate_expiry"],
+          "rule-contract-expiration": ["contract_expiry"],
+          "rule-customer-birthday": ["birthday"],
+          "rule-rent-receipt": ["rent_receipt"],
+          "rule-daily-agenda": ["agenda_today"],
+          "rule-overdue-agenda": ["agenda_overdue"],
+          "rule-deal-collection-due": ["collection_due"],
+          "rule-broker-pending-approval": ["broker_approval"],
+          "rule-internal-deal-notify": ["internal_deal"],
+          "rule-stale-property": ["stale_property"],
+          "rule-missing-mandate": ["missing_mandate"],
+        };
+        const typesToRemove = ruleTypeMap[id];
+        if (typesToRemove && typesToRemove.length > 0) {
+          setNotifications((prevNotifs) =>
+            prevNotifs.filter((n) => !typesToRemove.includes(n.type))
+          );
+        }
+      }
+
+      return updated;
+    });
+  };
+
+  const toggleAllAutomationRules = (enable: boolean) => {
+    setAutomationRules((prev) => {
+      const updated = prev.map((r) => ({
+        ...r,
+        enabled: enable,
+        lastTriggeredAt: enable ? "Şimdi (Aktif Edildi)" : "Devre Dışı Bırakıldı",
+      }));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(AUTOMATION_RULES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      if (!enable) {
+        setNotifications([]);
+      }
+      return updated;
+    });
   };
 
   // Akıllı Otomasyon ve Tarama Motoru
@@ -1446,9 +1622,18 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       setNotifications((prev) => [...newNotifications, ...prev]);
     }
 
-    setAutomationRules((prev) =>
-      prev.map((r) => ({ ...r, lastTriggeredAt: "Az önce çalıştırıldı" }))
-    );
+    setAutomationRules((prev) => {
+      const updated = prev.map((r) => ({
+        ...r,
+        lastTriggeredAt: r.enabled ? "Az önce çalıştırıldı" : (r.lastTriggeredAt || "Devre Dışı"),
+      }));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(AUTOMATION_RULES_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
 
     return {
       matchesFound,
@@ -1970,6 +2155,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   const restoreCustomer = (id: string): boolean => {
     const cust = customers.find((c) => c.id === id);
     if (!cust) return false;
+    removeDeletedId(DELETED_CUSTOMERS_KEY, id);
     const updatedCustomer: Customer = {
       ...cust,
       deletedAt: null,
@@ -1989,6 +2175,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       alert("Bu müşteriyi kalıcı olarak silme yetkiniz bulunmuyor.");
       return false;
     }
+    addDeletedId(DELETED_CUSTOMERS_KEY, id);
     setCustomers((prev) => prev.filter((c) => c.id !== id));
     deleteCustomerFromDb(id).catch(() => {});
     return true;
@@ -2089,18 +2276,6 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     );
     saveProperty(updatedProperty).catch(() => {});
 
-    // Bağlı aktif kira sözleşmelerini de pasife al
-    setRentals((prev) =>
-      prev.map((r) => {
-        if (r.active !== false && r.propertyId === id) {
-          const upd: RentalContract = { ...r, active: false };
-          saveRental(upd).catch(() => {});
-          return upd;
-        }
-        return r;
-      })
-    );
-
     return true;
   };
 
@@ -2122,19 +2297,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     setProperties((prev) => prev.map((p) => (p.id === id ? updatedProperty : p)));
     saveProperty(updatedProperty).catch(() => {});
 
-    // 2. Bu portföye bağlı aktif kira sözleşmelerini pasife al
-    setRentals((prev) =>
-      prev.map((r) => {
-        if (r.active && r.propertyId === id) {
-          const upd: RentalContract = { ...r, active: false };
-          saveRental(upd).catch(() => {});
-          return upd;
-        }
-        return r;
-      })
-    );
-
-    // 3. Bu portföye bağlı yetki sözleşmelerini iptal et
+    // 2. Bu portföye bağlı yetki sözleşmelerini iptal et
     setMandates((prev) =>
       prev.map((m) => {
         if (m.status !== "cancelled" && m.propertyId === id) {
@@ -2189,6 +2352,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
   const restoreProperty = (id: string): boolean => {
     const prop = properties.find((p) => p.id === id);
     if (!prop) return false;
+    removeDeletedId(DELETED_PROPERTIES_KEY, id);
     const updatedProperty: Property = {
       ...prop,
       deletedAt: null,
@@ -2208,6 +2372,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       alert("Bu portföyü kalıcı olarak silme yetkiniz bulunmuyor.");
       return false;
     }
+    addDeletedId(DELETED_PROPERTIES_KEY, id);
     setProperties((prev) => prev.filter((p) => p.id !== id));
     deletePropertyFromDb(id).catch(() => {});
     return true;
@@ -2229,28 +2394,96 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 
   // FollowUp handlers
   const addFollowUp = (data: Omit<FollowUp, "id" | "createdAt">) => {
-    const newFollowUp: FollowUp = {
-      ...data,
-      id: `flw-${Date.now()}`,
-      createdAt: new Date().toISOString(),
-    };
-    setFollowUps((prev) => [newFollowUp, ...prev]);
-    saveFollowUp(newFollowUp).catch(() => {});
+    const baseId = `flw-${Date.now()}`;
+    const nowIso = new Date().toISOString();
 
-    // Eğer Ofis Etkinliği ise tüm ekibe sistem bildirimi oluştur
-    if (newFollowUp.isOfficeEvent) {
-      const newNotif: WorkflowNotification = {
-        id: `notif-office-${Date.now()}`,
-        type: "office_event",
-        title: `🏢 Yeni Ofis Etkinliği: ${newFollowUp.title}`,
-        message: `${newFollowUp.createdByName || "Ofis Yönetimi"} tarafından tüm ekibin ajandasına ortak etkinlik/toplantı eklendi.`,
-        targetTab: "calendar",
-        targetId: newFollowUp.id,
-        read: false,
-        createdAt: new Date().toISOString(),
-        urgency: "high",
+    if (data.isRecurring) {
+      const groupId = `rec-group-${Date.now()}`;
+      const rule = data.recurrenceRule || "monthly";
+      const totalOccurrences = 12; // Önümüzdeki 12 periyot için takvime otomatik işle
+      const createdItems: FollowUp[] = [];
+
+      const baseDueDate = new Date(data.dueAt);
+
+      for (let i = 0; i < totalOccurrences; i++) {
+        const itemDate = new Date(baseDueDate.getTime());
+        if (rule === "monthly") {
+          // Her ayın aynı günü (Ay sonu taşmalarını koruyarak)
+          const expectedDay = baseDueDate.getDate();
+          itemDate.setMonth(baseDueDate.getMonth() + i);
+          if (itemDate.getDate() !== expectedDay) {
+            itemDate.setDate(0); // Ay sonu gününe sabitle (örn. 31 Ocak -> 28/29 Şubat)
+          }
+        } else if (rule === "weekly") {
+          // Her haftanın aynı günü
+          itemDate.setDate(baseDueDate.getDate() + i * 7);
+        } else if (rule === "yearly") {
+          // Her yılın aynı günü
+          itemDate.setFullYear(baseDueDate.getFullYear() + i);
+        }
+
+        const item: FollowUp = {
+          ...data,
+          id: i === 0 ? baseId : `${baseId}-${i}`,
+          dueAt: itemDate.toISOString(),
+          isRecurring: true,
+          recurrenceRule: rule,
+          recurrenceGroupId: groupId,
+          recurrenceIndex: i + 1,
+          createdAt: nowIso,
+        };
+        createdItems.push(item);
+      }
+
+      setFollowUps((prev) => [...createdItems, ...prev]);
+      createdItems.forEach((item) => {
+        saveFollowUp(item).catch(() => {});
+      });
+
+      if (typeof window !== "undefined") {
+        try {
+          const currentList = followUps;
+          localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify([...createdItems, ...currentList]));
+        } catch {}
+      }
+
+      if (data.isOfficeEvent) {
+        const newNotif: WorkflowNotification = {
+          id: `notif-office-${Date.now()}`,
+          type: "office_event",
+          title: `🏢 Yeni Tekrarlayan Rutin Ofis Etkinliği: ${data.title}`,
+          message: `${data.createdByName || "Ofis Yönetimi"} tarafından tüm ekibin ajandasına 12 periyotluk rutin etkinlik eklendi.`,
+          targetTab: "calendar",
+          targetId: createdItems[0].id,
+          read: false,
+          createdAt: nowIso,
+          urgency: "high",
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
+      }
+    } else {
+      const newFollowUp: FollowUp = {
+        ...data,
+        id: baseId,
+        createdAt: nowIso,
       };
-      setNotifications((prev) => [newNotif, ...prev]);
+      setFollowUps((prev) => [newFollowUp, ...prev]);
+      saveFollowUp(newFollowUp).catch(() => {});
+
+      if (newFollowUp.isOfficeEvent) {
+        const newNotif: WorkflowNotification = {
+          id: `notif-office-${Date.now()}`,
+          type: "office_event",
+          title: `🏢 Yeni Ofis Etkinliği: ${newFollowUp.title}`,
+          message: `${newFollowUp.createdByName || "Ofis Yönetimi"} tarafından tüm ekibin ajandasına ortak etkinlik/toplantı eklendi.`,
+          targetTab: "calendar",
+          targetId: newFollowUp.id,
+          read: false,
+          createdAt: nowIso,
+          urgency: "high",
+        };
+        setNotifications((prev) => [newNotif, ...prev]);
+      }
     }
   };
 
@@ -2301,7 +2534,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     );
   };
 
-  const deleteFollowUp = (id: string): boolean => {
+  const deleteFollowUp = (id: string, deleteFutureGroup?: boolean): boolean => {
     const flw = followUps.find((f) => f.id === id);
     if (!flw) return false;
     if (!canManageFollowUp(flw)) {
@@ -2309,7 +2542,15 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       return false;
     }
     setFollowUps((prev) => {
-      const updated = prev.filter((f) => f.id !== id);
+      let updated: FollowUp[];
+      if (deleteFutureGroup && flw.recurrenceGroupId) {
+        // Bu ve bu tarihten sonraki aynı gruptaki tüm tekrarları sil
+        updated = prev.filter(
+          (f) => !(f.recurrenceGroupId === flw.recurrenceGroupId && f.dueAt >= flw.dueAt)
+        );
+      } else {
+        updated = prev.filter((f) => f.id !== id);
+      }
       if (typeof window !== "undefined") {
         try {
           localStorage.setItem(FOLLOWUPS_STORAGE_KEY, JSON.stringify(updated));
@@ -2317,7 +2558,17 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       }
       return updated;
     });
-    deleteFollowUpFromDb(id).catch(() => {});
+
+    if (deleteFutureGroup && flw.recurrenceGroupId) {
+      const itemsToDelete = followUps.filter(
+        (f) => f.recurrenceGroupId === flw.recurrenceGroupId && f.dueAt >= flw.dueAt
+      );
+      itemsToDelete.forEach((item) => {
+        deleteFollowUpFromDb(item.id).catch(() => {});
+      });
+    } else {
+      deleteFollowUpFromDb(id).catch(() => {});
+    }
     return true;
   };
 
@@ -2511,14 +2762,10 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     saveRental(newContract).catch(() => {});
   };
 
-  // Bir işlem silindiğinde veya iptal/kaybedildi (lost) olduğunda kira takipten kaldırma
-  const autoRemoveRentalContractFromDeal = (dealId: string) => {
-    const target = rentals.find((r) => r.dealId === dealId);
-    if (target) {
-      addDeletedId(DELETED_RENTALS_KEY, target.id);
-      setRentals((prev) => prev.filter((r) => r.id !== target.id));
-      deleteRentalFromDb(target.id).catch(() => {});
-    }
+  // Güvenlik Kuralı: Bir işlem silindiğinde veya iptal/kaybedildi (lost) olduğunda kira takipten kontrat ASLA otomatik silinmez!
+  // Kullanıcı kira takibi modülünden bizzat silmedikçe kira sözleşmesi ve gelir/ödeme matrisi korunur.
+  const autoRemoveRentalContractFromDeal = (_dealId: string) => {
+    // Kullanıcı talebi olmaksızın kira sözleşmeleri asla otomatik silinmez.
   };
 
   // Portföyün durumunu yeniden değerlendirip, aktif bir sözleşme/işlem kalmadıysa AVAILABLE'a çekme
@@ -3430,10 +3677,14 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       ...prop,
       status: "AVAILABLE",
       deletedAt: null,
+      updatedAt: new Date().toISOString(),
     };
 
     setProperties((prev) => prev.map((p) => (p.id === propertyId ? updatedProp : p)));
-    saveProperty(updatedProp).catch(() => {});
+    saveProperty(updatedProp).catch((err) => {
+      console.warn("saveProperty error on reactivate:", err);
+    });
+
     return true;
   };
 
@@ -3710,10 +3961,13 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     const softDeletedProps = properties.filter((p) => !!p.deletedAt);
     const softDeletedCusts = customers.filter((c) => !!c.deletedAt);
 
+    softDeletedProps.forEach((p) => addDeletedId(DELETED_PROPERTIES_KEY, p.id));
+    softDeletedCusts.forEach((c) => addDeletedId(DELETED_CUSTOMERS_KEY, c.id));
+
     setProperties((prev) => prev.filter((p) => !p.deletedAt));
     setCustomers((prev) => prev.filter((c) => !c.deletedAt));
 
-    await Promise.all([
+    await Promise.allSettled([
       ...softDeletedProps.map((p) => deletePropertyFromDb(p.id)),
       ...softDeletedCusts.map((c) => deleteCustomerFromDb(c.id)),
     ]);
@@ -3804,6 +4058,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         markAllNotificationsAsRead,
         deleteNotification,
         toggleAutomationRule,
+        toggleAllAutomationRules,
         triggerAutomationEngine,
         restoreBackup,
         snapshots,

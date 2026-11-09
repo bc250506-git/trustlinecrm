@@ -171,7 +171,7 @@ export const initialNotifications: WorkflowNotification[] = [];
 export const initialAutomationRules: AutomationRule[] = [
   {
     id: "rule-rent-reminder",
-    name: "Otomatik Kira Vadesi Hatırlatma Robotu",
+    name: "Otomatik Kira Vadesi Hatırlatması",
     description: "Kira vadesine 3 gün kala kiracının WhatsApp'ına otomatik hatırlatma mesajını hazırlar.",
     enabled: true,
     category: "rental",
@@ -179,7 +179,7 @@ export const initialAutomationRules: AutomationRule[] = [
   },
   {
     id: "rule-dues-reminder",
-    name: "Otomatik Aidat Vadesi & Gecikme Robotu",
+    name: "Otomatik Aidat Vadesi & Gecikme Alarmı",
     description: "Aidat ödemesi bulunan mülklerin aidat vadesine 3 gün kala ve gecikmelerinde danışmana ve kiracıya otomatik alarm üretir.",
     enabled: true,
     category: "rental",
@@ -219,7 +219,7 @@ export const initialAutomationRules: AutomationRule[] = [
   },
   {
     id: "rule-customer-birthday",
-    name: "Müşteri Doğum Günü Kutlama Robotu",
+    name: "Müşteri Doğum Günü Kutlama Bildirimi",
     description: "Doğum günü gelen müşterileri tespit edip danışmana anlık uyarı ve WhatsApp kutlama mesaj taslağı hazırlar.",
     enabled: true,
     category: "birthday",
@@ -235,7 +235,7 @@ export const initialAutomationRules: AutomationRule[] = [
   },
   {
     id: "rule-daily-agenda",
-    name: "Günün Ajandası & Randevu Özeti Robotu",
+    name: "Günün Ajandası & Randevu Özeti",
     description: "Günün yer gösterme, arama ve toplantı görevlerini sabah özetleyip danışmana günün görev pusulasını sunar.",
     enabled: true,
     category: "agenda",

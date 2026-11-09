@@ -28,6 +28,8 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddCustomerModal } from "@/components/modals/AddCustomerModal";
 import { AddPropertyModal } from "@/components/modals/AddPropertyModal";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 const STAGES: { id: PipelineStage; label: string; color: string }[] = [
   { id: "NEW", label: "Yeni Lead", color: "border-t-[#00adb5]" },
@@ -74,6 +76,16 @@ export function PipelineView() {
   // Standart Modal Entegrasyonu (Müşteri & Portföy)
   const [isAddCustSubModalOpen, setIsAddCustSubModalOpen] = useState(false);
   const [isAddPropertySubModalOpen, setIsAddPropertySubModalOpen] = useState(false);
+
+  const pipelineCustomerOptions = React.useMemo<SearchableOption[]>(() => {
+    return activeCustomers.map((c) => ({
+      value: c.id,
+      label: c.fullName,
+      sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+      badge: c.category === "BUYER" ? "Alıcı" : c.category === "SELLER" ? "Mal Sahibi" : "Kiracı",
+      keywords: `${c.fullName} ${c.phone || ""} ${c.region || ""}`,
+    }));
+  }, [activeCustomers]);
 
   const [closingModal, setClosingModal] = useState<{
     customer: Customer;
@@ -647,19 +659,14 @@ export function PipelineView() {
                     Sistemde henüz müşteri bulunmuyor. Lütfen yukarıdaki &quot;+ Yeni Müşteri Oluştur&quot; butonuna tıklayın.
                   </div>
                 ) : (
-                  <select
-                    value={formCustomerId}
-                    onChange={(e) => setFormCustomerId(e.target.value)}
-                    className="sharp-input w-full p-2.5 font-mono bg-white font-semibold"
+                  <SearchableSelect
                     required
-                  >
-                    <option value="">-- Müşteri Havuzundan Seçiniz --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName} ({c.phone || "Telefon yok"}) — {c.category === "BUYER" ? "Alıcı" : c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Mal Sahibi"}
-                      </option>
-                    ))}
-                  </select>
+                    options={pipelineCustomerOptions}
+                    value={formCustomerId}
+                    onChange={setFormCustomerId}
+                    placeholder="-- Müşteri havuzundan seçiniz veya arayın * --"
+                    searchPlaceholder="İsim, telefon veya bölge yazarak arayın..."
+                  />
                 )}
                 <span className="text-[10px] text-slate-400 mt-1 block font-mono">
                   Seçilen müşterinin aşaması ve satış hunisi bilgileri güncellenecektir.

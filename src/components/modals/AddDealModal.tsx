@@ -23,6 +23,7 @@ import { AddPropertyModal } from "./AddPropertyModal";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix } from "@/lib/formatters";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
 
 interface AddDealModalProps {
   isOpen: boolean;
@@ -556,6 +557,58 @@ export function AddDealModal({
     }
   });
 
+  const dealPropertyOptions = React.useMemo<SearchableOption[]>(() => {
+    return filteredProperties.map((p) => ({
+      value: p.id,
+      label: p.title,
+      sublabel: `${p.region || "KKTC"} • ${p.price.toLocaleString("tr-TR")} ${p.currency} • ${p.propertyType || "Gayrimenkul"}`,
+      badge: p.listingType === "rent" ? "KİRALIK" : "SATILIK",
+      badgeColor: p.listingType === "rent" ? "bg-cyan-50 text-cyan-800 border-cyan-200" : "bg-emerald-50 text-emerald-800 border-emerald-200",
+      keywords: `${p.title} ${p.region || ""} ${p.propertyType || ""} ${p.price} ${p.currency}`,
+    }));
+  }, [filteredProperties]);
+
+  const dealLandlordOptions = React.useMemo<SearchableOption[]>(() => {
+    const list: SearchableOption[] = [];
+    if (formLandlordName && !customers.some((c) => c.id === formLandlordId)) {
+      list.push({
+        value: "__prop_owner__",
+        label: `${formLandlordName} (Portföy Kaydından)`,
+        sublabel: formLandlordPhone || undefined,
+        badge: "Portföy Mal Sahibi",
+        badgeColor: "bg-blue-50 text-blue-800 border-blue-200",
+      });
+    }
+    customers
+      .filter((c) => !c.deletedAt)
+      .forEach((c) => {
+        list.push({
+          value: c.id,
+          label: c.fullName,
+          sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+          group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ / SATICILAR" : "👥 DİĞER MÜŞTERİLER",
+          badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Alıcı",
+          badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+          keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+        });
+      });
+    return list;
+  }, [formLandlordName, formLandlordId, formLandlordPhone, customers]);
+
+  const dealBuyerOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+        group: c.category === "BUYER" || c.category === "TENANT" ? "🎯 ALICILAR VE KİRACILAR (Öncelikli)" : "👥 DİĞER MÜŞTERİLER",
+        badge: c.category === "BUYER" ? "Alıcı" : c.category === "TENANT" ? "Kiracı" : "Mal Sahibi",
+        badgeColor: c.category === "BUYER" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : c.category === "TENANT" ? "bg-cyan-50 text-cyan-800 border-cyan-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
+
   if (!isOpen) return null;
 
   return (
@@ -731,23 +784,18 @@ export function AddDealModal({
                     <span>+ Yeni Portföy</span>
                   </button>
                 </div>
-                <select
+                <SearchableSelect
                   required
+                  options={dealPropertyOptions}
                   value={formPropertyId}
-                  onChange={(e) => handleSelectProperty(e.target.value)}
-                  className="sharp-input w-full p-2 bg-white text-xs font-mono font-medium text-slate-800"
-                >
-                  <option value="">
-                    {formDealType === "sale"
-                      ? "-- Satılık portföy havuzundan seçiniz * --"
-                      : "-- Kiralık portföy havuzundan seçiniz * --"}
-                  </option>
-                  {filteredProperties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.title} ({p.price.toLocaleString("tr-TR")} {p.currency}) - {p.region}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleSelectProperty(val)}
+                  placeholder={
+                    formDealType === "sale"
+                      ? "-- Satılık portföy havuzundan seçiniz veya arayın * --"
+                      : "-- Kiralık portföy havuzundan seçiniz veya arayın * --"
+                  }
+                  searchPlaceholder="Portföy adı, bölge, fiyat ara..."
+                />
                 {filteredProperties.length === 0 && (
                   <p className="text-[10px] text-amber-700 mt-1 font-mono">
                     ⚠ Bu işlem türünde ({formDealType === "sale" ? "Satılık" : "Kiralık"}) henüz kayıtlı portföy bulunmuyor. &quot;+ Yeni Portföy&quot; butonuyla ekleyebilirsiniz.
@@ -889,23 +937,14 @@ export function AddDealModal({
                     + Yeni Müşteri
                   </button>
                 </div>
-                <select
+                <SearchableSelect
+                  options={dealLandlordOptions}
                   value={formLandlordId}
-                  onChange={(e) => handleSelectLandlord(e.target.value)}
-                  className="sharp-input w-full h-9 p-2 bg-white text-xs font-mono font-medium text-slate-800"
-                >
-                  <option value="">-- Müşteri havuzundan mülk sahibi seçin --</option>
-                  {formLandlordName && !customers.some((c) => c.id === formLandlordId) && (
-                    <option value="__prop_owner__">
-                      {formLandlordName} (Portföy Kaydından)
-                    </option>
-                  )}
-                  {customers.filter((c) => !c.deletedAt).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "SELLER" ? "• Mal Sahibi" : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleSelectLandlord(val)}
+                  placeholder="-- Müşteri havuzundan mülk sahibi seçin veya arayın --"
+                  searchPlaceholder="Mülk sahibi isim, telefon ara..."
+                  className="h-9"
+                />
               </div>
 
               <div>
@@ -954,19 +993,15 @@ export function AddDealModal({
                     + Yeni Müşteri
                   </button>
                 </div>
-                <select
+                <SearchableSelect
                   required
+                  options={dealBuyerOptions}
                   value={formCustomerId}
-                  onChange={(e) => handleSelectCustomer(e.target.value)}
-                  className="sharp-input w-full h-9 p-2 bg-white text-xs font-mono font-medium text-slate-800"
-                >
-                  <option value="">-- Müşteri havuzundan alıcı seçin * --</option>
-                  {customers.filter((c) => !c.deletedAt).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""} {c.category === "BUYER" || c.category === "TENANT" ? "• Alıcı/Kiracı" : ""}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleSelectCustomer(val)}
+                  placeholder="-- Müşteri havuzundan alıcı seçin veya arayın * --"
+                  searchPlaceholder="Alıcı/kiracı isim, telefon ara..."
+                  className="h-9"
+                />
               </div>
 
               <div>

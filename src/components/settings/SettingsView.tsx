@@ -195,7 +195,7 @@ export function SettingsView() {
           }`}
         >
           <Bell className="w-3.5 h-3.5 text-[#00adb5]" />
-          <span>Otomasyon & Alarmlar</span>
+          <span>Bildirim Ayarları</span>
         </button>
       </div>
 
@@ -496,7 +496,7 @@ export function SettingsView() {
             <div>
               <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
                 <Bell className="w-4 h-4 text-[#00adb5]" />
-                Otomasyon & Bildirim Kuralları
+                Bildirim Kuralları & Ayarları
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
                 Kira vadesi, yetki süresi ve müşteri takip alarmlarının yönetimi.

@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { PropertyImageUploader } from "../properties/PropertyImageUploader";
 import { AddCustomerModal } from "./AddCustomerModal";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
+import { formatPhoneWithPrefix } from "@/lib/formatters";
 
 interface AddPropertyModalProps {
   isOpen: boolean;
@@ -70,6 +72,20 @@ export function AddPropertyModal({
   const [formIsOffMarket, setFormIsOffMarket] = useState(false);
   const [formAssigneeId, setFormAssigneeId] = useState(currentUser.id);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+
+  const ownerCustomerOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+        group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ / SATICILAR" : "👥 DİĞER MÜŞTERİLER",
+        badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Müşteri",
+        badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
 
   const prevIsOpenRef = React.useRef(false);
 
@@ -445,19 +461,14 @@ export function AddPropertyModal({
               <label className="block text-slate-600 font-mono text-[10px] mb-1 font-semibold">
                 Müşteri Havuzundan Mal Sahibi Seçin *
               </label>
-              <select
+              <SearchableSelect
                 required
+                options={ownerCustomerOptions}
                 value={formOwnerCustomerId}
-                onChange={(e) => setFormOwnerCustomerId(e.target.value)}
-                className="sharp-input w-full p-2 bg-white text-xs font-mono font-bold text-[#1d2566]"
-              >
-                <option value="">-- Müşteri havuzundan mal sahibi seçin (Zorunlu) --</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.fullName} ({c.phone || "Telefon yok"} - {c.category === "SELLER" ? "Satıcı" : "Müşteri"})
-                  </option>
-                ))}
-              </select>
+                onChange={setFormOwnerCustomerId}
+                placeholder="-- Müşteri havuzundan mal sahibi arayın veya seçin (Zorunlu) --"
+                searchPlaceholder="İsim, telefon veya bölge yazarak arayın..."
+              />
             </div>
           </div>
 

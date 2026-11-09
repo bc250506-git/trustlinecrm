@@ -54,6 +54,7 @@ export function NotificationCenterDrawer({
     markAllNotificationsAsRead,
     deleteNotification,
     toggleAutomationRule,
+    toggleAllAutomationRules,
     triggerAutomationEngine,
     renewRentalContract,
     relistRentalProperty,
@@ -217,10 +218,10 @@ export function NotificationCenterDrawer({
             </div>
             <div>
               <div className="text-[10px] font-mono uppercase text-[#00adb5] font-bold tracking-wider">
-                AKILLI OTOMASYON MERKEZİ (FAZ 2)
+                BİLDİRİM & ALARM MERKEZİ
               </div>
               <h2 className="text-sm font-bold text-[#1d2566] flex items-center gap-2">
-                İş Akışları & Bildirim Masası
+                Bildirimler & Alarmlar
                 {unreadCount > 0 && (
                   <span className="bg-rose-500 text-white text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full">
                     {unreadCount}
@@ -238,11 +239,11 @@ export function NotificationCenterDrawer({
           </button>
         </div>
 
-        {/* Canlı Otomasyon Bildirim Rozeti */}
+        {/* Canlı Bildirim Takip Rozeti */}
         <div className="px-4 py-1.5 bg-emerald-50/80 border-b border-emerald-100 flex items-center justify-between text-[11px] font-mono text-emerald-800">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Otonom Canlı Takip: <strong>Aktif</strong> (Her 60 sn & Sekme Odağında)</span>
+            <span>Canlı Bildirim Takibi: <strong>Aktif</strong> (Her 60 sn & Sekme Odağında)</span>
           </div>
           <span className="text-[10px] text-emerald-600 font-bold">Oto-Senkron</span>
         </div>
@@ -271,7 +272,7 @@ export function NotificationCenterDrawer({
             }`}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            Otomasyon Robotları ({automationRules.filter((r) => r.enabled).length}/{automationRules.length})
+            Bildirim Ayarları ({automationRules.filter((r) => r.enabled).length}/{automationRules.length})
           </button>
         </div>
 
@@ -465,7 +466,7 @@ export function NotificationCenterDrawer({
                       {filterUnread ? "Okunmamış Bildirim Yok" : "Kayıtlı Bildirim Bulunmuyor"}
                     </div>
                     <div className="text-[11px] text-slate-500 mt-1">
-                      Otomasyon motoru arka planda çalışıyor ve yeni alarmları buraya düşürecektir.
+                      Bildirim sistemi arka planda çalışıyor ve yeni alarmları buraya düşürecektir.
                     </div>
                   </div>
                 )}
@@ -510,8 +511,29 @@ export function NotificationCenterDrawer({
 
               {/* Kurallar Listesi */}
               <div className="space-y-3">
-                <div className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider px-1">
-                  Aktif Otomasyon Kuralları ({automationRules.length})
+                <div className="flex items-center justify-between px-1">
+                  <div className="text-[10px] font-mono uppercase text-slate-400 font-bold tracking-wider">
+                    Bildirim Ayarları ({automationRules.filter((r) => r.enabled).length}/{automationRules.length} Açık)
+                  </div>
+                  {toggleAllAutomationRules && (
+                    <div className="flex items-center gap-2 text-[11px] font-mono">
+                      <button
+                        type="button"
+                        onClick={() => toggleAllAutomationRules(true)}
+                        className="text-[#00adb5] hover:underline font-bold cursor-pointer"
+                      >
+                        Tümünü Aç
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleAllAutomationRules(false)}
+                        className="text-slate-500 hover:text-rose-600 hover:underline font-bold cursor-pointer"
+                      >
+                        Tümünü Kapat
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {automationRules.map((rule) => (
@@ -559,7 +581,7 @@ export function NotificationCenterDrawer({
 
         {/* Çekmece Alt Bilgi */}
         <div className="p-3 border-t border-slate-200 bg-slate-50 text-[10px] font-mono text-slate-500 flex items-center justify-between shrink-0">
-          <span>İş Akışı & Otomasyon Masası</span>
+          <span>Bildirimler & Alarmlar Masası</span>
           <span className="text-[#00adb5] font-bold">Trustline Real Estate</span>
         </div>
       </div>

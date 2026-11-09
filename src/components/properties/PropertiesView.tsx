@@ -47,7 +47,8 @@ import { PropertyImageUploader } from "./PropertyImageUploader";
 import { ActionMenu } from "@/components/common/ActionMenu";
 import { RelationalDeleteModal } from "@/components/common/RelationalDeleteModal";
 import { AddDealModal } from "../modals/AddDealModal";
-import { formatPropertyStatus } from "@/lib/formatters";
+import { formatPropertyStatus, formatPhoneWithPrefix } from "@/lib/formatters";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
 
 interface PropertiesViewProps {
   onFindMatches: (property: Property) => void;
@@ -267,14 +268,14 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
       (u) => u.id === (isBroker ? editAssigneeId : editingProperty.assignedToId)
     );
 
-    if (!editOwnerCustomerId) {
+    if (!editOwnerCustomerId && !editOwnerName) {
       alert("Lütfen portföyün mal sahibini müşteri havuzundan seçin!");
       return;
     }
 
     const cust = customers.find((c) => c.id === editOwnerCustomerId);
-    const finalOwnerName = cust?.fullName || "Bilinmiyor";
-    const finalOwnerPhone = cust?.phone || "";
+    const finalOwnerName = (cust?.fullName || editOwnerName || "").trim() || "Bilinmiyor";
+    const finalOwnerPhone = (cust?.phone || editOwnerPhone || "").trim();
 
     const photos = editImageUrl
       ? [
@@ -285,7 +286,7 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
             shareable: true,
           },
         ]
-      : [];
+      : (editingProperty.photos || []);
 
     const updates = {
       title: editTitle.trim(),
@@ -298,9 +299,9 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
       rooms: editRooms,
       status: editStatus,
       address: editAddress.trim(),
-      ownerCustomerId: editOwnerCustomerId || undefined,
-      ownerName: finalOwnerName.trim() || "Bilinmiyor",
-      ownerPhone: finalOwnerPhone.trim(),
+      ownerCustomerId: editOwnerCustomerId || null,
+      ownerName: finalOwnerName,
+      ownerPhone: finalOwnerPhone,
       keyHolder: editKeyHolder.trim(),
       notes: editNotes.trim(),
       publicDescription: editPublicDesc.trim(),
@@ -400,6 +401,20 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
       if (a.category !== "SELLER" && b.category === "SELLER") return 1;
       return a.fullName.localeCompare(b.fullName, "tr");
     });
+
+  const editOwnerCustomerOptions = React.useMemo<SearchableOption[]>(() => {
+    return (isBroker ? customers : myCustomers)
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+        group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ / SATICILAR" : "👥 DİĞER MÜŞTERİLER",
+        badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Müşteri",
+        badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [isBroker, customers, myCustomers]);
 
 
   // Türkçe Karakter Normalizasyonu
@@ -581,6 +596,8 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
   const isRentedByContract = (p: Property) => {
     // SATILIK portföy ASLA kira sözleşmesiyle kiralandı sayılamaz!
     if (p.listingType === "sale") return false;
+    // Eğer portföy açıkça AVAILABLE (Canlı/Aktif) durumundaysa sözleşme pasife zorlayamaz
+    if (p.status === "AVAILABLE") return false;
     if (p.status === "RENTED") return true;
     const pTitleNorm = norm(p.title);
     return rentals.some((r) => {
@@ -597,6 +614,8 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
   // Bu portföye bağlı kazanılmış (Won) bir satış/kiralama işlemi var mı?
   const isSoldOrRentedByDeal = (p: Property) => {
     if (p.listingType === "sale" && p.status === "RENTED") return null; // Satılık ilan RENTED olamaz
+    // Eğer portföy açıkça AVAILABLE (Canlı/Aktif) durumundaysa eski won deal pasife zorlayamaz
+    if (p.status === "AVAILABLE") return null;
     if (p.status === "SOLD") return "SOLD";
     if (p.status === "RENTED" && p.listingType === "rent") return "RENTED";
     const pTitleNorm = norm(p.title);
@@ -2891,11 +2910,11 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
                   <label className="block text-slate-600 font-mono text-[10px] mb-1 font-semibold">
                     Müşteri Havuzundan Mal Sahibi Seçin *
                   </label>
-                  <select
+                  <SearchableSelect
                     required
+                    options={editOwnerCustomerOptions}
                     value={editOwnerCustomerId}
-                    onChange={(e) => {
-                      const cid = e.target.value;
+                    onChange={(cid) => {
                       setEditOwnerCustomerId(cid);
                       if (cid) {
                         const match = customers.find((c) => c.id === cid);
@@ -2908,15 +2927,9 @@ export function PropertiesView({ onFindMatches, selectedPropertyId }: Properties
                         setEditOwnerPhone("");
                       }
                     }}
-                    className="sharp-input w-full p-2 bg-white text-xs font-mono font-bold text-[#1d2566]"
-                  >
-                    <option value="">-- Müşteri havuzundan mal sahibi seçin (Zorunlu) --</option>
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName} ({c.phone || "Telefon yok"} - {c.category === "SELLER" ? "Mal Sahibi" : "Müşteri"})
-                      </option>
-                    ))}
-                  </select>
+                    placeholder="-- Müşteri havuzundan mal sahibi arayın veya seçin (Zorunlu) --"
+                    searchPlaceholder="İsim, telefon veya bölge yazarak arayın..."
+                  />
                 </div>
 
                 {/* Seçili Mal Sahibi Bilgi Kartı */}

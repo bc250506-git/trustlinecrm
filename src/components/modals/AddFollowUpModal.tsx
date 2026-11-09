@@ -7,11 +7,14 @@ import {
   X,
   Users,
   Plus,
+  RotateCw,
 } from "lucide-react";
 import { AddCustomerModal } from "./AddCustomerModal";
 import { AddPropertyModal } from "./AddPropertyModal";
 import { DateInput } from "@/components/common/DateInput";
 import { formatPhoneWithPrefix, combineLocalDateAndTimeToIso } from "@/lib/formatters";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
+import { RecurrenceRule } from "@/lib/types";
 
 interface AddFollowUpModalProps {
   isOpen: boolean;
@@ -37,6 +40,8 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formIsOfficeEvent, setFormIsOfficeEvent] = useState(false);
+  const [formIsRecurring, setFormIsRecurring] = useState(false);
+  const [formRecurrenceRule, setFormRecurrenceRule] = useState<RecurrenceRule>("monthly");
 
   // Standart Modal Entegrasyonu
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
@@ -55,9 +60,35 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
       setFormDate(localDate);
       setFormTime("");
       setFormIsOfficeEvent(false);
+      setFormIsRecurring(false);
+      setFormRecurrenceRule("monthly");
     }
     prevIsOpenRef.current = isOpen;
   }, [isOpen, initialDate]);
+
+  const customerOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Telefon yok"} • ${c.region || "KKTC"}`,
+        badge: c.category === "BUYER" ? "Alıcı" : c.category === "SELLER" ? "Mal Sahibi" : "Kiracı",
+        keywords: `${c.fullName} ${c.phone || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
+
+  const propertyOptions = React.useMemo<SearchableOption[]>(() => {
+    return properties
+      .filter((p) => !p.deletedAt)
+      .map((p) => ({
+        value: p.id,
+        label: p.title,
+        sublabel: `${p.region || "KKTC"} • ${p.price.toLocaleString("tr-TR")} ${p.currency}`,
+        badge: p.listingType === "rent" ? "KİRALIK" : "SATILIK",
+        keywords: `${p.title} ${p.region || ""} ${p.propertyType || ""}`,
+      }));
+  }, [properties]);
 
   if (!isOpen) return null;
 
@@ -91,6 +122,8 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
       assignedToName: isOffice ? "Tüm Ofis Ekibi" : currentUser.name,
       createdById: currentUser.id,
       createdByName: currentUser.name,
+      isRecurring: formIsRecurring,
+      recurrenceRule: formIsRecurring ? formRecurrenceRule : undefined,
     });
 
     onClose();
@@ -146,18 +179,13 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
                   + Yeni
                 </button>
               </div>
-              <select
+              <SearchableSelect
+                options={customerOptions}
                 value={formCustomerId}
-                onChange={(e) => setFormCustomerId(e.target.value)}
-                className="sharp-input w-full p-2 bg-white"
-              >
-                <option value="">-- Müşteri Seçilmedi (Boş) --</option>
-                {customers.filter((c) => !c.deletedAt).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.fullName} {c.phone ? `(${formatPhoneWithPrefix(c.phone) || c.phone})` : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={setFormCustomerId}
+                placeholder="-- Müşteri Seçilmedi (Arayın veya Seçin) --"
+                searchPlaceholder="Müşteri isim, telefon ara..."
+              />
             </div>
 
             <div>
@@ -193,18 +221,13 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
                 + Yeni
               </button>
             </div>
-            <select
+            <SearchableSelect
+              options={propertyOptions}
               value={formPropertyId}
-              onChange={(e) => setFormPropertyId(e.target.value)}
-              className="sharp-input w-full p-2 bg-white"
-            >
-              <option value="">Portföy Seçilmedi</option>
-              {properties.filter((p) => !p.deletedAt).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
+              onChange={setFormPropertyId}
+              placeholder="-- Portföy Seçilmedi (Arayın veya Seçin) --"
+              searchPlaceholder="Portföy adı, bölge ara..."
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -231,6 +254,57 @@ export function AddFollowUpModal({ isOpen, onClose, onSuccess, initialDate }: Ad
                 className="sharp-input w-full p-2 font-mono"
               />
             </div>
+          </div>
+
+          {/* 🔄 TEKRARLAYAN RUTİN GÖREV (OTOMATİK TAKVİM İŞLEME) */}
+          <div className="p-3 bg-cyan-50/70 border border-cyan-200 space-y-2.5">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formIsRecurring}
+                onChange={(e) => setFormIsRecurring(e.target.checked)}
+                className="mt-0.5 w-4 h-4 text-[#00adb5] rounded-none border-cyan-300 focus:ring-[#00adb5] cursor-pointer"
+              />
+              <div>
+                <span className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                  <RotateCw className="w-3.5 h-3.5 text-[#00adb5]" />
+                  Bu görevi sürekli tekrarla (Takvime otomatik işle)
+                </span>
+                <p className="text-[11px] text-cyan-900 mt-0.5 leading-normal">
+                  İşaretlendiğinde önümüzdeki 12 periyot boyunca ajanda ve takviminize otomatik olarak işlenir.
+                </p>
+              </div>
+            </label>
+
+            {formIsRecurring && (
+              <div className="pl-6 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3 border-t border-cyan-200">
+                <div>
+                  <label className="block text-slate-700 font-mono text-[10.5px] font-bold mb-1">
+                    Tekrarlama Sıklığı
+                  </label>
+                  <select
+                    value={formRecurrenceRule}
+                    onChange={(e) => setFormRecurrenceRule(e.target.value as any)}
+                    className="sharp-input w-full p-1.5 bg-white font-mono text-xs font-semibold"
+                  >
+                    <option value="monthly">🗓️ Aylık (Her ayın aynı günü)</option>
+                    <option value="weekly">📅 Haftalık (Her haftanın aynı günü)</option>
+                    <option value="yearly">🎂 Yıllık (Yılda bir kez aynı gün)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-700 font-mono text-[10.5px] font-bold mb-1">
+                    İşlenecek Süre
+                  </label>
+                  <div className="sharp-input w-full p-1.5 bg-white text-xs font-mono text-slate-700 flex items-center justify-between">
+                    <span>Gelecek 12 Periyot</span>
+                    <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-1.5 py-0.2 border border-emerald-200">
+                      ✓ Otomatik Planlanır
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Yalnızca Ofis Kullanıcısı (Broker / Admin) İçin Ofis Etkinliği Checkbox */}

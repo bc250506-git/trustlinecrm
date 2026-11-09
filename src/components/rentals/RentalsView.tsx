@@ -36,6 +36,7 @@ import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR, cleanWhatsAppNumber, formatPhoneWithPrefix } from "@/lib/formatters";
+import { SearchableSelect, SearchableOption } from "@/components/common/SearchableSelect";
 
 export function RentalsView() {
   const {
@@ -61,10 +62,58 @@ export function RentalsView() {
     toggleRentalStamp,
   } = useStore();
 
-  // Kira Sözleşmeleri İzolasyonu: Herkes yalnızca kendininkini (Ofis ve Broker dahil) görür ve yönetir
+  // Kira Sözleşmeleri Kesintisiz Koruma:
+  // Süresi devam eden hiçbir sözleşme asla gizlenemez. Yalnızca süresi dolmuş ve kullanıcı tarafından
+  // açıkça pasife alınmış (arşivlenmiş) sözleşmeler kira takibinden ayrılır.
   const filteredRentals = React.useMemo(() => {
-    return rentals.filter((r) => r.active !== false);
+    const todayStr = new Date().toISOString().split("T")[0];
+    return rentals.filter((r) => {
+      if (!r.contractEnd || r.contractEnd >= todayStr) return true;
+      return r.active !== false;
+    });
   }, [rentals]);
+
+  // Arama özellikli portföy ve müşteri listeleri
+  const propertySelectOptions = React.useMemo<SearchableOption[]>(() => {
+    return properties
+      .filter((p) => !p.deletedAt)
+      .map((p) => ({
+        value: p.id,
+        label: p.title,
+        sublabel: `${p.region || "KKTC"} • ${p.price.toLocaleString("tr-TR")} ${p.currency} • ${p.propertyType || "Gayrimenkul"}`,
+        group: p.listingType === "rent" ? "📋 KİRALIK PORTFÖYLER (Öncelikli)" : "🏢 SATILIK PORTFÖYLER",
+        badge: p.listingType === "rent" ? "KİRALIK" : "SATILIK",
+        badgeColor: p.listingType === "rent" ? "bg-cyan-50 text-cyan-800 border-cyan-200" : "bg-emerald-50 text-emerald-800 border-emerald-200",
+        keywords: `${p.title} ${p.region || ""} ${p.propertyType || ""} ${p.price} ${p.currency}`,
+      }));
+  }, [properties]);
+
+  const tenantSelectOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Tel yok"} • ${c.region || "KKTC"}`,
+        badge: c.category === "TENANT" ? "Kiracı" : c.category === "SELLER" ? "Mal Sahibi" : "Müşteri",
+        badgeColor: c.category === "TENANT" ? "bg-cyan-50 text-cyan-800 border-cyan-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
+
+  const landlordSelectOptions = React.useMemo<SearchableOption[]>(() => {
+    return customers
+      .filter((c) => !c.deletedAt)
+      .map((c) => ({
+        value: c.id,
+        label: c.fullName,
+        sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Tel yok"} • ${c.region || "KKTC"}`,
+        group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ (Öncelikli)" : "👥 DİĞER MÜŞTERİLER",
+        badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Müşteri",
+        badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+        keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
+      }));
+  }, [customers]);
 
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState<Date | null>(null);
@@ -232,7 +281,7 @@ export function RentalsView() {
   const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [visibleStartMonth, setVisibleStartMonth] = useState<string>("Ocak 2026");
   const [visibleEndMonth, setVisibleEndMonth] = useState<string>("Aralık 2026");
-  const [stampFilter, setStampFilter] = useState<"ALL" | "STAMPED" | "UNSTAMPED">("ALL");
+  const [stampFilter, setStampFilter] = useState<"ALL" | "STAMPED" | "UNSTAMPED" | "OVERDUE">("ALL");
 
   // Tablo kaydıkça sliderı ve ekranda görünen ay aralığını kesintisiz senkronize et
   const handleTableScroll = () => {
@@ -563,6 +612,82 @@ export function RentalsView() {
     editingRental,
   ]);
 
+  // Bir sözleşmedeki vadesi geçmiş (günü geçmiş) ödenmemiş kira veya aidatları tespit eden fonksiyon
+  const getRentalOverdueInfo = React.useCallback(
+    (r: RentalContract) => {
+      const now = currentDate || new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const currentDay = now.getDate();
+      const todayDateStr = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(currentDay).padStart(2, "0")}`;
+      const todayTime = new Date(currentYear, currentMonth - 1, currentDay).getTime();
+
+      const parsePeriod = (str?: string) => {
+        if (!str) return "";
+        if (str.includes("/")) {
+          const p = str.split("/");
+          if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1].padStart(2, "0")}`;
+        }
+        return str.slice(0, 7);
+      };
+
+      const startKey = parsePeriod(r.contractStart);
+      const endKey = parsePeriod(r.contractEnd);
+
+      let hasOverdue = false;
+      let overdueRentCount = 0;
+      let overdueDuesCount = 0;
+      let maxOverdueDays = 0;
+      const overdueLabels: string[] = [];
+
+      for (const m of allTimelineMonths) {
+        if (startKey && endKey && (m.key < startKey || m.key > endKey)) {
+          continue;
+        }
+
+        const daysInMonth = new Date(m.year, m.month, 0).getDate();
+        const adjustedDay = Math.min(r.dueDay || 5, daysInMonth);
+        const dueDateStr = `${m.year}-${String(m.month).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+
+        if (dueDateStr < todayDateStr) {
+          const payment = r.payments?.find(
+            (p) =>
+              p.periodKey === m.key ||
+              (p.dueDate && p.dueDate.startsWith(m.key)) ||
+              (p.month === m.month && (p.year ? p.year === m.year : m.year === 2026))
+          );
+
+          const isRentPaid = payment?.status === "paid";
+          const isDuesPaid = !r.hasDues || !r.duesAmount || payment?.duesStatus === "paid";
+
+          if (!isRentPaid || !isDuesPaid) {
+            hasOverdue = true;
+            const dueTime = new Date(m.year, m.month - 1, adjustedDay).getTime();
+            const diffDays = Math.max(1, Math.ceil((todayTime - dueTime) / (1000 * 3600 * 24)));
+            if (diffDays > maxOverdueDays) maxOverdueDays = diffDays;
+
+            if (!isRentPaid) {
+              overdueRentCount++;
+              overdueLabels.push(`${m.shortName} (${diffDays} gün)`);
+            }
+            if (!isDuesPaid) {
+              overdueDuesCount++;
+            }
+          }
+        }
+      }
+
+      return {
+        hasOverdue,
+        overdueRentCount,
+        overdueDuesCount,
+        maxOverdueDays,
+        overdueLabels,
+      };
+    },
+    [allTimelineMonths, currentDate]
+  );
+
   // Yalnızca kira tarihine 3 gün veya daha az kala ya da vadesi geçmişse hatırlatma göster
   const getRentalReminderStatus = (r: RentalContract) => {
     const now = currentDate || new Date();
@@ -570,6 +695,21 @@ export function RentalsView() {
     const currentYearNum = now.getFullYear();
     const currentPeriodKey = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}`;
     const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const parsePeriod = (str?: string) => {
+      if (!str) return "";
+      if (str.includes("/")) {
+        const p = str.split("/");
+        if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1].padStart(2, "0")}`;
+      }
+      return str.slice(0, 7);
+    };
+
+    const startKey = parsePeriod(r.contractStart);
+    const endKey = parsePeriod(r.contractEnd);
+    if (startKey && endKey && (currentPeriodKey < startKey || currentPeriodKey > endKey)) {
+      return null;
+    }
 
     // Bu aya ait aktif ödemeyi bul
     const currentPayment = r.payments?.find(
@@ -579,15 +719,15 @@ export function RentalsView() {
         (p.month === currentMonthNum && (!p.year || p.year === currentYearNum))
     );
 
-    // Bu ay ödemesi yapıldıysa veya bu ayda taksit yoksa hatırlatma gerekmez
-    if (!currentPayment || currentPayment.status === "paid") {
+    // Bu ay ödemesi yapıldıysa hatırlatma gerekmez
+    if (currentPayment && currentPayment.status === "paid") {
       return null;
     }
 
-    let dueDateStr = currentPayment.dueDate;
+    let dueDateStr = currentPayment?.dueDate;
     if (!dueDateStr) {
       const daysInCurrentMonth = new Date(currentYearNum, currentMonthNum, 0).getDate();
-      const adjustedDay = Math.min(r.dueDay, daysInCurrentMonth);
+      const adjustedDay = Math.min(r.dueDay || 5, daysInCurrentMonth);
       dueDateStr = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
     }
 
@@ -598,7 +738,7 @@ export function RentalsView() {
     if (diffDays <= 3) {
       return {
         diffDays,
-        isOverdue: diffDays < 0 || currentPayment.status === "overdue",
+        isOverdue: diffDays < 0 || currentPayment?.status === "overdue",
         dueDateStr,
       };
     }
@@ -616,6 +756,21 @@ export function RentalsView() {
     const currentPeriodKey = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}`;
     const todayDateOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
+    const parsePeriod = (str?: string) => {
+      if (!str) return "";
+      if (str.includes("/")) {
+        const p = str.split("/");
+        if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1].padStart(2, "0")}`;
+      }
+      return str.slice(0, 7);
+    };
+
+    const startKey = parsePeriod(r.contractStart);
+    const endKey = parsePeriod(r.contractEnd);
+    if (startKey && endKey && (currentPeriodKey < startKey || currentPeriodKey > endKey)) {
+      return null;
+    }
+
     const currentPayment = r.payments?.find(
       (p) =>
         p.periodKey === currentPeriodKey ||
@@ -623,15 +778,15 @@ export function RentalsView() {
         (p.month === currentMonthNum && (!p.year || p.year === currentYearNum))
     );
 
-    // Bu ay aidat ödemesi yapıldıysa veya taksit yoksa hatırlatma gerekmez
-    if (!currentPayment || currentPayment.duesStatus === "paid") {
+    // Bu ay aidat ödemesi yapıldıysa hatırlatma gerekmez
+    if (currentPayment && currentPayment.duesStatus === "paid") {
       return null;
     }
 
-    let dueDateStr = currentPayment.dueDate;
+    let dueDateStr = currentPayment?.dueDate;
     if (!dueDateStr) {
       const daysInCurrentMonth = new Date(currentYearNum, currentMonthNum, 0).getDate();
-      const adjustedDay = Math.min(r.dueDay, daysInCurrentMonth);
+      const adjustedDay = Math.min(r.dueDay || 5, daysInCurrentMonth);
       dueDateStr = `${currentYearNum}-${String(currentMonthNum).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
     }
 
@@ -642,7 +797,7 @@ export function RentalsView() {
     if (diffDays <= 3) {
       return {
         diffDays,
-        isOverdue: diffDays < 0 || currentPayment.duesStatus === "overdue",
+        isOverdue: diffDays < 0 || currentPayment?.duesStatus === "overdue",
         dueDateStr,
       };
     }
@@ -875,13 +1030,22 @@ export function RentalsView() {
 
   const stampedCount = filteredRentals.filter((r) => !!r.isStamped).length;
   const unstampedCount = filteredRentals.length - stampedCount;
+  const overdueContractsCount = filteredRentals.filter((r) => getRentalOverdueInfo(r).hasOverdue).length;
+
   const displayedRentals = filteredRentals
     .filter((r) => {
       if (stampFilter === "STAMPED") return !!r.isStamped;
       if (stampFilter === "UNSTAMPED") return !r.isStamped;
+      if (stampFilter === "OVERDUE") return getRentalOverdueInfo(r).hasOverdue;
       return true;
     })
     .sort((a, b) => {
+      // 🚨 GÜNÜ GEÇENLER DİKKAT ÇEKMEK İÇİN EN ÜSTTE SIRALANIR
+      const aOverdue = getRentalOverdueInfo(a).hasOverdue;
+      const bOverdue = getRentalOverdueInfo(b).hasOverdue;
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+
       const dayA = Number(a.dueDay) || 5;
       const dayB = Number(b.dueDay) || 5;
       if (dayA !== dayB) return dayA - dayB;
@@ -917,7 +1081,7 @@ export function RentalsView() {
 
         <div className="flex flex-wrap items-center gap-3">
 
-          {/* KKTC Vergi Dairesi Damga Pulu Filtresi */}
+          {/* KKTC Vergi Dairesi Damga Pulu & Günü Geçenler Filtresi */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200">
             <button
               type="button"
@@ -929,6 +1093,21 @@ export function RentalsView() {
               }`}
             >
               Tümü ({filteredRentals.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setStampFilter("OVERDUE")}
+              className={`px-2.5 py-1 text-xs font-mono font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                stampFilter === "OVERDUE"
+                  ? "bg-rose-600 text-white shadow-xs"
+                  : overdueContractsCount > 0
+                  ? "text-rose-700 bg-rose-50 border border-rose-300 hover:bg-rose-100 animate-pulse font-extrabold"
+                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-200"
+              }`}
+              title="Kira veya aidat günü geçmiş ödenmemiş sözleşmeleri filtrele"
+            >
+              <AlertTriangle className={`w-3.5 h-3.5 ${stampFilter === "OVERDUE" ? "text-white" : "text-rose-600"}`} />
+              <span>Günü Geçenler ({overdueContractsCount})</span>
             </button>
             <button
               type="button"
@@ -1249,27 +1428,67 @@ export function RentalsView() {
               {displayedRentals.length === 0 ? (
                 <tr>
                   <td colSpan={allTimelineMonths.length + 3} className="py-10 text-center text-slate-500 font-mono text-xs">
-                    Seçilen filtreleme kriterine ({stampFilter === "STAMPED" ? "Pullatıldı" : "Pullatılmadı"}) uygun kira sözleşmesi bulunamadı.
+                    Seçilen filtreleme kriterine ({stampFilter === "STAMPED" ? "Pullatıldı" : stampFilter === "OVERDUE" ? "Günü Geçenler" : "Pullatılmadı"}) uygun kira sözleşmesi bulunamadı.
                   </td>
                 </tr>
               ) : (
                 displayedRentals.map((r) => {
+                const overdueInfo = getRentalOverdueInfo(r);
+                const hasOverdue = overdueInfo.hasOverdue;
                 const reminderStatus = getRentalReminderStatus(r);
                 const duesReminderStatus = getDuesReminderStatus(r);
-                const startPeriodKey = r.contractStart ? r.contractStart.slice(0, 7) : "";
-                const endPeriodKey = r.contractEnd ? r.contractEnd.slice(0, 7) : "";
+
+                const parsePeriod = (str?: string) => {
+                  if (!str) return "";
+                  if (str.includes("/")) {
+                    const p = str.split("/");
+                    if (p.length === 3 && p[2].length === 4) return `${p[2]}-${p[1].padStart(2, "0")}`;
+                  }
+                  return str.slice(0, 7);
+                };
+
+                const startPeriodKey = parsePeriod(r.contractStart);
+                const endPeriodKey = parsePeriod(r.contractEnd);
 
                 return (
-                  <tr key={r.id} className="group hover:bg-slate-50 transition">
-                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Pullatılmış / Pullatılmamış Renk Farkı */}
-                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - 7 Temel Bilgi */}
-                    <td className={`py-3 px-3.5 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] bg-white group-hover:bg-slate-50 transition ${
-                      r.isStamped
-                        ? "border-l-4 border-l-emerald-500"
-                        : "border-l-4 border-l-amber-400"
-                    }`}>
+                  <tr
+                    key={r.id}
+                    className={`group transition ${
+                      hasOverdue
+                        ? "bg-rose-50/90 hover:bg-rose-100/95 border-y-2 border-rose-400 shadow-sm"
+                        : "hover:bg-slate-50"
+                    }`}
+                  >
+                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Pullatılmış / Pullatılmamış / Günü Geçmiş Renk Farkı */}
+                    <td
+                      className={`py-3 px-3.5 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                        hasOverdue
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] border-l-4 border-l-rose-600 ring-1 ring-rose-200"
+                          : r.isStamped
+                          ? "bg-white group-hover:bg-slate-50 border-l-4 border-l-emerald-500"
+                          : "bg-white group-hover:bg-slate-50 border-l-4 border-l-amber-400"
+                      }`}
+                    >
+                      {/* 🚨 GÜNÜ GEÇEN KİRA UYARI ŞERİDİ */}
+                      {hasOverdue && (
+                        <div className="mb-2 px-2 py-1 bg-rose-600 text-white font-mono text-[10.5px] font-bold flex items-center justify-between gap-1 shadow-xs border border-rose-700 animate-pulse">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-white" />
+                            <span className="tracking-wide uppercase">GÜNÜ GEÇTİ • {overdueInfo.maxOverdueDays} GÜN GECİKTİ</span>
+                          </div>
+                          <span className="text-[9px] bg-rose-800 text-rose-100 px-1.5 py-0.2 shrink-0 font-bold">
+                            {overdueInfo.overdueLabels.slice(0, 2).join(", ")}
+                          </span>
+                        </div>
+                      )}
+
                       {/* 1. Portföy Adı */}
-                      <div className="font-bold text-[#1d2566] text-xs leading-snug line-clamp-1" title={r.propertyTitle}>
+                      <div
+                        className={`font-bold text-xs leading-snug line-clamp-1 ${
+                          hasOverdue ? "text-rose-950 font-extrabold" : "text-[#1d2566]"
+                        }`}
+                        title={r.propertyTitle}
+                      >
                         {r.propertyTitle || "İsimsiz Portföy"}
                       </div>
 
@@ -1340,10 +1559,24 @@ export function RentalsView() {
                     </td>
 
                     {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) */}
-                    <td className="py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] bg-white group-hover:bg-slate-50 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition">
-                      <div className="text-xs">{r.monthlyRent.toLocaleString("tr-TR")} {r.currency}</div>
+                    <td
+                      className={`py-3 px-3 text-right font-mono font-bold whitespace-nowrap sticky left-[300px] z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                        hasOverdue
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] text-rose-950 border-r border-rose-200"
+                          : "bg-white group-hover:bg-slate-50 text-[#1d2566]"
+                      }`}
+                    >
+                      <div className={`text-xs ${hasOverdue ? "text-rose-900 font-extrabold" : ""}`}>
+                        {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
+                      </div>
                       {r.hasDues && r.duesAmount ? (
-                        <div className="text-[10px] font-sans font-semibold text-indigo-700 bg-indigo-50/90 px-1.5 py-0.5 mt-1 border border-indigo-200 inline-block shadow-2xs">
+                        <div
+                          className={`text-[10px] font-sans font-semibold px-1.5 py-0.5 mt-1 border inline-block shadow-2xs ${
+                            overdueInfo.overdueDuesCount > 0
+                              ? "bg-rose-100 text-rose-900 border-rose-300 font-bold"
+                              : "text-indigo-700 bg-indigo-50/90 border-indigo-200"
+                          }`}
+                        >
                           Aidat: {r.duesAmount.toLocaleString("tr-TR")} {r.duesCurrency || "TRY"}
                         </div>
                       ) : (
@@ -1370,12 +1603,16 @@ export function RentalsView() {
                         return (
                           <td
                             key={m.key}
-                            className={`py-2 px-1 text-center border-r border-slate-100 ${
-                              isCurrentRealMonth ? "bg-cyan-50/25" : "bg-slate-50/30"
+                            className={`py-2 px-1 text-center border-r transition ${
+                              hasOverdue
+                                ? "bg-[#fff1f2]/50 group-hover:bg-[#ffe4e6]/60 border-rose-200/50 text-rose-300"
+                                : isCurrentRealMonth
+                                ? "bg-cyan-50/25 border-slate-100 text-slate-300"
+                                : "bg-slate-50/30 border-slate-100 text-slate-300"
                             }`}
                           >
                             <div
-                              className="h-10 flex items-center justify-center text-slate-300 font-mono text-sm select-none border border-transparent"
+                              className="h-10 flex items-center justify-center font-mono text-sm select-none border border-transparent"
                               title={`${r.propertyTitle} — Bu ay (${m.fullName} ${m.year}) sözleşme kapsamında değil`}
                             >
                               —
@@ -1383,6 +1620,17 @@ export function RentalsView() {
                           </td>
                         );
                       }
+
+                      const now = currentDate || new Date();
+                      const currentYear = now.getFullYear();
+                      const currentMonth = now.getMonth() + 1;
+                      const currentDay = now.getDate();
+                      const todayDateStr = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(currentDay).padStart(2, "0")}`;
+
+                      const daysInMonth = new Date(m.year, m.month, 0).getDate();
+                      const adjustedDay = Math.min(r.dueDay || 5, daysInMonth);
+                      const dueDateStr = `${m.year}-${String(m.month).padStart(2, "0")}-${String(adjustedDay).padStart(2, "0")}`;
+                      const isPastDue = Boolean(todayDateStr && dueDateStr < todayDateStr);
 
                       // Sözleşme kapsamındaki aktif ay
                       const payment = r.payments?.find(
@@ -1393,18 +1641,22 @@ export function RentalsView() {
                       );
 
                       const isPaid = payment?.status === "paid";
-                      const isOverdue = payment?.status === "overdue";
+                      const isOverdue = !isPaid && (payment?.status === "overdue" || isPastDue);
                       const isDuesPaid = payment?.duesStatus === "paid";
-                      const isDuesOverdue = payment?.duesStatus === "overdue";
-                      const daysInMonth = new Date(m.year, m.month, 0).getDate();
-                      const adjustedDay = Math.min(r.dueDay, daysInMonth);
+                      const isDuesOverdue = Boolean(r.hasDues && r.duesAmount) && !isDuesPaid && (payment?.duesStatus === "overdue" || isPastDue);
                       const dueDayLabel = `${adjustedDay} ${m.shortName}`;
 
                       return (
                         <td
                           key={m.key}
-                          className={`py-2 px-1 text-center border-r border-slate-100 ${
-                            isCurrentRealMonth ? "bg-cyan-50/20" : ""
+                          className={`py-2 px-1 text-center border-r transition ${
+                            isOverdue
+                              ? "bg-rose-100/95 border-rose-300"
+                              : hasOverdue
+                              ? "bg-[#fff1f2]/70 group-hover:bg-[#ffe4e6]/80 border-rose-200/60"
+                              : isCurrentRealMonth
+                              ? "bg-cyan-50/20 border-slate-100"
+                              : "border-slate-100"
                           }`}
                         >
                           <div
@@ -1412,16 +1664,31 @@ export function RentalsView() {
                               isPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
                                 : isOverdue
-                                ? "bg-rose-50 border-rose-300 text-rose-800 font-semibold shadow-xs"
+                                ? "bg-rose-100 border-rose-500 text-rose-950 font-bold shadow-xs ring-1 ring-rose-400"
                                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                             }`}
                           >
-                            <div className="text-[10px] font-mono leading-none">
-                              {dueDayLabel}
+                            <div
+                              className={`text-[10px] font-mono leading-none flex items-center justify-center gap-0.5 ${
+                                isOverdue ? "text-rose-900 font-extrabold" : ""
+                              }`}
+                            >
+                              {isOverdue && <AlertTriangle className="w-2.5 h-2.5 text-rose-600 shrink-0" />}
+                              <span>{dueDayLabel}</span>
                             </div>
 
+                            {/* Gecikti rozeti */}
+                            {isOverdue && (
+                              <span className="text-[7.5px] font-mono font-bold bg-rose-600 text-white px-1 py-0.2 rounded-2xs uppercase tracking-tight shadow-2xs">
+                                Gecikti
+                              </span>
+                            )}
+
                             {/* Kira Ödeme Durumu & Buton */}
-                            <div className="flex items-center gap-1 mt-0.5" title={`Kira Ödemesi: ${isPaid ? "Ödendi" : isOverdue ? "Gecikmiş" : "Ödenmedi"}`}>
+                            <div
+                              className="flex items-center gap-1 mt-0.5"
+                              title={`Kira Ödemesi: ${isPaid ? "Ödendi" : isOverdue ? "Günü Geçti / Gecikmiş" : "Ödenmedi"}`}
+                            >
                               <input
                                 type="checkbox"
                                 checked={isPaid}
@@ -1430,15 +1697,19 @@ export function RentalsView() {
                                     r.id,
                                     m.key,
                                     e.target.checked,
-                                    payment?.dueDate
+                                    payment?.dueDate || dueDateStr
                                   );
                                 }}
                                 title={
                                   isPaid
                                     ? `${m.fullName} ${m.year}: Kira Ödendi olarak işaretli (Tıkla ve kaldır)`
+                                    : isOverdue
+                                    ? `${m.fullName} ${m.year}: Kira GÜNÜ GEÇTİ! Ödendi olarak işaretlemek için tıkla`
                                     : `${m.fullName} ${m.year}: Kira Ödendi olarak işaretle`
                                 }
-                                className="w-3.5 h-3.5 accent-emerald-600 rounded-none cursor-pointer"
+                                className={`w-3.5 h-3.5 rounded-none cursor-pointer ${
+                                  isOverdue ? "accent-rose-600 ring-1 ring-rose-400" : "accent-emerald-600"
+                                }`}
                               />
 
                               {/* Dekont Butonu */}
@@ -1452,7 +1723,7 @@ export function RentalsView() {
                                     periodKey: m.key,
                                     monthName: `${m.fullName} ${m.year}`,
                                     contract: r,
-                                    dueDate: payment?.dueDate,
+                                    dueDate: payment?.dueDate || dueDateStr,
                                   })
                                 }
                                 title={
@@ -1477,7 +1748,7 @@ export function RentalsView() {
                                   isDuesPaid
                                     ? "border-indigo-200 bg-indigo-50/70 text-indigo-900 font-semibold"
                                     : isDuesOverdue
-                                    ? "border-rose-300 bg-rose-50 text-rose-800 font-semibold"
+                                    ? "border-rose-400 bg-rose-200 text-rose-950 font-bold"
                                     : "border-slate-200/80 bg-slate-50/60 text-slate-500"
                                 }`}
                                 title={
@@ -1497,7 +1768,7 @@ export function RentalsView() {
                                       r.id,
                                       m.key,
                                       e.target.checked,
-                                      payment?.dueDate
+                                      payment?.dueDate || dueDateStr
                                     );
                                   }}
                                   title={
@@ -1515,7 +1786,13 @@ export function RentalsView() {
                     })}
 
                     {/* İşlem Aksiyonları (Düzenle & Sil) (Sticky Sağ) */}
-                    <td className="py-2 px-2 text-center sticky right-0 bg-white group-hover:bg-slate-50 z-10 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)] transition">
+                    <td
+                      className={`py-2 px-2 text-center sticky right-0 z-10 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                        hasOverdue
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6] border-l border-rose-200"
+                          : "bg-white group-hover:bg-slate-50"
+                      }`}
+                    >
                       <ActionMenu
                         onEdit={() => handleOpenEditRental(r)}
                         onDelete={() => setRentalToDelete(r)}
@@ -1596,33 +1873,13 @@ export function RentalsView() {
                       <span>+ Yeni Portföy Ekle</span>
                     </button>
                   </div>
-                  <select
+                  <SearchableSelect
+                    options={propertySelectOptions}
                     value={formData.selectedPropertyId}
-                    onChange={(e) => handleSelectProperty(e.target.value)}
-                    className="sharp-input w-full p-2 text-xs bg-white font-medium"
-                  >
-                    <option value="">
-                      -- Portföy havuzundan kiralık mülk seçin veya aşağıya elle yazın --
-                    </option>
-                    <optgroup label="📋 KİRALIK PORTFÖYLER (Öncelikli)">
-                      {properties
-                        .filter((p) => !p.deletedAt && p.listingType === "rent")
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            [KİRALIK] {p.title} ({p.region || "KKTC"}) - {p.price.toLocaleString("tr-TR")} {p.currency}
-                          </option>
-                        ))}
-                    </optgroup>
-                    <optgroup label="🏢 DİĞER / SATILIK PORTFÖYLER">
-                      {properties
-                        .filter((p) => !p.deletedAt && p.listingType === "sale")
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            [SATILIK] {p.title} ({p.region || "KKTC"}) - {p.price.toLocaleString("tr-TR")} {p.currency}
-                          </option>
-                        ))}
-                    </optgroup>
-                  </select>
+                    onChange={(val) => handleSelectProperty(val)}
+                    placeholder="-- Portföy havuzundan kiralık mülk seçin veya arayın --"
+                    searchPlaceholder="Portföy adı, bölge, fiyat ara..."
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1685,18 +1942,13 @@ export function RentalsView() {
                         <span>+ Yeni Kiracı Ekle</span>
                       </button>
                     </div>
-                    <select
+                    <SearchableSelect
+                      options={tenantSelectOptions}
                       value={formData.selectedTenantId}
-                      onChange={(e) => handleSelectTenant(e.target.value)}
-                      className="sharp-input w-full p-1.5 text-xs bg-white"
-                    >
-                      <option value="">-- Müşteri havuzundan seç --</option>
-                      {customers.filter((c) => !c.deletedAt).map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.fullName} ({c.phone || "Tel yok"})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(val) => handleSelectTenant(val)}
+                      placeholder="-- Müşteri havuzundan seçin veya arayın --"
+                      searchPlaceholder="Kiracı isim, telefon, bölge ara..."
+                    />
                     <input
                       type="text"
                       required
@@ -1735,20 +1987,13 @@ export function RentalsView() {
                         <span>+ Yeni Ev Sahibi Ekle</span>
                       </button>
                     </div>
-                    <select
+                    <SearchableSelect
+                      options={landlordSelectOptions}
                       value={formData.selectedLandlordId}
-                      onChange={(e) => handleSelectLandlord(e.target.value)}
-                      className="sharp-input w-full p-1.5 text-xs bg-white"
-                    >
-                      <option value="">-- Müşteri havuzundan seç --</option>
-                      {customers
-                        .filter((c) => !c.deletedAt && c.category === "SELLER")
-                        .map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.fullName} ({c.phone || "Tel yok"})
-                          </option>
-                        ))}
-                    </select>
+                      onChange={(val) => handleSelectLandlord(val)}
+                      placeholder="-- Müşteri havuzundan seçin veya arayın --"
+                      searchPlaceholder="Ev sahibi isim, telefon, bölge ara..."
+                    />
                     <input
                       type="text"
                       placeholder="Mülk Sahibi Ad Soyad"

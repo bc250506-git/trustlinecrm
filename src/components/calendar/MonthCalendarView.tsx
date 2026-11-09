@@ -19,6 +19,7 @@ import {
   MessageSquare,
   CheckCircle2,
   RotateCcw,
+  RotateCw,
   Users,
   Building,
   CalendarDays,
@@ -708,6 +709,11 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                           <span className="font-bold shrink-0">
                             {task.dueAt ? formatFollowUpTime(task.dueAt) : ""}
                           </span>
+                          {task.isRecurring && (
+                            <span title="Tekrarlayan Rutin Görev" className="shrink-0 flex items-center">
+                              <RotateCw className="w-2.5 h-2.5 text-[#00adb5]" />
+                            </span>
+                          )}
                           <span className="truncate">
                             {task.customerName ? `${task.customerName.split(" ")[0]}: ` : ""}
                             {task.title}
@@ -832,6 +838,17 @@ export function MonthCalendarView({ isDashboard = false, onNavigate }: MonthCale
                         >
                           {formatFollowUpKind(task.kind)}
                         </span>
+                        {task.isRecurring && (
+                          <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-cyan-50 text-cyan-900 border-cyan-300 flex items-center gap-1 shadow-2xs">
+                            <RotateCw className="w-2.5 h-2.5 text-[#00adb5]" />
+                            {task.recurrenceRule === "weekly"
+                              ? "Haftalık Rutin"
+                              : task.recurrenceRule === "yearly"
+                              ? "Yıllık Rutin"
+                              : "Aylık Rutin"}
+                            {task.recurrenceIndex ? ` (${task.recurrenceIndex}/12)` : ""}
+                          </span>
+                        )}
                       </div>
 
                       <span

@@ -26,6 +26,7 @@ import {
   Megaphone,
   Sparkles,
   RotateCcw,
+  RotateCw,
   Search,
   Filter,
   ChevronLeft,
@@ -894,6 +895,18 @@ export function CalendarView() {
                       </span>
                     )}
 
+                    {t.isRecurring && (
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-cyan-50 text-cyan-900 border-cyan-300 flex items-center gap-1 shadow-2xs">
+                        <RotateCw className="w-3 h-3 text-[#00adb5]" />
+                        {t.recurrenceRule === "weekly"
+                          ? "Haftalık Rutin"
+                          : t.recurrenceRule === "yearly"
+                          ? "Yıllık Rutin"
+                          : "Aylık Rutin"}
+                        {t.recurrenceIndex ? ` (${t.recurrenceIndex}/12)` : ""}
+                      </span>
+                    )}
+
                     <span className="text-xs font-mono text-slate-600 font-medium">
                       {new Date(t.dueAt).toLocaleDateString("tr-TR", {
                         day: "numeric",
@@ -1164,20 +1177,73 @@ export function CalendarView() {
         </div>
       )}
 
-      {/* SİLME ONAY MODALI */}
-      <DeleteConfirmModal
-        isOpen={!!followUpToDelete}
-        title="Ajanda Görevini Sil"
-        itemName={followUpToDelete ? followUpToDelete.title : undefined}
-        message="Bu ajanda randevusu / takip görevi kalıcı olarak silinecektir."
-        onConfirm={() => {
-          if (followUpToDelete) {
-            deleteFollowUp(followUpToDelete.id);
-            setFollowUpToDelete(null);
-          }
-        }}
-        onCancel={() => setFollowUpToDelete(null)}
-      />
+      {/* TEKRARLAYAN RUTİN GÖREV VEYA STANDART SİLME ONAY MODALI */}
+      {followUpToDelete && followUpToDelete.recurrenceGroupId ? (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="sharp-card w-full max-w-md bg-white border border-slate-300 shadow-2xl p-5 space-y-4">
+            <div className="flex items-center gap-2.5 text-rose-600 font-bold font-mono text-sm border-b border-slate-100 pb-3">
+              <RotateCw className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>Tekrarlayan Rutin Görevi Sil</span>
+            </div>
+
+            <div className="space-y-1 text-xs">
+              <div className="font-bold text-[#1d2566] text-sm">&ldquo;{followUpToDelete.title}&rdquo;</div>
+              <p className="text-slate-600 text-xs leading-relaxed pt-1">
+                Bu görev, otomatik tekrarlayan bir rutinin parçasıdır. Silme işlemini nasıl uygulamak istersiniz?
+              </p>
+            </div>
+
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-mono space-y-1">
+              <div>💡 <strong>Yalnızca Bu Görevi Sil:</strong> Sadece bu tarihteki görev silinir, gelecek diğer periyotlar takvimde kalmaya devam eder.</div>
+              <div>🚨 <strong>Gelecek Tüm Tekrarları Sil:</strong> Bu tarihten sonraki tüm tekrarlar da takvimden tamamen temizlenir.</div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 justify-end">
+              <button
+                type="button"
+                onClick={() => setFollowUpToDelete(null)}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs cursor-pointer"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteFollowUp(followUpToDelete.id, false);
+                  setFollowUpToDelete(null);
+                }}
+                className="px-3 py-2 bg-white border border-rose-300 hover:bg-rose-50 text-rose-700 font-bold text-xs cursor-pointer shadow-2xs"
+              >
+                Yalnızca Bu Görevi Sil
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteFollowUp(followUpToDelete.id, true);
+                  setFollowUpToDelete(null);
+                }}
+                className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer shadow-xs"
+              >
+                Gelecek Tüm Tekrarları Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <DeleteConfirmModal
+          isOpen={!!followUpToDelete}
+          title="Ajanda Görevini Sil"
+          itemName={followUpToDelete ? followUpToDelete.title : undefined}
+          message="Bu ajanda randevusu / takip görevi kalıcı olarak silinecektir."
+          onConfirm={() => {
+            if (followUpToDelete) {
+              deleteFollowUp(followUpToDelete.id);
+              setFollowUpToDelete(null);
+            }
+          }}
+          onCancel={() => setFollowUpToDelete(null)}
+        />
+      )}
     </div>
   );
 }

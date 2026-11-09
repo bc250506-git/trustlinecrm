@@ -15,7 +15,6 @@ import {
   Cake,
   Check,
 } from "lucide-react";
-import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
 
 interface AddCustomerModalProps {
@@ -45,7 +44,8 @@ export function AddCustomerModal({
   } = useStore();
 
   const [formName, setFormName] = useState("");
-  const [formPhone, setFormPhone] = useState("");
+  const [isForeignNumber, setIsForeignNumber] = useState(false);
+  const [formPhoneDigits, setFormPhoneDigits] = useState("");
   const [formWhatsapp, setFormWhatsapp] = useState("");
   const [formInstagram, setFormInstagram] = useState("");
   const [formEmail, setFormEmail] = useState("");
@@ -74,8 +74,27 @@ export function AddCustomerModal({
     if (isOpen) {
       if (customerToEdit) {
         setFormName(customerToEdit.fullName || "");
-        setFormPhone(customerToEdit.phone || "");
-        setFormWhatsapp(customerToEdit.whatsapp || "");
+        const phoneRaw = (customerToEdit.phone || "").trim();
+        const isForeign = Boolean(
+          customerToEdit.isForeignNumber ||
+          (phoneRaw && !phoneRaw.replace(/\s+/g, "").startsWith("+90") && !phoneRaw.replace(/\s+/g, "").startsWith("90"))
+        );
+        setIsForeignNumber(isForeign);
+
+        if (isForeign) {
+          setFormPhoneDigits("");
+          setFormWhatsapp(customerToEdit.whatsapp || phoneRaw);
+        } else {
+          let digits = phoneRaw.replace(/\D/g, "");
+          if (digits.startsWith("90")) digits = digits.slice(2);
+          if (digits.startsWith("0")) digits = digits.slice(1);
+          setFormPhoneDigits(digits.slice(0, 10));
+          setFormWhatsapp(
+            customerToEdit.whatsapp && customerToEdit.whatsapp !== customerToEdit.phone
+              ? customerToEdit.whatsapp
+              : ""
+          );
+        }
         setFormInstagram(customerToEdit.instagramHandle || "");
         setFormEmail(customerToEdit.email || "");
         setFormBirthDate(customerToEdit.birthDate || "");
@@ -132,7 +151,8 @@ export function AddCustomerModal({
         setDuplicateError(null);
       } else if (!prevIsOpenRef.current) {
         setFormName("");
-        setFormPhone("");
+        setIsForeignNumber(false);
+        setFormPhoneDigits("");
         setFormWhatsapp("");
         setFormInstagram("");
         setFormEmail("");
@@ -196,17 +216,57 @@ export function AddCustomerModal({
     setSelectedRooms((prev) => prev.filter((r) => r !== room));
   };
 
+  const formatTurkishPhoneNumber = (digits: string): string => {
+    if (!digits) return "";
+    const d = digits.slice(0, 10);
+    if (d.length <= 3) return d;
+    if (d.length <= 6) return `${d.slice(0, 3)} ${d.slice(3)}`;
+    if (d.length <= 8) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 8)} ${d.slice(8, 10)}`;
+  };
+
+  const handleTurkishPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let raw = e.target.value.replace(/\D/g, "");
+    if (raw.startsWith("90") && raw.length > 10) {
+      raw = raw.slice(2);
+    } else if (raw.startsWith("0") && raw.length > 10) {
+      raw = raw.slice(1);
+    }
+    setFormPhoneDigits(raw.slice(0, 10));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName || !formPhone) return;
+    if (!formName.trim()) return;
+
+    let finalPhone = "";
+    let finalWhatsapp = "";
+
+    if (isForeignNumber) {
+      const cleanWp = formWhatsapp.trim();
+      if (!cleanWp || cleanWp.replace(/\D/g, "").length < 6) {
+        setDuplicateError("Lütfen geçerli bir yabancı telefon / WhatsApp numarası girin.");
+        return;
+      }
+      finalPhone = cleanWp;
+      finalWhatsapp = cleanWp;
+    } else {
+      const clean10 = formPhoneDigits.replace(/\D/g, "");
+      if (clean10.length !== 10) {
+        setDuplicateError("Lütfen 10 haneli geçerli bir telefon numarası girin (5XX XXX XX XX).");
+        return;
+      }
+      finalPhone = `+90 ${formatTurkishPhoneNumber(clean10)}`;
+      finalWhatsapp = formWhatsapp.trim() ? formWhatsapp.trim() : finalPhone;
+    }
 
     // Telefon no duplikasyon kontrolü (kendi telefon numarasını düzenlerken hata vermemeli)
-    const cleanPhone = formPhone.replace(/\s+/g, "");
+    const cleanPhoneForDup = finalPhone.replace(/\s+/g, "");
     const existing = customers.find(
-      (c) => c.phone.replace(/\s+/g, "") === cleanPhone && c.id !== customerToEdit?.id
+      (c) => c.phone.replace(/\s+/g, "") === cleanPhoneForDup && c.id !== customerToEdit?.id
     );
     if (existing) {
-      setDuplicateError(`Bu telefon numarası (${formPhone}) zaten "${existing.fullName}" adına sistemde kayıtlıdır.`);
+      setDuplicateError(`Bu telefon numarası (${finalPhone}) zaten "${existing.fullName}" adına sistemde kayıtlıdır.`);
       return;
     }
 
@@ -238,8 +298,9 @@ export function AddCustomerModal({
     if (customerToEdit) {
       const updatedFields: Partial<Customer> = {
         fullName: formName,
-        phone: formPhone,
-        whatsapp: formWhatsapp || formPhone,
+        phone: finalPhone,
+        whatsapp: finalWhatsapp,
+        isForeignNumber,
         instagramHandle: formInstagram || undefined,
         email: formEmail,
         birthDate: formBirthDate || undefined,
@@ -276,8 +337,9 @@ export function AddCustomerModal({
 
     const newCust = addCustomer({
       fullName: formName,
-      phone: formPhone,
-      whatsapp: formWhatsapp || formPhone,
+      phone: finalPhone,
+      whatsapp: finalWhatsapp,
+      isForeignNumber,
       instagramHandle: formInstagram || undefined,
       email: formEmail,
       birthDate: formBirthDate || undefined,
@@ -337,9 +399,9 @@ export function AddCustomerModal({
           )}
 
           {/* Ad Soyad & Telefon */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-            <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <div className="flex flex-col justify-start">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-center">
                 Ad Soyad *
               </label>
               <input
@@ -352,33 +414,111 @@ export function AddCustomerModal({
               />
             </div>
 
-            <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
-                Telefon Numarası *
-              </label>
-              <PhoneInput
-                required
-                value={formPhone}
-                onChange={setFormPhone}
-              />
+            <div className="flex flex-col justify-start">
+              <div className="flex items-center justify-between mb-1 min-h-[18px]">
+                <label className="text-slate-600 font-mono text-[11px] font-semibold flex items-center gap-1">
+                  <span>Telefon Numarası</span>
+                  {!isForeignNumber && <span className="text-rose-500">*</span>}
+                </label>
+
+                {/* Yalnızca Yabancı Numara Checkbox */}
+                <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-[10.5px] font-mono text-slate-600 hover:text-[#1d2566]">
+                  <input
+                    type="checkbox"
+                    checked={isForeignNumber}
+                    onChange={(e) => setIsForeignNumber(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded text-[#00adb5] border-slate-300 focus:ring-[#00adb5] cursor-pointer"
+                  />
+                  <span className="font-semibold">Yalnızca yabancı numara</span>
+                </label>
+              </div>
+
+              {/* +90 Formatlı Telefon Input */}
+              <div
+                className={`flex items-center border transition h-[38px] ${
+                  isForeignNumber
+                    ? "bg-slate-100 opacity-50 cursor-not-allowed border-slate-200 select-none"
+                    : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
+                }`}
+              >
+                <span
+                  className={`px-2.5 h-full border-r font-mono font-bold text-xs flex items-center select-none shrink-0 ${
+                    isForeignNumber
+                      ? "bg-slate-200/50 border-slate-200 text-slate-400"
+                      : "bg-slate-50 border-slate-200 text-[#1d2566]"
+                  }`}
+                >
+                  +90
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  disabled={isForeignNumber}
+                  required={!isForeignNumber}
+                  value={isForeignNumber ? "" : formatTurkishPhoneNumber(formPhoneDigits)}
+                  onChange={handleTurkishPhoneChange}
+                  placeholder={isForeignNumber ? "Devre dışı (Yabancı numara)" : "5XX XXX XX XX"}
+                  className="w-full h-full px-3 font-mono text-xs text-slate-800 bg-transparent outline-none placeholder:text-slate-400 font-medium disabled:cursor-not-allowed disabled:text-slate-400"
+                />
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 mt-1">
+                {isForeignNumber
+                  ? "Türk telefon alanı devre dışı bırakıldı."
+                  : "Maks. 10 hane (Örn: 533 123 45 67)"}
+              </span>
             </div>
           </div>
 
           {/* WhatsApp & Instagram */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-            <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
-                WhatsApp (Aynı ise boş)
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <div className="flex flex-col justify-start">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-center justify-between">
+                <span>
+                  {isForeignNumber ? "Yabancı Telefon / WhatsApp Numarası *" : "WhatsApp Numarası (Aynı ise boş)"}
+                </span>
+                {isForeignNumber && (
+                  <span className="text-[9.5px] text-amber-700 font-bold bg-amber-50 px-1.5 py-0.2 border border-amber-200">
+                    Ana Telefon Numarası
+                  </span>
+                )}
               </label>
-              <PhoneInput
-                value={formWhatsapp}
-                onChange={setFormWhatsapp}
-                placeholder="Boşsa telefon kullanılır"
-              />
+
+              <div
+                className={`flex items-center border transition h-[38px] ${
+                  isForeignNumber
+                    ? "bg-amber-50/20 border-amber-400 ring-1 ring-amber-400/40"
+                    : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
+                }`}
+              >
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  required={isForeignNumber}
+                  value={formWhatsapp}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[^0-9+]/g, "");
+                    if (val.includes("+")) {
+                      val = (val.startsWith("+") ? "+" : "") + val.replace(/\+/g, "");
+                    }
+                    setFormWhatsapp(val);
+                  }}
+                  placeholder={
+                    isForeignNumber
+                      ? "Örn: 447911123456 veya +44..."
+                      : "Boşsa telefon kullanılır"
+                  }
+                  className="w-full h-full px-3 font-mono text-xs text-slate-800 bg-transparent outline-none placeholder:text-slate-400 font-medium"
+                />
+              </div>
+              <span className="text-[10px] font-mono text-slate-400 mt-1">
+                {isForeignNumber
+                  ? "Uluslararası ülke kodu ile serbest rakam girişi."
+                  : "Farklı bir WhatsApp hattı varsa girin; boşsa telefon kullanılır."}
+              </span>
             </div>
 
-            <div className="flex flex-col justify-end">
-              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-end">
+            <div className="flex flex-col justify-start">
+              <label className="text-slate-600 font-mono text-[11px] mb-1 font-semibold min-h-[18px] flex items-center">
                 Instagram
               </label>
               <input

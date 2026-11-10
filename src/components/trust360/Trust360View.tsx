@@ -8,6 +8,7 @@ import { AddTrust360Modal } from "./AddTrust360Modal";
 import { Trust360ExpenseModal } from "./Trust360ExpenseModal";
 import { Trust360ReportModal } from "./Trust360ReportModal";
 import { Trust360ChecklistModal } from "./Trust360ChecklistModal";
+import { ActionMenu } from "@/components/common/ActionMenu";
 import {
   ShieldCheck,
   Plus,
@@ -50,7 +51,6 @@ export function Trust360View() {
   const [activeExpenseContract, setActiveExpenseContract] = useState<Trust360Contract | null>(null);
   const [activeReportContract, setActiveReportContract] = useState<Trust360Contract | null>(null);
   const [activeChecklistContract, setActiveChecklistContract] = useState<Trust360Contract | null>(null);
-  const [activeActionMenuId, setActiveActionMenuId] = useState<string | null>(null);
 
   // Danışman İzolasyonu: Danışmanlar sadece kendi ekledikleri veya atandıkları sözleşmeleri görür
   const visibleContracts = useMemo(() => {
@@ -313,17 +313,17 @@ export function Trust360View() {
           )}
         </div>
       ) : (
-        <div className="border border-slate-200 bg-white shadow-2xs overflow-x-auto">
+        <div className="border border-slate-200 bg-white shadow-2xs overflow-visible">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-mono text-[10.5px] uppercase font-bold tracking-wider">
-                <th className="py-3 px-3.5 min-w-[260px]">Portföy / Gayrimenkul</th>
-                <th className="py-3 px-3 min-w-[200px]">Mülk Sahibi & Kiracı</th>
-                <th className="py-3 px-3 min-w-[170px]">Yönetim Dönemi</th>
-                <th className="py-3 px-3 min-w-[130px] text-center">Yıllık Bedel</th>
-                <th className="py-3 px-3 min-w-[140px] text-center">Masraflar</th>
-                <th className="py-3 px-3 min-w-[130px] text-center">Kontrol Listesi</th>
-                <th className="py-3 px-3 text-right min-w-[220px]">İşlemler & Rapor</th>
+                <th className="py-3 px-3.5">Portföy / Gayrimenkul</th>
+                <th className="py-3 px-3 w-[180px]">Mülk Sahibi & Kiracı</th>
+                <th className="py-3 px-3 w-[150px]">Yönetim Dönemi</th>
+                <th className="py-3 px-2 text-center w-[110px] whitespace-nowrap">Yıllık Bedel</th>
+                <th className="py-3 px-2 text-center w-[100px] whitespace-nowrap">Masraflar</th>
+                <th className="py-3 px-2 text-center w-[110px] whitespace-nowrap">Kontrol</th>
+                <th className="py-3 px-3 text-right w-[210px] whitespace-nowrap">İşlemler & Rapor</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -501,49 +501,27 @@ export function Trust360View() {
                           <span>Döküm Al</span>
                         </button>
 
-                        {/* Düzenle & Sil */}
+                        {/* Düzenle & Sil Menüsü - Portallı Üst Katman */}
                         {canManageTrust360(c) && (
-                          <div className="relative inline-block text-left">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setActiveActionMenuId(activeActionMenuId === c.id ? null : c.id)
+                          <ActionMenu
+                            onEdit={() => {
+                              setContractToEdit(c);
+                              setIsAddModalOpen(true);
+                            }}
+                            onDelete={() => {
+                              if (
+                                confirm(
+                                  `'${c.propertyTitle}' Trust 360 mülk yönetimi sözleşmesini silmek istediğinize emin misiniz?`
+                                )
+                              ) {
+                                deleteTrust360Contract(c.id);
                               }
-                              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-
-                            {activeActionMenuId === c.id && (
-                              <div className="absolute right-0 mt-1 w-36 bg-white border border-slate-200 shadow-lg z-20 text-xs py-1 animate-in fade-in duration-100">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    setContractToEdit(c);
-                                    setIsAddModalOpen(true);
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 text-slate-700 hover:bg-slate-100 flex items-center gap-1.5 cursor-pointer"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                  <span>Düzenle</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setActiveActionMenuId(null);
-                                    if (confirm(`'${c.propertyTitle}' Trust 360 mülk yönetimi sözleşmesini silmek istediğinize emin misiniz?`)) {
-                                      deleteTrust360Contract(c.id);
-                                    }
-                                  }}
-                                  className="w-full text-left px-3 py-1.5 text-red-600 hover:bg-red-50 flex items-center gap-1.5 cursor-pointer font-semibold"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  <span>Sil</span>
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                            }}
+                            canEdit={canManageTrust360(c)}
+                            canDelete={canManageTrust360(c)}
+                            canDeactivate={false}
+                            menuPosition="right"
+                          />
                         )}
                       </div>
                     </td>
@@ -606,3 +584,4 @@ export function Trust360View() {
     </div>
   );
 }
+

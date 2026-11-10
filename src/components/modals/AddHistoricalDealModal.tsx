@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Deal, Currency, DealSharingType } from "@/lib/types";
 import {
@@ -21,6 +21,15 @@ import {
   HelpCircle,
   Clock,
   ArrowRight,
+  Layers,
+  ListChecks,
+  Play,
+  Pause,
+  Trash2,
+  CheckSquare,
+  Square,
+  ZoomIn,
+  Edit3,
 } from "lucide-react";
 
 interface AddHistoricalDealModalProps {
@@ -44,13 +53,231 @@ const LEAD_CHANNELS = [
   "Reklam alanları",
 ];
 
+// Akıllı Danışman Eşleştirici
+function findMatchingAdvisor(rawName: string, users: any[]): any | undefined {
+  if (!rawName) return undefined;
+  const normalize = (s: string) =>
+    s
+      .toLowerCase()
+      .replace(/ı/g, "i")
+      .replace(/ğ/g, "g")
+      .replace(/ü/g, "u")
+      .replace(/ş/g, "s")
+      .replace(/ö/g, "o")
+      .replace(/ç/g, "c")
+      .replace(/[^a-z0-9]/g, " ")
+      .trim();
+
+  const cleanRaw = normalize(rawName);
+  const rawWords = cleanRaw.split(/\s+/).filter(Boolean);
+
+  let bestMatch: any = null;
+  let highestScore = 0;
+
+  for (const u of users) {
+    const cleanUserName = normalize(u.name);
+    const userWords = cleanUserName.split(/\s+/).filter(Boolean);
+
+    if (
+      cleanUserName === cleanRaw ||
+      cleanRaw.includes(cleanUserName) ||
+      cleanUserName.includes(cleanRaw)
+    ) {
+      return u;
+    }
+
+    let matchedWordCount = 0;
+    for (const uw of userWords) {
+      if (rawWords.some((rw) => rw === uw || rw.startsWith(uw) || uw.startsWith(rw))) {
+        matchedWordCount++;
+      }
+    }
+
+    if (userWords.length > 0 && matchedWordCount >= 1) {
+      const score = matchedWordCount / userWords.length;
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = u;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+// Tarih Formatlayıcı (DD.MM.YYYY -> YYYY-MM-DD)
+function toISODate(val?: string): string {
+  if (!val) return "";
+  const parts = val.trim().split(/[./-]/);
+  if (parts.length === 3) {
+    if (parts[2].length === 4) {
+      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+    }
+    if (parts[0].length === 4) {
+      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+    }
+  }
+  return val;
+}
+
+// AI'dan Dönen Ham Veriyi Tam Bir Deal Nesnesine Dönüştürme
+function parseAiDataToDeal(
+  d: any,
+  imageBase64: string,
+  imageName: string,
+  users: any[],
+  currentUser: any
+): Deal {
+  const closingPrice =
+    parseFloat(String(d.closingPrice || d.listingPrice || 0).replace(/[^0-9.]/g, "")) || 0;
+  const listingPrice =
+    parseFloat(String(d.listingPrice || closingPrice).replace(/[^0-9.]/g, "")) || closingPrice;
+  const rawComm = parseFloat(String(d.commissionAmount || 0).replace(/[^0-9.]/g, "")) || 0;
+  const dealType: "sale" | "rent" =
+    String(d.dealType || "").toLowerCase().includes("kira") || String(d.dealType || "") === "rent"
+      ? "rent"
+      : "sale";
+  const commExpected =
+    rawComm > 0 ? rawComm : dealType === "sale" ? closingPrice * 0.05 : closingPrice;
+
+  const matchedAdvisor = findMatchingAdvisor(d.advisorName || "", users);
+  const finalAdvisorId = matchedAdvisor?.id || currentUser.id;
+  const finalAdvisorName = matchedAdvisor?.name || d.advisorName || currentUser.name;
+
+  let sharingType: DealSharingType = "none";
+  let partnerAdvisorId: string | undefined = undefined;
+  let partnerAdvisorName: string | undefined = undefined;
+  let partnerCompany: string | undefined = undefined;
+  const partnerPhone = d.partnerPhone || undefined;
+
+  if (d.partnerAdvisorName) {
+    const matchedPartner = findMatchingAdvisor(d.partnerAdvisorName, users);
+    if (matchedPartner) {
+      sharingType = "internal";
+      partnerAdvisorId = matchedPartner.id;
+      partnerAdvisorName = matchedPartner.name;
+    } else {
+      sharingType = d.portfolioOrigin === "partner" ? "external" : "internal";
+      partnerCompany = d.partnerAdvisorName;
+      partnerAdvisorName = d.partnerAdvisorName;
+    }
+  }
+
+  // Komisyon Dağılım Oranları
+  const origin: "advisor" | "office" = d.portfolioOrigin === "office" ? "office" : "advisor";
+  let advRate = 100;
+  let partRate = 0;
+  let offRate = 0;
+  let advAmt = commExpected;
+  let partAmt = 0;
+  let offAmt = 0;
+
+  if (d.advisorAmount && Number(d.advisorAmount) > 0) {
+    advAmt = Number(d.advisorAmount);
+    advRate = commExpected > 0 ? Math.round((advAmt / commExpected) * 100) : 60;
+  }
+  if (d.partnerAmount && Number(d.partnerAmount) > 0) {
+    partAmt = Number(d.partnerAmount);
+    partRate = commExpected > 0 ? Math.round((partAmt / commExpected) * 100) : 25;
+  }
+  if (d.officeAmount && Number(d.officeAmount) > 0) {
+    offAmt = Number(d.officeAmount);
+    offRate = commExpected > 0 ? Math.round((offAmt / commExpected) * 100) : 40;
+  }
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const closingDateIso = toISODate(d.closingDate) || toISODate(d.reportDate) || todayStr;
+  const reportDateIso = toISODate(d.reportDate) || closingDateIso;
+
+  const currencyVal: Currency = ["GBP", "TRY", "USD", "EUR"].includes(
+    String(d.currency || "").toUpperCase()
+  )
+    ? (String(d.currency).toUpperCase() as Currency)
+    : "GBP";
+
+  return {
+    id: `hist-deal-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    title: (d.propertyAddress || "Geçmiş Portföy İşlemi").trim(),
+    dealNumber:
+      d.portfolioNo?.trim() ||
+      `TRL-${new Date(closingDateIso).getFullYear().toString().slice(-2)}-${Math.floor(
+        100 + Math.random() * 900
+      )}`,
+    dealType,
+    customerId: `hist-cust-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    customerName: d.buyerName?.trim() || "Geçmiş Müşteri",
+    customerPhone: d.buyerPhone?.trim() || "",
+    propertyId: `hist-prop-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+    propertyTitle: (d.propertyAddress || "Geçmiş Gayrimenkul").trim(),
+    address: (d.propertyAddress || "").trim(),
+    propertyType: d.propertyType || "Daire",
+    area: parseFloat(String(d.landArea)) || undefined,
+    landType: d.landType,
+    landlordName: d.sellerName?.trim() || "Mülk Sahibi",
+    landlordPhone: d.sellerPhone?.trim() || "",
+    mandateDate: toISODate(d.mandateDate) || undefined,
+    depositDate: toISODate(d.depositDate) || undefined,
+    durationText: d.dealDuration?.trim() || undefined,
+    leadChannel: d.leadSource || undefined,
+    currency: currencyVal,
+    stage: "won",
+    askingPrice: listingPrice,
+    offeredPrice: closingPrice,
+    agreedPrice: closingPrice,
+    deposit: 0,
+    commissionExpected: commExpected,
+    commissionReceived: commExpected,
+    paymentMethod: d.collectionDateMethod || "Nakit",
+    collectionDate: closingDateIso,
+    portfolioOrigin: origin,
+    sharingType,
+    partnerName: partnerAdvisorName || partnerCompany,
+    partnerPhone,
+    partnerCompany,
+    partnerAdvisorId,
+    partnerAdvisorName,
+    partnerShareRate: partRate,
+    partnerShareAmount: partAmt,
+    advisorShareRate: advRate,
+    advisorShareAmount: advAmt,
+    officeShareRate: offRate,
+    officeShareAmount: offAmt,
+    brokerApproval: true,
+    brokerApprovedAt: closingDateIso,
+    brokerApprovedBy: "Volkan Affan Kanıgür (Ofis Yönetimi Arşiv)",
+    closingDate: closingDateIso,
+    reportDate: reportDateIso,
+    isHistorical: true,
+    archiveDocumentUrl: imageBase64 || undefined,
+    archiveDocumentName: imageName || undefined,
+    notes: d.notes?.trim() || undefined,
+    createdById: finalAdvisorId,
+    createdByName: finalAdvisorName,
+    createdAt: new Date(closingDateIso).toISOString(),
+  };
+}
+
+interface BatchDealItem {
+  id: string;
+  file: File;
+  fileName: string;
+  imageBase64: string;
+  status: "pending" | "scanning" | "done" | "error";
+  errorMsg?: string;
+  dealData?: Deal;
+  selected: boolean;
+}
+
 export function AddHistoricalDealModal({
   isOpen,
   onClose,
 }: AddHistoricalDealModalProps) {
   const { users, currentUser, isBroker, addDeal } = useStore();
 
-  // Fotoğraf & AI Tarama Durumları
+  // Mod Seçimi: Tekli Form Girişi veya Toplu Tarama
+  const [activeTab, setActiveTab] = useState<"single" | "batch">("single");
+
+  // === TEKLİ MOD STATELERİ ===
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imageBase64, setImageBase64] = useState<string>("");
   const [imageName, setImageName] = useState<string>("");
@@ -60,29 +287,18 @@ export function AddHistoricalDealModal({
   const [previewZoom, setPreviewZoom] = useState(false);
 
   // Form Alanları (%100 Manuel Düzenlenebilir)
-  // Header
   const [advisorName, setAdvisorName] = useState("");
   const [advisorId, setAdvisorId] = useState(currentUser.id);
   const [portfolioNo, setPortfolioNo] = useState("");
   const [reportDate, setReportDate] = useState("");
   const [closingDate, setClosingDate] = useState("");
 
-  React.useEffect(() => {
-    if (isOpen) {
-      const today = new Date().toISOString().split("T")[0];
-      if (!reportDate) setReportDate(today);
-      if (!closingDate) setClosingDate(today);
-    }
-  }, [isOpen]);
-
-  // 01 Gayrimenkul
   const [dealType, setDealType] = useState<"sale" | "rent">("sale");
   const [propertyAddress, setPropertyAddress] = useState("");
   const [propertyType, setPropertyType] = useState("Daire");
   const [landArea, setLandArea] = useState("");
   const [landType, setLandType] = useState<"commercial" | "residential">("residential");
 
-  // 02 Taraflar
   const [sellerName, setSellerName] = useState("");
   const [sellerPhone, setSellerPhone] = useState("");
   const [mandateDate, setMandateDate] = useState("");
@@ -91,10 +307,7 @@ export function AddHistoricalDealModal({
   const [depositDate, setDepositDate] = useState("");
   const [dealDuration, setDealDuration] = useState("");
 
-  // 03 Kanal
   const [leadChannel, setLeadChannel] = useState("");
-
-  // 04 İşlem Bilgileri
   const [currency, setCurrency] = useState<Currency>("GBP");
   const [listingPrice, setListingPrice] = useState<string>("");
   const [closingPrice, setClosingPrice] = useState<string>("");
@@ -102,7 +315,6 @@ export function AddHistoricalDealModal({
   const [paymentMethod, setPaymentMethod] = useState("Nakit");
   const [notes, setNotes] = useState("");
 
-  // 05 Portföy Türü & Paylaşım
   const [portfolioOrigin, setPortfolioOrigin] = useState<"advisor" | "office">("advisor");
   const [sharingType, setSharingType] = useState<DealSharingType>("none");
   const [partnerAdvisorId, setPartnerAdvisorId] = useState("");
@@ -115,17 +327,27 @@ export function AddHistoricalDealModal({
   const [officeShareRate, setOfficeShareRate] = useState<number>(0);
   const [officeShareAmount, setOfficeShareAmount] = useState<number>(0);
 
+  // === TOPLU (BATCH) MOD STATELERİ ===
+  const [batchItems, setBatchItems] = useState<BatchDealItem[]>([]);
+  const [batchIsRunning, setBatchIsRunning] = useState(false);
+  const [batchShouldStop, setBatchShouldStop] = useState(false);
+  const [viewingBatchImage, setViewingBatchImage] = useState<string | null>(null);
+  const [batchSavedCount, setBatchSavedCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const today = new Date().toISOString().split("T")[0];
+      if (!reportDate) setReportDate(today);
+      if (!closingDate) setClosingDate(today);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  // Görsel Yükleme İşlemi
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // TEKLİ: Tekil Görsel Yükleme
+  const handleSingleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Görsel boyutu en fazla 10MB olabilir.");
-      return;
-    }
 
     setImageFile(file);
     setImageName(file.name);
@@ -136,14 +358,13 @@ export function AddHistoricalDealModal({
     reader.onload = () => {
       if (typeof reader.result === "string") {
         setImageBase64(reader.result);
-        // Otomatik taramayı başlat
         scanImageWithAI(reader.result, file.type || "image/jpeg");
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // Yapay Zeka ile Formu Tara
+  // TEKLİ: AI ile Tarama
   const scanImageWithAI = async (base64Data: string, mimeType: string) => {
     setIsScanning(true);
     setScanSuccessMsg("");
@@ -162,78 +383,16 @@ export function AddHistoricalDealModal({
       }
 
       const d = json.data;
-      // Alanları yapay zeka verileriyle doldur
+
+      // Alanları yerleştir
       if (d.advisorName) {
         setAdvisorName(d.advisorName);
-
-        // Türkçe karakterleri normalize edip kelime bazlı eşleştirme yap (örn: "Bora İbrahim Boran" -> "Bora Boran")
-        const normalize = (s: string) =>
-          s
-            .toLowerCase()
-            .replace(/ı/g, "i")
-            .replace(/ğ/g, "g")
-            .replace(/ü/g, "u")
-            .replace(/ş/g, "s")
-            .replace(/ö/g, "o")
-            .replace(/ç/g, "c")
-            .replace(/[^a-z0-9]/g, " ")
-            .trim();
-
-        const cleanRaw = normalize(d.advisorName);
-        const rawWords = cleanRaw.split(/\s+/).filter(Boolean);
-
-        let bestMatch: any = null;
-        let highestScore = 0;
-
-        for (const u of users) {
-          const cleanUserName = normalize(u.name);
-          const userWords = cleanUserName.split(/\s+/).filter(Boolean);
-
-          // 1. Birebir eşitlik veya alt dize
-          if (
-            cleanUserName === cleanRaw ||
-            cleanRaw.includes(cleanUserName) ||
-            cleanUserName.includes(cleanRaw)
-          ) {
-            bestMatch = u;
-            break;
-          }
-
-          // 2. Kelime ve kök bazlı örtüşme (Ad ve soyad kökü geçiyor mu? Örn: "Bora" <-> "Boran")
-          let matchedWordCount = 0;
-          for (const uw of userWords) {
-            if (rawWords.some((rw) => rw === uw || rw.startsWith(uw) || uw.startsWith(rw))) {
-              matchedWordCount++;
-            }
-          }
-
-          if (userWords.length > 0 && matchedWordCount >= 1) {
-            const score = matchedWordCount / userWords.length;
-            if (score > highestScore) {
-              highestScore = score;
-              bestMatch = u;
-            }
-          }
-        }
-
+        const bestMatch = findMatchingAdvisor(d.advisorName, users);
         if (bestMatch) {
           setAdvisorId(bestMatch.id);
           setAdvisorName(bestMatch.name);
         }
       }
-      const toISODate = (val?: string) => {
-        if (!val) return "";
-        const parts = val.trim().split(/[./-]/);
-        if (parts.length === 3) {
-          if (parts[2].length === 4) {
-            return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-          }
-          if (parts[0].length === 4) {
-            return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
-          }
-        }
-        return val;
-      };
 
       if (d.portfolioNo) setPortfolioNo(d.portfolioNo);
       if (d.reportDate) setReportDate(toISODate(d.reportDate));
@@ -276,11 +435,7 @@ export function AddHistoricalDealModal({
       if (d.notes) setNotes(d.notes);
       if (d.partnerAdvisorName) {
         setPartnerName(d.partnerAdvisorName);
-        const partnerUser = users.find(
-          (u) =>
-            u.name.toLowerCase().includes(d.partnerAdvisorName.toLowerCase()) ||
-            d.partnerAdvisorName.toLowerCase().includes(u.name.toLowerCase())
-        );
+        const partnerUser = findMatchingAdvisor(d.partnerAdvisorName, users);
         if (partnerUser) {
           setSharingType("internal");
           setPartnerAdvisorId(partnerUser.id);
@@ -318,20 +473,19 @@ export function AddHistoricalDealModal({
     if (!totalComm || totalComm <= 0) return;
 
     if (shareType === "external") {
-      // Dış Ortaklık: %50 dış ofis, kalan %50 danışman/ofis
-      const half = totalComm * 0.5;
+      const partnerAmt = totalComm * 0.5;
+      const remaining = totalComm * 0.5;
       const advRate = origin === "advisor" ? 0.6 : 0.5;
-      const advAmount = half * advRate;
-      const offAmount = half * (1 - advRate);
+      const advAmount = remaining * advRate;
+      const offAmount = remaining * (1 - advRate);
 
       setPartnerShareRate(50);
-      setPartnerShareAmount(half);
+      setPartnerShareAmount(partnerAmt);
       setAdvisorShareRate(advRate * 50);
       setAdvisorShareAmount(advAmount);
       setOfficeShareRate((1 - advRate) * 50);
       setOfficeShareAmount(offAmount);
     } else if (shareType === "internal") {
-      // İç Ortaklık: %25 2. danışman, kalan %75
       const partnerAmt = totalComm * 0.25;
       const remaining = totalComm * 0.75;
       const advRate = origin === "advisor" ? 0.6 : 0.5;
@@ -345,7 +499,6 @@ export function AddHistoricalDealModal({
       setOfficeShareRate((1 - advRate) * 75);
       setOfficeShareAmount(offAmount);
     } else {
-      // Solo İşlem
       const advRate = origin === "advisor" ? 0.6 : 0.5;
       const advAmt = totalComm * advRate;
       const offAmt = totalComm * (1 - advRate);
@@ -365,7 +518,6 @@ export function AddHistoricalDealModal({
       calculateCommissionShares(parseFloat(val) || 0, sharingType, portfolioOrigin);
     } else {
       setClosingPrice(val);
-      // Satış ise %5, kiralama ise 1 kira komisyon tahmini
       const num = parseFloat(val) || 0;
       if (num > 0 && !commissionAmount) {
         const estComm = dealType === "sale" ? num * 0.05 : num;
@@ -375,7 +527,8 @@ export function AddHistoricalDealModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // TEKLİ: Kaydet ve Bitir
+  const handleSingleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     const priceNum = parseFloat(closingPrice) || parseFloat(listingPrice) || 0;
@@ -458,13 +611,201 @@ export function AddHistoricalDealModal({
     onClose();
   };
 
+  // === TOPLU (BATCH) FONKSİYONLARI ===
+
+  // Çoklu Dosya Seçimi
+  const handleBatchFilesSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const newItems: BatchDealItem[] = files.map((file, idx) => ({
+      id: `batch-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+      file,
+      fileName: file.name,
+      imageBase64: "",
+      status: "pending",
+      selected: true,
+    }));
+
+    setBatchItems((prev) => [...prev, ...newItems]);
+    // Seçim kutusunu sıfırla ki aynı dosyaları tekrar seçebilsin
+    e.target.value = "";
+  };
+
+  // Yardımcı: Dosyayı Base64'e dönüştür
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("Dosya okunamadı."));
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Sıralı AI Tarama Motoru
+  const runBatchScanning = async () => {
+    if (batchIsRunning) return;
+    setBatchIsRunning(true);
+    setBatchShouldStop(false);
+
+    // Listede taranmayı bekleyenleri sırayla al
+    for (let i = 0; i < batchItems.length; i++) {
+      // Kullanıcı durdurduysa döngüden çık
+      if (batchShouldStop) break;
+
+      const item = batchItems[i];
+      if (item.status === "done") continue; // Zaten taranmış
+
+      // Durumu 'scanning' yap
+      setBatchItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, status: "scanning" } : it))
+      );
+
+      try {
+        // 1. Görseli Base64'e oku
+        const b64 = item.imageBase64 || (await readFileAsBase64(item.file));
+
+        // 2. AI Endpoint'ine gönder
+        const res = await fetch("/api/parse-deal-form", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageBase64: b64, mimeType: item.file.type || "image/jpeg" }),
+        });
+
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          throw new Error(json.error || "Okuma başarısız.");
+        }
+
+        // 3. Veriyi Deal nesnesine dönüştür
+        const deal = parseAiDataToDeal(json.data, b64, item.fileName, users, currentUser);
+
+        // 4. Durumu güncelle
+        setBatchItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id
+              ? {
+                  ...it,
+                  status: "done",
+                  imageBase64: b64,
+                  dealData: deal,
+                  errorMsg: undefined,
+                }
+              : it
+          )
+        );
+      } catch (err: any) {
+        setBatchItems((prev) =>
+          prev.map((it) =>
+            it.id === item.id
+              ? {
+                  ...it,
+                  status: "error",
+                  errorMsg: err?.message || "Tarama hatası.",
+                }
+              : it
+          )
+        );
+      }
+
+      // API rate limit aşımını önlemek için 400ms dinlen
+      await new Promise((r) => setTimeout(r, 400));
+    }
+
+    setBatchIsRunning(false);
+  };
+
+  // Tekil batch öğesini sil
+  const removeBatchItem = (id: string) => {
+    setBatchItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  // Tüm listeyi temizle
+  const clearBatchItems = () => {
+    if (batchIsRunning) return;
+    setBatchItems([]);
+    setBatchSavedCount(null);
+  };
+
+  // Toplu Kaydetme
+  const handleSaveAllBatchDeals = () => {
+    const readyItems = batchItems.filter((it) => it.status === "done" && it.dealData && it.selected);
+    if (readyItems.length === 0) {
+      alert("Kaydedilecek taranmış ve seçili işlem bulunamadı.");
+      return;
+    }
+
+    let saved = 0;
+    for (const item of readyItems) {
+      if (item.dealData) {
+        addDeal(item.dealData);
+        saved++;
+      }
+    }
+
+    setBatchSavedCount(saved);
+    alert(`Tebrikler! ${saved} adet geçmiş fiziki işlem başarıyla sisteme aktarıldı ve finansa işlendi.`);
+    onClose();
+  };
+
+  // Batch öğesini tekli düzenleme formuna aktar
+  const loadBatchItemIntoSingleMode = (item: BatchDealItem) => {
+    if (!item.dealData) return;
+    const d = item.dealData;
+
+    setImageBase64(d.archiveDocumentUrl || "");
+    setImageName(d.archiveDocumentName || item.fileName);
+    setAdvisorId(d.createdById || currentUser.id);
+    setAdvisorName(d.createdByName || "");
+    setPortfolioNo(d.dealNumber || "");
+    setClosingDate(d.closingDate || "");
+    setReportDate(d.reportDate || d.closingDate || "");
+    setDealType(d.dealType || "sale");
+    setPropertyAddress(d.address || d.propertyTitle || d.title || "");
+    setPropertyType(d.propertyType || "Daire");
+    setLandArea(d.area ? String(d.area) : "");
+    setSellerName(d.landlordName || "");
+    setSellerPhone(d.landlordPhone || "");
+    setBuyerName(d.customerName || "");
+    setBuyerPhone(d.customerPhone || "");
+    setLeadChannel(d.leadChannel || "");
+    setCurrency(d.currency || "GBP");
+    setListingPrice(d.askingPrice ? String(d.askingPrice) : "");
+    setClosingPrice(d.agreedPrice ? String(d.agreedPrice) : "");
+    setCommissionAmount(d.commissionExpected ? String(d.commissionExpected) : "");
+    setPaymentMethod(d.paymentMethod || "Nakit");
+    setNotes(d.notes || "");
+    setPortfolioOrigin(d.portfolioOrigin || "advisor");
+    setSharingType(d.sharingType || "none");
+    setPartnerName(d.partnerName || "");
+    setPartnerPhone(d.partnerPhone || "");
+    setAdvisorShareRate(d.advisorShareRate || 100);
+    setAdvisorShareAmount(d.advisorShareAmount || 0);
+    setPartnerShareRate(d.partnerShareRate || 0);
+    setPartnerShareAmount(d.partnerShareAmount || 0);
+    setOfficeShareRate(d.officeShareRate || 0);
+    setOfficeShareAmount(d.officeShareAmount || 0);
+
+    setActiveTab("single");
+  };
+
+  // İstatistikler
+  const totalBatch = batchItems.length;
+  const doneBatch = batchItems.filter((i) => i.status === "done").length;
+  const errorBatch = batchItems.filter((i) => i.status === "error").length;
+  const pendingBatch = batchItems.filter((i) => i.status === "pending" || i.status === "scanning").length;
+  const progressPercent = totalBatch > 0 ? Math.round((doneBatch / totalBatch) * 100) : 0;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/70 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white border border-slate-200 shadow-2xl w-full max-w-6xl max-h-[96vh] flex flex-col overflow-hidden">
         {/* Modal Header */}
-        <div className="px-6 py-3.5 border-b border-slate-200 flex items-center justify-between bg-[#1d2566] text-white">
+        <div className="px-6 py-3 border-b border-slate-200 flex items-center justify-between bg-[#1d2566] text-white">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-none bg-white/10 flex items-center justify-center font-bold">
+            <div className="w-8 h-8 bg-white/10 flex items-center justify-center font-bold">
               <Sparkles className="w-4.5 h-4.5 text-[#00adb5]" />
             </div>
             <div>
@@ -481,6 +822,41 @@ export function AddHistoricalDealModal({
               </p>
             </div>
           </div>
+
+          {/* Sekme Geçiş Butonları */}
+          <div className="flex items-center gap-1.5 bg-slate-800/80 p-1 border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setActiveTab("single")}
+              className={`px-3 py-1 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "single"
+                  ? "bg-[#00adb5] text-[#1d2566] shadow-xs"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Tekli Form İnceleme</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("batch")}
+              className={`px-3 py-1 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                activeTab === "batch"
+                  ? "bg-[#00adb5] text-[#1d2566] shadow-xs"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Toplu Arşiv Tarama (50+ Fotoğraf)</span>
+              {batchItems.length > 0 && (
+                <span className="ml-1 px-1.5 py-0.2 bg-purple-600 text-white text-[10px] rounded-full">
+                  {batchItems.length}
+                </span>
+              )}
+            </button>
+          </div>
+
           <button
             onClick={onClose}
             className="p-1.5 text-slate-300 hover:text-white transition cursor-pointer"
@@ -489,694 +865,972 @@ export function AddHistoricalDealModal({
           </button>
         </div>
 
-        {/* Modal Body: Çift Ekran (Split Screen) */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
-          {/* SOL PANEL: Fiziki Form Fotoğrafı & AI Tarayıcı (5 Kolon) */}
-          <div className="lg:col-span-5 bg-slate-50/70 p-4 sm:p-5 flex flex-col overflow-y-auto space-y-4">
-            <div className="border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-[#00adb5]" />
-                  <span>Fiziki Formun Fotoğrafı / Taraması</span>
-                </label>
-                {imageBase64 && (
-                  <button
-                    type="button"
-                    onClick={() => scanImageWithAI(imageBase64, imageFile?.type || "image/jpeg")}
-                    disabled={isScanning}
-                    className="text-[11px] font-bold text-[#00adb5] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3 h-3 ${isScanning ? "animate-spin" : ""}`} />
-                    <span>Yeniden Tara</span>
-                  </button>
+        {/* ========================================================================= */}
+        {/* SEÇİLEN MOD: 1. TEKLİ İNCELEME MODU */}
+        {/* ========================================================================= */}
+        {activeTab === "single" && (
+          <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+            {/* SOL PANEL: Fiziki Form Fotoğrafı & AI Tarayıcı (5 Kolon) */}
+            <div className="lg:col-span-5 bg-slate-50/70 p-4 sm:p-5 flex flex-col overflow-y-auto space-y-4">
+              <div className="border border-slate-200 bg-white p-3.5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-[#00adb5]" />
+                    <span>Fiziki Formun Fotoğrafı / Taraması</span>
+                  </label>
+                  {imageBase64 && (
+                    <button
+                      type="button"
+                      onClick={() => scanImageWithAI(imageBase64, imageFile?.type || "image/jpeg")}
+                      disabled={isScanning}
+                      className="text-[11px] font-bold text-[#00adb5] hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${isScanning ? "animate-spin" : ""}`} />
+                      <span>Yeniden Tara</span>
+                    </button>
+                  )}
+                </div>
+
+                {!imageBase64 ? (
+                  <label className="border-2 border-dashed border-slate-300 hover:border-[#00adb5] bg-slate-50/80 hover:bg-slate-100/60 p-6 flex flex-col items-center justify-center text-center cursor-pointer transition">
+                    <UploadCloud className="w-8 h-8 text-[#00adb5] mb-2" />
+                    <span className="font-bold text-xs text-slate-800">
+                      Kağıt Formun Fotoğrafını Seçin veya Buraya Sürükleyin
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono mt-1">
+                      JPG, PNG, WebP (Tüm el yazıları, onay kutuları ve kenar notları otomatik okunur)
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSingleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative border border-slate-300 bg-slate-900 overflow-hidden flex items-center justify-center group min-h-[220px] max-h-[360px]">
+                      <img
+                        src={imageBase64}
+                        alt="Yüklenen Kağıt Form"
+                        className={`object-contain w-full h-full transition-transform duration-200 ${
+                          previewZoom ? "scale-150 cursor-zoom-out" : "cursor-zoom-in"
+                        }`}
+                        onClick={() => setPreviewZoom(!previewZoom)}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPreviewZoom(!previewZoom)}
+                        className="absolute bottom-2 right-2 px-2 py-1 bg-black/70 hover:bg-black text-white text-[10px] font-mono flex items-center gap-1 rounded-sm shadow-xs"
+                      >
+                        <Eye className="w-3 h-3" />
+                        <span>{previewZoom ? "Küçült" : "Büyüt"}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 font-mono">
+                      <span className="truncate max-w-[200px]" title={imageName}>
+                        📎 {imageName || "Form Görseli"}
+                      </span>
+                      <label className="text-[#00adb5] font-bold hover:underline cursor-pointer">
+                        Başka Fotoğraf Seç
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleSingleImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Tarama Durumu */}
+                {isScanning && (
+                  <div className="p-3 bg-cyan-50 border border-cyan-200 text-cyan-900 text-xs font-mono flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#00adb5] shrink-0" />
+                    <div>
+                      <div className="font-bold">Yapay Zeka Formu İnceliyor...</div>
+                      <div className="text-[10.5px] text-cyan-700">
+                        El yazıları, onay kutuları, rakamlar ve kenar notları okunuyor.
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {scanSuccessMsg && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-mono flex items-start gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span className="leading-tight">{scanSuccessMsg}</span>
+                  </div>
+                )}
+
+                {scanErrorMsg && (
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-mono flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="leading-tight">{scanErrorMsg}</span>
+                  </div>
                 )}
               </div>
 
-              {!imageBase64 ? (
-                <label className="border-2 border-dashed border-slate-300 hover:border-[#00adb5] bg-slate-50/80 hover:bg-slate-100/60 p-6 flex flex-col items-center justify-center text-center cursor-pointer transition">
-                  <UploadCloud className="w-8 h-8 text-[#00adb5] mb-2" />
-                  <span className="font-bold text-xs text-slate-800">
-                    Kağıt Formun Fotoğrafını Seçin veya Buraya Sürükleyin
-                  </span>
-                  <span className="text-[10.5px] text-slate-500 font-mono mt-1">
-                    Telefonla çekilmiş net bir fotoğraf veya CamScanner taraması (JPG, PNG)
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-                </label>
-              ) : (
-                <div className="space-y-2">
-                  <div className="relative border border-slate-300 bg-slate-900 overflow-hidden max-h-[380px] flex items-center justify-center group">
-                    <img
-                      src={imageBase64}
-                      alt="Fiziki Form Taraması"
-                      className="max-h-[380px] w-auto object-contain cursor-pointer"
-                      onClick={() => setPreviewZoom(true)}
-                    />
-                    <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewZoom(true)}
-                        className="px-2 py-1 bg-black/70 hover:bg-black text-white text-[10.5px] font-mono font-bold flex items-center gap-1 cursor-pointer"
-                      >
-                        <Eye className="w-3 h-3" />
-                        <span>Büyüt</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-500">
-                    <span className="truncate max-w-[200px]">📎 {imageName}</span>
-                    <label className="text-[#00adb5] font-bold hover:underline cursor-pointer">
-                      Başka Fotoğraf Seç
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
+              {/* Bilgilendirme Kutusu */}
+              <div className="p-3.5 bg-white border border-slate-200 text-slate-600 text-xs space-y-2">
+                <div className="font-bold text-[#1d2566] flex items-center gap-1.5 text-xs">
+                  <HelpCircle className="w-3.5 h-3.5 text-[#00adb5]" />
+                  <span>Geçmiş İşlem Giriş Mantığı:</span>
                 </div>
-              )}
-
-              {/* AI Tarama Bildirimleri */}
-              {isScanning && (
-                <div className="p-3 bg-blue-50 border border-blue-200 text-blue-800 text-xs flex items-center gap-2 font-mono">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-600 shrink-0" />
-                  <span>Google Gemini Vision formu satır satır inceliyor, alanlar çıkartılıyor...</span>
-                </div>
-              )}
-
-              {scanSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="font-mono text-[11px] leading-tight">{scanSuccessMsg}</span>
-                </div>
-              )}
-
-              {scanErrorMsg && (
-                <div className="p-3 bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span className="font-mono text-[11px] leading-tight">{scanErrorMsg}</span>
-                </div>
-              )}
+                <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600">
+                  <li>Fotoğraf attığınızda veriler sağdaki kutucuklara otomatik işlenir.</li>
+                  <li><strong>İstediğiniz kutucuğa tıklayıp elle düzeltebilirsiniz.</strong></li>
+                  <li>Kağıdın kenarına düşülmüş el yazısı notlar "Notlar" alanına otomatik aktarılır.</li>
+                  <li>Yüklenen form görseli kalıcı dijital arşiv olarak işlemin arkasında saklanır.</li>
+                </ul>
+              </div>
             </div>
 
-            {/* Bilgilendirme Kartı */}
-            <div className="p-3.5 bg-white border border-slate-200 text-[11px] font-mono text-slate-600 space-y-1.5">
-              <div className="font-bold text-[#1d2566] flex items-center gap-1 text-xs">
-                <HelpCircle className="w-3.5 h-3.5 text-[#00adb5]" />
-                <span>Geçmiş İşlem Giriş Mantığı:</span>
-              </div>
-              <p>
-                • Fotoğraf attığınızda veriler sağdaki kutucuklara otomatik işlenir.
-              </p>
-              <p>
-                • <strong>İstediğiniz kutucuğa tıklayıp elle düzeltebilirsiniz.</strong>
-              </p>
-              <p>
-                • Yüklenen form görseli kalıcı dijital arşiv olarak işlemin arkasında saklanır.
-              </p>
-            </div>
-          </div>
-
-          {/* SAĞ PANEL: Düzenlenebilir Form Alanları (7 Kolon) */}
-          <div className="lg:col-span-7 bg-white p-5 overflow-y-auto">
-            <form onSubmit={handleSubmit} className="space-y-5 text-xs">
-              {/* Form Üst Bilgileri */}
-              <div className="p-3 bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                    Danışman (Satış GD) *
-                  </label>
-                  <select
-                    value={advisorId}
-                    onChange={(e) => {
-                      setAdvisorId(e.target.value);
-                      const u = users.find((user) => user.id === e.target.value);
-                      if (u) setAdvisorName(u.name);
-                    }}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-bold text-xs focus:outline-none focus:border-[#00adb5]"
-                  >
-                    {users.filter((u) => u.active).map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                    İşlem / Portföy No
-                  </label>
-                  <input
-                    type="text"
-                    value={portfolioNo}
-                    onChange={(e) => setPortfolioNo(e.target.value)}
-                    placeholder="TRL-24-..."
-                    className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:border-[#00adb5]"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                    İşlem / Kapanış Tarihi *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={closingDate}
-                    onChange={(e) => setClosingDate(e.target.value)}
-                    className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
-                  />
-                </div>
-              </div>
-
-              {/* 01 GAYRİMENKUL BİLGİLERİ */}
-              <div className="space-y-2.5 p-3.5 border border-slate-200">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                  <h3 className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5 uppercase font-mono">
-                    <Building className="w-3.5 h-3.5 text-[#00adb5]" />
-                    <span>01 Gayrimenkul Bilgileri</span>
-                  </h3>
-                  {/* Satış / Kiralama Seçici */}
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 cursor-pointer font-bold font-mono text-xs">
-                      <input
-                        type="radio"
-                        name="dealType"
-                        checked={dealType === "sale"}
-                        onChange={() => setDealType("sale")}
-                        className="accent-[#1d2566]"
-                      />
-                      <span>Satış</span>
-                    </label>
-                    <label className="flex items-center gap-1 cursor-pointer font-bold font-mono text-xs">
-                      <input
-                        type="radio"
-                        name="dealType"
-                        checked={dealType === "rent"}
-                        onChange={() => setDealType("rent")}
-                        className="accent-[#1d2566]"
-                      />
-                      <span>Kiralama</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                    Gayrimenkul Adresi / Tanımı *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={propertyAddress}
-                    onChange={(e) => setPropertyAddress(e.target.value)}
-                    placeholder="Örn: Girne Alsancak Green Park Sitesi No:14"
-                    className="w-full px-2.5 py-1.5 border border-slate-300 text-xs focus:outline-none focus:border-[#00adb5]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+            {/* SAĞ PANEL: Düzenlenebilir Form Alanları (7 Kolon) */}
+            <div className="lg:col-span-7 p-4 sm:p-6 overflow-y-auto max-h-[calc(96vh-120px)] bg-white">
+              <form onSubmit={handleSingleSubmit} className="space-y-5 text-xs">
+                {/* Form Üst Bilgileri */}
+                <div className="p-3 bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Mülk Türü
+                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                      Danışman (Satış GD) *
                     </label>
                     <select
-                      value={propertyType}
-                      onChange={(e) => setPropertyType(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-slate-300 text-xs focus:outline-none"
+                      value={advisorId}
+                      onChange={(e) => {
+                        setAdvisorId(e.target.value);
+                        const u = users.find((user) => user.id === e.target.value);
+                        if (u) setAdvisorName(u.name);
+                      }}
+                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-bold text-xs focus:outline-none focus:border-[#00adb5]"
                     >
-                      {PROPERTY_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
+                      {users.filter((u) => u.active).map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Arazi / Net m²
+                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                      İşlem / Portföy No
                     </label>
                     <input
                       type="text"
-                      value={landArea}
-                      onChange={(e) => setLandArea(e.target.value)}
-                      placeholder="Örn: 120 m²"
-                      className="w-full px-2 py-1.5 border border-slate-300 text-xs focus:outline-none"
+                      value={portfolioNo}
+                      onChange={(e) => setPortfolioNo(e.target.value)}
+                      placeholder="TRL-24-..."
+                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:border-[#00adb5]"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Arsa Türü (Arsa İse)
-                    </label>
-                    <select
-                      value={landType}
-                      onChange={(e) => setLandType(e.target.value as any)}
-                      className="w-full px-2 py-1.5 border border-slate-300 text-xs focus:outline-none"
-                    >
-                      <option value="residential">Villalık / Konut</option>
-                      <option value="commercial">Ticari</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* 02 TARAFLAR VE İŞLEM TARİHLERİ */}
-              <div className="space-y-2.5 p-3.5 border border-slate-200">
-                <h3 className="font-bold text-[#1d2566] text-xs border-b border-slate-200 pb-1.5 uppercase font-mono flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-[#00adb5]" />
-                  <span>02 Taraflar ve İşlem Tarihleri</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Mülk Sahibi (Satıcı) Adı
-                    </label>
-                    <input
-                      type="text"
-                      value={sellerName}
-                      onChange={(e) => setSellerName(e.target.value)}
-                      placeholder="Ad Soyad"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 text-xs focus:outline-none focus:border-[#00adb5]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Mülk Sahibi Telefonu
-                    </label>
-                    <input
-                      type="text"
-                      value={sellerPhone}
-                      onChange={(e) => setSellerPhone(e.target.value)}
-                      placeholder="+90 533 ..."
-                      className="w-full px-2.5 py-1.5 border border-slate-300 font-mono text-xs focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Yetki Belgesi Tarihi
+                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                      İşlem / Kapanış Tarihi *
                     </label>
                     <input
                       type="date"
-                      value={mandateDate}
-                      onChange={(e) => setMandateDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 font-mono text-xs focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Alıcı / Kiracı Adı
-                    </label>
-                    <input
-                      type="text"
-                      value={buyerName}
-                      onChange={(e) => setBuyerName(e.target.value)}
-                      placeholder="Ad Soyad"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 text-xs focus:outline-none focus:border-[#00adb5]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Alıcı / Kiracı Telefonu
-                    </label>
-                    <input
-                      type="text"
-                      value={buyerPhone}
-                      onChange={(e) => setBuyerPhone(e.target.value)}
-                      placeholder="+90 533 ..."
-                      className="w-full px-2.5 py-1.5 border border-slate-300 font-mono text-xs focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Depozito / Kapora Tarihi
-                    </label>
-                    <input
-                      type="date"
-                      value={depositDate}
-                      onChange={(e) => setDepositDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 font-mono text-xs focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 03 ALICININ ULAŞTIĞI KANAL */}
-              <div className="p-3 border border-slate-200 space-y-1.5">
-                <label className="font-bold text-[#1d2566] text-xs uppercase font-mono block">
-                  03 Alıcının Ulaştığı Kanal
-                </label>
-                <div className="flex flex-wrap gap-1.5">
-                  {LEAD_CHANNELS.map((ch) => (
-                    <button
-                      key={ch}
-                      type="button"
-                      onClick={() => setLeadChannel(leadChannel === ch ? "" : ch)}
-                      className={`px-2.5 py-1 border text-[10.5px] font-mono transition cursor-pointer ${
-                        leadChannel === ch
-                          ? "bg-[#1d2566] text-white border-[#1d2566] font-bold"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-100"
-                      }`}
-                    >
-                      {ch}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 04 İŞLEM BİLGİLERİ (FİYAT VE KOMİSYON) */}
-              <div className="space-y-2.5 p-3.5 border border-slate-200 bg-slate-50/50">
-                <h3 className="font-bold text-[#1d2566] text-xs border-b border-slate-200 pb-1.5 uppercase font-mono flex items-center gap-1.5">
-                  <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>04 İşlem Bilgileri & Komisyon</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-                  <div>
-                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                      Para Birimi
-                    </label>
-                    <select
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value as Currency)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none"
-                    >
-                      <option value="GBP">GBP (£)</option>
-                      <option value="EUR">EUR (€)</option>
-                      <option value="USD">USD ($)</option>
-                      <option value="TRY">TRY (₺)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                      İlan Fiyatı
-                    </label>
-                    <input
-                      type="number"
-                      value={listingPrice}
-                      onChange={(e) => setListingPrice(e.target.value)}
-                      placeholder="0"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono text-xs focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                      Kaça Satıldı / Kiralandı *
-                    </label>
-                    <input
-                      type="number"
                       required
-                      value={closingPrice}
-                      onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "closing")}
-                      placeholder="0"
+                      value={closingDate}
+                      onChange={(e) => setClosingDate(e.target.value)}
                       className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
                     />
                   </div>
-
-                  <div>
-                    <label className="text-[10.5px] font-bold text-emerald-800 block mb-1">
-                      Anlaşılan Hizmet Bedeli *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      value={commissionAmount}
-                      onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "comm")}
-                      placeholder="0"
-                      className="w-full px-2.5 py-1.5 border-2 border-emerald-500 bg-emerald-50/50 font-mono font-black text-xs text-emerald-900 focus:outline-none"
-                    />
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Tahsilat Yöntemi
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                      placeholder="Nakit / Havale / Çek"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">
-                      Satış / Kiralama Süresi
-                    </label>
-                    <input
-                      type="text"
-                      value={dealDuration}
-                      onChange={(e) => setDealDuration(e.target.value)}
-                      placeholder="Örn: 45 Gün"
-                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 05 PORTFÖY TÜRÜ VE PAYLAŞIM */}
-              <div className="space-y-2.5 p-3.5 border border-slate-200">
-                <h3 className="font-bold text-[#1d2566] text-xs border-b border-slate-200 pb-1.5 uppercase font-mono flex items-center gap-1.5">
-                  <Users className="w-3.5 h-3.5 text-[#00adb5]" />
-                  <span>05 Portföy Türü ve Paylaşım</span>
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-1">
-                      Portföy Kaynağı
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPortfolioOrigin("advisor");
-                          calculateCommissionShares(parseFloat(commissionAmount) || 0, sharingType, "advisor");
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-mono font-bold border cursor-pointer ${
-                          portfolioOrigin === "advisor"
-                            ? "bg-[#1d2566] text-white border-[#1d2566]"
-                            : "bg-white text-slate-700 border-slate-300"
-                        }`}
-                      >
-                        Kendi Portföyü
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPortfolioOrigin("office");
-                          calculateCommissionShares(parseFloat(commissionAmount) || 0, sharingType, "office");
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-mono font-bold border cursor-pointer ${
-                          portfolioOrigin === "office"
-                            ? "bg-[#1d2566] text-white border-[#1d2566]"
-                            : "bg-white text-slate-700 border-slate-300"
-                        }`}
-                      >
-                        Ofis Portföyü
-                      </button>
+                {/* 01 GAYRİMENKUL BİLGİLERİ */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                    <span className="font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                      <Building className="w-3.5 h-3.5 text-[#00adb5]" />
+                      01 Gayrimenkul Bilgileri
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1 text-[11px] font-bold cursor-pointer">
+                        <input
+                          type="radio"
+                          name="dealType"
+                          value="sale"
+                          checked={dealType === "sale"}
+                          onChange={() => setDealType("sale")}
+                        />
+                        <span>Satılık</span>
+                      </label>
+                      <label className="flex items-center gap-1 text-[11px] font-bold cursor-pointer text-amber-800">
+                        <input
+                          type="radio"
+                          name="dealType"
+                          value="rent"
+                          checked={dealType === "rent"}
+                          onChange={() => setDealType("rent")}
+                        />
+                        <span>Kiralık</span>
+                      </label>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-[10.5px] font-semibold text-slate-600 block mb-1">
-                      İşlem Paylaşımı
-                    </label>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSharingType("none");
-                          calculateCommissionShares(parseFloat(commissionAmount) || 0, "none", portfolioOrigin);
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-mono font-bold border cursor-pointer ${
-                          sharingType === "none"
-                            ? "bg-[#1d2566] text-white border-[#1d2566]"
-                            : "bg-white text-slate-700 border-slate-300"
-                        }`}
-                      >
-                        Solo (Tek GD)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSharingType("external");
-                          calculateCommissionShares(parseFloat(commissionAmount) || 0, "external", portfolioOrigin);
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-mono font-bold border cursor-pointer ${
-                          sharingType === "external"
-                            ? "bg-[#1d2566] text-white border-[#1d2566]"
-                            : "bg-white text-slate-700 border-slate-300"
-                        }`}
-                      >
-                        Dış Ortak
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSharingType("internal");
-                          calculateCommissionShares(parseFloat(commissionAmount) || 0, "internal", portfolioOrigin);
-                        }}
-                        className={`flex-1 py-1.5 text-xs font-mono font-bold border cursor-pointer ${
-                          sharingType === "internal"
-                            ? "bg-[#1d2566] text-white border-[#1d2566]"
-                            : "bg-white text-slate-700 border-slate-300"
-                        }`}
-                      >
-                        İç Ortak (2. GD)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {sharingType !== "none" && (
-                  <div className="grid grid-cols-2 gap-2 pt-1 bg-slate-50 p-2 border border-slate-200">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                        Ortak Danışman / Ofis Adı
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Gayrimenkul Adresi / Başlık *
                       </label>
                       <input
                         type="text"
-                        value={partnerName}
-                        onChange={(e) => setPartnerName(e.target.value)}
-                        placeholder="Örn: Ahmet Bey (Re/Max)"
-                        className="w-full px-2 py-1 border border-slate-300 bg-white text-xs focus:outline-none"
+                        required
+                        value={propertyAddress}
+                        onChange={(e) => setPropertyAddress(e.target.value)}
+                        placeholder="Örn: Girne Merkez 2+1 Daire veya Tam Adres..."
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#00adb5]"
                       />
                     </div>
+
                     <div>
-                      <label className="text-[10px] font-bold text-slate-600 block mb-0.5">
-                        Ortak Telefon / İletişim
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Gayrimenkul Türü
+                      </label>
+                      <select
+                        value={propertyType}
+                        onChange={(e) => setPropertyType(e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#00adb5]"
+                      >
+                        {PROPERTY_TYPES.map((pt) => (
+                          <option key={pt} value={pt}>
+                            {pt}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {propertyType === "Arsa" && (
+                    <div className="grid grid-cols-2 gap-3 p-2 bg-slate-50 border border-slate-200">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 block mb-1">
+                          Arazi m²
+                        </label>
+                        <input
+                          type="text"
+                          value={landArea}
+                          onChange={(e) => setLandArea(e.target.value)}
+                          placeholder="Örn: 500"
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-600 block mb-1">
+                          Arsa Türü
+                        </label>
+                        <select
+                          value={landType}
+                          onChange={(e) => setLandType(e.target.value as any)}
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs"
+                        >
+                          <option value="residential">Villalık / Konut</option>
+                          <option value="commercial">Ticari</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 02 TARAFLAR VE TARİHLER */}
+                <div className="space-y-3">
+                  <div className="border-b border-slate-200 pb-1.5 font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[#00adb5]" />
+                    02 Taraflar ve İşlem Tarihleri
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Mülk Sahibi */}
+                    <div className="p-2.5 bg-slate-50/70 border border-slate-200 space-y-2">
+                      <div className="text-[11px] font-bold text-slate-800">Mülk Sahibi</div>
+                      <div>
+                        <input
+                          type="text"
+                          value={sellerName}
+                          onChange={(e) => setSellerName(e.target.value)}
+                          placeholder="Ad Soyad"
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={sellerPhone}
+                          onChange={(e) => setSellerPhone(e.target.value)}
+                          placeholder="Telefon (0533...)"
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Alıcı / Kiracı */}
+                    <div className="p-2.5 bg-slate-50/70 border border-slate-200 space-y-2">
+                      <div className="text-[11px] font-bold text-slate-800">
+                        {dealType === "rent" ? "Kiracı" : "Alıcı Müşteri"}
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={buyerName}
+                          onChange={(e) => setBuyerName(e.target.value)}
+                          placeholder="Ad Soyad"
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={buyerPhone}
+                          onChange={(e) => setBuyerPhone(e.target.value)}
+                          placeholder="Telefon (0548...)"
+                          className="w-full px-2 py-1 border border-slate-300 bg-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 03 & 04 İŞLEM VE FİNANS BİLGİLERİ */}
+                <div className="space-y-3">
+                  <div className="border-b border-slate-200 pb-1.5 font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
+                    <DollarSign className="w-3.5 h-3.5 text-[#00adb5]" />
+                    03 & 04 İşlem Bilgileri & Hizmet Bedeli
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Para Birimi
+                      </label>
+                      <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value as Currency)}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
+                      >
+                        <option value="GBP">GBP (£)</option>
+                        <option value="TRY">TRY (₺)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="USD">USD ($)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        İlan Fiyatı
+                      </label>
+                      <input
+                        type="number"
+                        value={listingPrice}
+                        onChange={(e) => setListingPrice(e.target.value)}
+                        placeholder="0"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:border-[#00adb5]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Kapanış Fiyatı *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={closingPrice}
+                        onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "closing")}
+                        placeholder="0"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10.5px] font-bold text-emerald-800 block mb-1">
+                        Alınan Komisyon *
+                      </label>
+                      <input
+                        type="number"
+                        required
+                        value={commissionAmount}
+                        onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "comm")}
+                        placeholder="0"
+                        className="w-full px-2.5 py-1.5 border border-emerald-400 bg-emerald-50/50 font-mono font-bold text-xs text-emerald-900 focus:outline-none focus:border-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Müşterinin Ulaştığı Kanal
+                      </label>
+                      <select
+                        value={leadChannel}
+                        onChange={(e) => setLeadChannel(e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#00adb5]"
+                      >
+                        <option value="">Seçiniz...</option>
+                        {LEAD_CHANNELS.map((ch) => (
+                          <option key={ch} value={ch}>
+                            {ch}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Tahsilat Yöntemi
                       </label>
                       <input
                         type="text"
-                        value={partnerPhone}
-                        onChange={(e) => setPartnerPhone(e.target.value)}
-                        placeholder="+90 533 ..."
-                        className="w-full px-2 py-1 border border-slate-300 bg-white font-mono text-xs focus:outline-none"
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        placeholder="Nakit, Havale, Elden..."
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#00adb5]"
                       />
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Komisyon Dağılım Tablosu (Manuel Değiştirilebilir) */}
-                <div className="pt-1">
-                  <div className="text-[10.5px] font-mono font-bold text-slate-600 mb-1">
-                    Hesaplanan Komisyon Hak Ediş Dağılımı:
+                {/* 05 PORTFÖY TÜRÜ VE HAKEDİŞ PAYLAŞIMI */}
+                <div className="space-y-3">
+                  <div className="border-b border-slate-200 pb-1.5 font-bold text-[#1d2566] text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#00adb5]" />
+                      05 Portföy Türü & Hakediş Paylaşımı
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono">
+                      Otomatik hesaplanır, elle değiştirilebilir
+                    </span>
                   </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Portföy Menşei
+                      </label>
+                      <select
+                        value={portfolioOrigin}
+                        onChange={(e) => {
+                          const o = e.target.value as "advisor" | "office";
+                          setPortfolioOrigin(o);
+                          calculateCommissionShares(parseFloat(commissionAmount) || 0, sharingType, o);
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-semibold text-xs focus:outline-none focus:border-[#00adb5]"
+                      >
+                        <option value="advisor">Danışmanın Kendi Portföyü</option>
+                        <option value="office">Ofis Portföyü</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                        Paylaşım Türü
+                      </label>
+                      <select
+                        value={sharingType}
+                        onChange={(e) => {
+                          const st = e.target.value as DealSharingType;
+                          setSharingType(st);
+                          calculateCommissionShares(parseFloat(commissionAmount) || 0, st, portfolioOrigin);
+                        }}
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-semibold text-xs focus:outline-none focus:border-[#00adb5]"
+                      >
+                        <option value="none">Tek Danışman (Paylaşım Yok)</option>
+                        <option value="internal">İç Paylaşım (Ofis İçi 2. Danışman %25)</option>
+                        <option value="external">Dış Paylaşım (Dış Ortak / Acente %50)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {sharingType !== "none" && (
+                    <div className="p-2.5 bg-purple-50/70 border border-purple-200 grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-bold text-purple-900 block mb-1">
+                          {sharingType === "internal" ? "2. Danışman (Müşteri GD)" : "Dış Ortak / Şirket Adı"}
+                        </label>
+                        {sharingType === "internal" ? (
+                          <select
+                            value={partnerAdvisorId}
+                            onChange={(e) => {
+                              setPartnerAdvisorId(e.target.value);
+                              const u = users.find((user) => user.id === e.target.value);
+                              if (u) setPartnerName(u.name);
+                            }}
+                            className="w-full px-2 py-1 border border-purple-300 bg-white text-xs font-bold"
+                          >
+                            <option value="">Seçiniz...</option>
+                            {users.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            value={partnerName}
+                            onChange={(e) => setPartnerName(e.target.value)}
+                            placeholder="Ortak Danışman / Ofis..."
+                            className="w-full px-2 py-1 border border-purple-300 bg-white text-xs"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-purple-900 block mb-1">
+                          Ortak Telefon / İletişim
+                        </label>
+                        <input
+                          type="text"
+                          value={partnerPhone}
+                          onChange={(e) => setPartnerPhone(e.target.value)}
+                          placeholder="Telefon..."
+                          className="w-full px-2 py-1 border border-purple-300 bg-white text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dağılım Özeti Kartları */}
                   <div className="grid grid-cols-3 gap-2 text-center font-mono">
                     <div className="p-2 bg-emerald-50 border border-emerald-200">
-                      <div className="text-[10px] text-emerald-800 font-bold">Satış GD Payı</div>
-                      <div className="text-xs font-black text-emerald-900 mt-0.5">
+                      <div className="text-[10px] font-bold text-emerald-800">
+                        GD1 ({users.find((u) => u.id === advisorId)?.name?.split(" ")[0] || "Siz"})
+                      </div>
+                      <div className="font-bold text-xs text-emerald-950 mt-0.5">
                         {advisorShareAmount.toLocaleString("tr-TR")} {currency}
                       </div>
-                      <div className="text-[9.5px] text-emerald-700">(%{advisorShareRate})</div>
+                      <div className="text-[9.5px] text-emerald-700 font-normal">%{advisorShareRate}</div>
                     </div>
 
-                    {sharingType !== "none" ? (
-                      <div className="p-2 bg-blue-50 border border-blue-200">
-                        <div className="text-[10px] text-blue-800 font-bold">Ortak Payı</div>
-                        <div className="text-xs font-black text-blue-900 mt-0.5">
-                          {partnerShareAmount.toLocaleString("tr-TR")} {currency}
-                        </div>
-                        <div className="text-[9.5px] text-blue-700">(%{partnerShareRate})</div>
-                      </div>
-                    ) : (
-                      <div className="p-2 bg-slate-50 border border-slate-200 opacity-50">
-                        <div className="text-[10px] text-slate-500">Ortak Payı</div>
-                        <div className="text-xs font-bold text-slate-400 mt-0.5">Yok (%0)</div>
-                      </div>
-                    )}
-
-                    <div className="p-2 bg-indigo-50 border border-indigo-200">
-                      <div className="text-[10px] text-indigo-800 font-bold">Ofis Payı</div>
-                      <div className="text-xs font-black text-indigo-900 mt-0.5">
+                    <div className="p-2 bg-slate-100 border border-slate-300">
+                      <div className="text-[10px] font-bold text-slate-800">Ofis Payı</div>
+                      <div className="font-bold text-xs text-slate-900 mt-0.5">
                         {officeShareAmount.toLocaleString("tr-TR")} {currency}
                       </div>
-                      <div className="text-[9.5px] text-indigo-700">(%{officeShareRate})</div>
+                      <div className="text-[9.5px] text-slate-600 font-normal">%{officeShareRate}</div>
+                    </div>
+
+                    <div className="p-2 bg-purple-50 border border-purple-200">
+                      <div className="text-[10px] font-bold text-purple-800">
+                        {sharingType === "internal" ? "GD2 Payı" : "Ortak Payı"}
+                      </div>
+                      <div className="font-bold text-xs text-purple-950 mt-0.5">
+                        {partnerShareAmount.toLocaleString("tr-TR")} {currency}
+                      </div>
+                      <div className="text-[9.5px] text-purple-700 font-normal">%{partnerShareRate}</div>
                     </div>
                   </div>
                 </div>
+
+                {/* NOTLAR (Kenar Notları Dahil) */}
+                <div>
+                  <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                    Notlar & Kağıt Üzerindeki El Yazısı Açıklamalar
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Form üzerindeki notlar veya sayfanın kenarına iliştirilmiş el yazısı eklemeler..."
+                    className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs focus:outline-none focus:border-[#00adb5]"
+                  />
+                </div>
+
+                {/* Alt Aksiyon Butonları */}
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Vazgeç
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Arşiv İşlemini Kaydet (Finansa Ekle)</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* SEÇİLEN MOD: 2. TOPLU (BATCH) ARŞİV TARAMA MODU */}
+        {/* ========================================================================= */}
+        {activeTab === "batch" && (
+          <div className="flex-1 overflow-hidden flex flex-col bg-slate-50/50 p-4 sm:p-6 space-y-4">
+            {/* Üst Yükleme & Kontrol Şeridi */}
+            <div className="bg-white border border-slate-200 p-4 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-bold text-[#1d2566] flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-[#00adb5]" />
+                    <span>Toplu Kağıt Form Arşivleme (50+ Fotoğraf Sıralı AI)</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    Tüm geçmiş işlem fotoğraflarını tek seferde seçin; sistem aşırı yükleme (rate-limit) yapmadan sırayla okuyacaktır.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="px-3.5 py-1.5 bg-[#1d2566] hover:bg-[#151a48] text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition">
+                    <UploadCloud className="w-4 h-4 text-[#00adb5]" />
+                    <span>Fotoğrafları Seç (Çoklu)</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*"
+                      onChange={handleBatchFilesSelect}
+                      className="hidden"
+                    />
+                  </label>
+
+                  {batchItems.length > 0 && (
+                    <>
+                      {!batchIsRunning ? (
+                        <button
+                          type="button"
+                          onClick={runBatchScanning}
+                          disabled={pendingBatch === 0}
+                          className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>{doneBatch > 0 ? "Kalanları Tara" : "Taramayı Başlat"}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setBatchShouldStop(true)}
+                          className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                        >
+                          <Pause className="w-3.5 h-3.5 fill-current" />
+                          <span>Durdur</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={clearBatchItems}
+                        disabled={batchIsRunning}
+                        className="p-1.5 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                        title="Listeyi Temizle"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
-              {/* Form Notları */}
-              <div>
-                <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                  Ek Notlar & Açıklamalar
-                </label>
-                <textarea
-                  rows={2}
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Form üzerinde varsa ek notlar..."
-                  className="w-full px-2.5 py-1.5 border border-slate-300 text-xs focus:outline-none focus:border-[#00adb5]"
-                />
-              </div>
+              {/* İlerleme Çubuğu */}
+              {totalBatch > 0 && (
+                <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-slate-600">
+                    <span className="flex items-center gap-2">
+                      <span className="font-bold text-[#1d2566]">Toplam: {totalBatch} Evrak</span>
+                      <span>•</span>
+                      <span className="text-emerald-700 font-semibold">Tamamlanan: {doneBatch}</span>
+                      {errorBatch > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-red-600 font-semibold">Hatalı: {errorBatch}</span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span className="text-slate-500">Sırada: {pendingBatch}</span>
+                    </span>
+                    <span className="font-bold text-[#00adb5]">%{progressPercent}</span>
+                  </div>
 
-              {/* Kaydet Butonları */}
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2.5">
+                  <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-[#00adb5] to-emerald-500 h-full transition-all duration-300"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Kuyruk ve Sonuç Listesi */}
+            <div className="flex-1 bg-white border border-slate-200 overflow-y-auto shadow-2xs">
+              {batchItems.length === 0 ? (
+                <div className="py-16 text-center text-slate-500 font-mono text-xs space-y-3">
+                  <UploadCloud className="w-10 h-10 text-slate-300 mx-auto" />
+                  <div className="font-bold text-slate-700">Toplu Taranacak Fotoğraf Eklenmedi</div>
+                  <p className="text-[11px] text-slate-400 max-w-md mx-auto">
+                    Yukarıdaki "Fotoğrafları Seç (Çoklu)" butonuna basarak telefonunuzdan veya bilgisayarınızdan onlarca işlem formunu tek seferde yükleyebilirsiniz.
+                  </p>
+                </div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 text-slate-600 font-mono border-b border-slate-200 sticky top-0 z-10 shadow-2xs">
+                    <tr>
+                      <th className="py-2.5 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={batchItems.every((i) => i.selected)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setBatchItems((prev) => prev.map((i) => ({ ...i, selected: checked })));
+                          }}
+                        />
+                      </th>
+                      <th className="py-2.5 px-3 w-16">Fotoğraf</th>
+                      <th className="py-2.5 px-3">Dosya Adı & Durum</th>
+                      <th className="py-2.5 px-3">Danışman</th>
+                      <th className="py-2.5 px-3">Gayrimenkul / Adres</th>
+                      <th className="py-2.5 px-3">Alıcı / Müşteri</th>
+                      <th className="py-2.5 px-3 font-mono">Tarih</th>
+                      <th className="py-2.5 px-3 font-mono">Komisyon</th>
+                      <th className="py-2.5 px-3 text-right">İşlem</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-mono">
+                    {batchItems.map((item, idx) => {
+                      const d = item.dealData;
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-slate-50/80 transition ${
+                            item.status === "scanning" ? "bg-cyan-50/50" : ""
+                          }`}
+                        >
+                          <td className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={item.selected}
+                              disabled={item.status !== "done"}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setBatchItems((prev) =>
+                                  prev.map((it) => (it.id === item.id ? { ...it, selected: checked } : it))
+                                );
+                              }}
+                            />
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {item.imageBase64 ? (
+                              <button
+                                type="button"
+                                onClick={() => setViewingBatchImage(item.imageBase64)}
+                                className="w-10 h-10 border border-slate-300 bg-slate-100 flex items-center justify-center overflow-hidden hover:opacity-80 transition cursor-pointer"
+                                title="Büyütmek için tıklayın"
+                              >
+                                <img
+                                  src={item.imageBase64}
+                                  alt="Form"
+                                  className="w-full h-full object-cover"
+                                />
+                              </button>
+                            ) : (
+                              <div className="w-10 h-10 border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-slate-300">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-slate-800 text-xs truncate max-w-[140px]" title={item.fileName}>
+                              {idx + 1}. {item.fileName}
+                            </div>
+                            <div className="mt-0.5">
+                              {item.status === "pending" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
+                                  <Clock className="w-3 h-3" /> Sırada
+                                </span>
+                              )}
+                              {item.status === "scanning" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-[#00adb5] font-bold">
+                                  <Loader2 className="w-3 h-3 animate-spin" /> AI Taranıyor...
+                                </span>
+                              )}
+                              {item.status === "done" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 font-bold">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Tamamlandı
+                                </span>
+                              )}
+                              {item.status === "error" && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-red-600 font-bold" title={item.errorMsg}>
+                                  <AlertCircle className="w-3 h-3" /> Hata
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {d ? (
+                              <span className="font-bold text-[#1d2566] text-xs">
+                                {d.createdByName || "—"}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {d ? (
+                              <div>
+                                <div className="font-bold text-slate-800 text-xs truncate max-w-[180px]" title={d.propertyTitle}>
+                                  {d.propertyTitle}
+                                </div>
+                                <div className="text-[10px] text-slate-500">
+                                  {d.dealType === "rent" ? "Kiralık" : "Satılık"} • {d.propertyType || "Daire"}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {d ? (
+                              <div>
+                                <div className="font-semibold text-slate-700 text-xs">
+                                  {d.customerName || "—"}
+                                </div>
+                                {d.landlordName && (
+                                  <div className="text-[10px] text-slate-400">
+                                    Mal Sahibi: {d.landlordName}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-slate-600 text-[11px]">
+                            {d?.closingDate || "—"}
+                          </td>
+
+                          <td className="py-2.5 px-3">
+                            {d ? (
+                              <div>
+                                <span className="font-bold text-emerald-700 text-xs">
+                                  {d.commissionExpected.toLocaleString("tr-TR")} {d.currency}
+                                </span>
+                                <div className="text-[10px] text-slate-400">
+                                  Bedel: {d.agreedPrice.toLocaleString("tr-TR")} {d.currency}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+
+                          <td className="py-2.5 px-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {item.status === "done" && (
+                                <button
+                                  type="button"
+                                  onClick={() => loadBatchItemIntoSingleMode(item)}
+                                  className="px-2 py-1 text-[10.5px] font-bold text-[#00adb5] hover:bg-cyan-50 border border-cyan-200 transition flex items-center gap-1 cursor-pointer"
+                                  title="Tekli Düzenleme Modunda Aç"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>Düzenle</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => removeBatchItem(item.id)}
+                                disabled={item.status === "scanning"}
+                                className="p-1 text-slate-400 hover:text-red-600 transition cursor-pointer"
+                                title="Listeden Çıkar"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Alt Toplu Kaydetme Çubuğu */}
+            {batchItems.length > 0 && (
+              <div className="bg-white border border-slate-200 p-3.5 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs font-mono text-slate-600">
+                  <span className="font-bold text-[#1d2566]">
+                    {batchItems.filter((i) => i.status === "done" && i.selected).length} adet taranmış işlem seçili.
+                  </span>
+                  <span className="text-slate-400 ml-2">
+                    Toplam Komisyon:{" "}
+                    {batchItems
+                      .filter((i) => i.status === "done" && i.selected && i.dealData)
+                      .reduce((sum, i) => sum + (i.dealData?.commissionExpected || 0), 0)
+                      .toLocaleString("tr-TR")}{" "}
+                    GBP
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Kapat
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAllBatchDeals}
+                    disabled={batchItems.filter((i) => i.status === "done" && i.selected).length === 0}
+                    className="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+                    <span>
+                      Tüm Seçilenleri Sisteme Kaydet (
+                      {batchItems.filter((i) => i.status === "done" && i.selected).length} İşlem)
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* FOTOĞRAF ÖNİZLEME LIGHTBOX (Büyütülmüş Görsel) */}
+        {/* ========================================================================= */}
+        {viewingBatchImage && (
+          <div className="fixed inset-0 z-60 bg-black/85 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="relative max-w-4xl w-full max-h-[90vh] bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+              <div className="p-3 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700">
+                <span className="text-xs font-mono font-bold">Orijinal Kağıt Form Önizleme</span>
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 transition cursor-pointer"
+                  onClick={() => setViewingBatchImage(null)}
+                  className="p-1 text-slate-400 hover:text-white transition cursor-pointer"
                 >
-                  Vazgeç
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-emerald-700 text-white font-bold hover:bg-emerald-800 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>Geçmiş İşlemi Arşive Kaydet</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
+              <div className="p-2 overflow-auto flex items-center justify-center bg-slate-950 flex-1 min-h-[300px]">
+                <img
+                  src={viewingBatchImage}
+                  alt="Form"
+                  className="max-w-full max-h-[80vh] object-contain"
+                />
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
-
-      {/* Büyük Fotoğraf Önizleme Modalı */}
-      {previewZoom && imageBase64 && (
-        <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xs cursor-pointer"
-          onClick={() => setPreviewZoom(false)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh]">
-            <img
-              src={imageBase64}
-              alt="Büyük Önizleme"
-              className="max-h-[85vh] w-auto object-contain border border-white/20 shadow-2xl"
-            />
-            <button
-              onClick={() => setPreviewZoom(false)}
-              className="absolute top-2 right-2 p-2 bg-white/20 hover:bg-white text-black rounded-none cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -74,6 +74,9 @@ FORMAT 2: TABLO / KUTU IZGARASI DÜZENİNDEKİ FORM ("TRUSTLINE ESTATE LTD. İŞ
 ---
 Görseldeki el yazılarını, basılı metinleri, kutucuk işaretlerini (tik, çarpı, daire, nokta veya boyama) ve rakamları titizlikle oku.
 
+ÇOK ÖNEMLİ KURAL (KENAR VE DİPNOTLAR):
+Kağıdın kenar boşluklarına (marjinlere), form kutularının dışına, sayfanın sağına, soluna, üstüne veya altına sonradan el yazısıyla iliştirilmiş herhangi bir not, açıklama, telefon veya hatırlatma varsa bunu ASLA atlama. Bu metinleri de eksiksiz okuyup "notes" alanına "Kenar Notu: ..." şeklinde ekle.
+
 Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıktısı üret (markdown kod blokları veya açıklama metni olmadan doğrudan { ... }):
 
 {
@@ -108,7 +111,7 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
   "partnerAmount": 0,
   "officeRate": 0,
   "officeAmount": 0,
-  "notes": "Notlar ve Özel Notlar alanındaki açıklamalar"
+  "notes": "Notlar, Özel Notlar ve kağıdın kenarına/dışına iliştirilmiş tüm el yazısı ek açıklamalar"
 }
 
 Rakamları para birimlerinden ve noktalama işaretlerinden arındırıp sayısal (number) olarak ver (örn: "800 GBP" -> 800).

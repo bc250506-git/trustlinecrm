@@ -37,7 +37,7 @@ export function SettingsView() {
       if (saved === "security" || saved === "profile" || saved === "notifications") {
         return saved;
       }
-    } catch {}
+    } catch { }
     return "security";
   });
 
@@ -45,7 +45,7 @@ export function SettingsView() {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem("trustline_crm_settings_subtab", activeTab);
-    } catch {}
+    } catch { }
   }, [activeTab]);
 
   // Şifre Değiştirme State
@@ -162,11 +162,10 @@ export function SettingsView() {
         <button
           type="button"
           onClick={() => setActiveTab("security")}
-          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${
-            activeTab === "security"
-              ? "bg-[#1d2566] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-          }`}
+          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${activeTab === "security"
+            ? "bg-[#1d2566] text-white shadow-xs"
+            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
         >
           <Lock className="w-3.5 h-3.5 text-[#00adb5]" />
           <span>Güvenlik & Şifre Değiştir</span>
@@ -175,11 +174,10 @@ export function SettingsView() {
         <button
           type="button"
           onClick={() => setActiveTab("profile")}
-          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${
-            activeTab === "profile"
-              ? "bg-[#1d2566] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-          }`}
+          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${activeTab === "profile"
+            ? "bg-[#1d2566] text-white shadow-xs"
+            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
         >
           <User className="w-3.5 h-3.5 text-[#00adb5]" />
           <span>Profil & Bilgiler</span>
@@ -188,11 +186,10 @@ export function SettingsView() {
         <button
           type="button"
           onClick={() => setActiveTab("notifications")}
-          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${
-            activeTab === "notifications"
-              ? "bg-[#1d2566] text-white shadow-xs"
-              : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-          }`}
+          className={`flex items-center gap-2 px-3 py-2 text-xs font-mono font-bold transition cursor-pointer ${activeTab === "notifications"
+            ? "bg-[#1d2566] text-white shadow-xs"
+            : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+            }`}
         >
           <Bell className="w-3.5 h-3.5 text-[#00adb5]" />
           <span>Bildirim Ayarları</span>
@@ -221,11 +218,10 @@ export function SettingsView() {
 
             {passwordMsg && (
               <div
-                className={`mb-4 p-3 border-l-4 text-xs font-mono flex items-start gap-2.5 ${
-                  passwordMsg.type === "success"
-                    ? "bg-emerald-50 border-emerald-600 text-emerald-800"
-                    : "bg-red-50 border-red-500 text-red-800"
-                }`}
+                className={`mb-4 p-3 border-l-4 text-xs font-mono flex items-start gap-2.5 ${passwordMsg.type === "success"
+                  ? "bg-emerald-50 border-emerald-600 text-emerald-800"
+                  : "bg-red-50 border-red-500 text-red-800"
+                  }`}
               >
                 {passwordMsg.type === "success" ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -372,9 +368,8 @@ export function SettingsView() {
                   <button
                     type="button"
                     onClick={() => setTwoFactorAuth(!twoFactorAuth)}
-                    className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${
-                      twoFactorAuth ? "bg-emerald-600 justify-end" : "bg-slate-300 justify-start"
-                    }`}
+                    className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${twoFactorAuth ? "bg-emerald-600 justify-end" : "bg-slate-300 justify-start"
+                      }`}
                   >
                     <div className="w-5 h-5 bg-white shadow-xs"></div>
                   </button>
@@ -515,9 +510,8 @@ export function SettingsView() {
               <button
                 type="button"
                 onClick={() => setNotifyRentDue(!notifyRentDue)}
-                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${
-                  notifyRentDue ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
-                }`}
+                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${notifyRentDue ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
+                  }`}
               >
                 <div className="w-5 h-5 bg-white shadow-xs"></div>
               </button>
@@ -533,9 +527,8 @@ export function SettingsView() {
               <button
                 type="button"
                 onClick={() => setNotifyMandateExpire(!notifyMandateExpire)}
-                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${
-                  notifyMandateExpire ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
-                }`}
+                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${notifyMandateExpire ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
+                  }`}
               >
                 <div className="w-5 h-5 bg-white shadow-xs"></div>
               </button>
@@ -551,9 +544,8 @@ export function SettingsView() {
               <button
                 type="button"
                 onClick={() => setNotifyLeadDecay(!notifyLeadDecay)}
-                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${
-                  notifyLeadDecay ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
-                }`}
+                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${notifyLeadDecay ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
+                  }`}
               >
                 <div className="w-5 h-5 bg-white shadow-xs"></div>
               </button>
@@ -569,9 +561,8 @@ export function SettingsView() {
               <button
                 type="button"
                 onClick={() => setSoundEffects(!soundEffects)}
-                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${
-                  soundEffects ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
-                }`}
+                className={`w-11 h-6 flex items-center transition px-0.5 cursor-pointer ${soundEffects ? "bg-[#00adb5] justify-end" : "bg-slate-300 justify-start"
+                  }`}
               >
                 <div className="w-5 h-5 bg-white shadow-xs"></div>
               </button>

@@ -132,13 +132,13 @@ export function AddPropertyModal({
 
     const photos = formImageUrl
       ? [
-          {
-            id: `p-${Date.now()}`,
-            propertyId: "",
-            url: formImageUrl,
-            shareable: true,
-          },
-        ]
+        {
+          id: `p-${Date.now()}`,
+          propertyId: "",
+          url: formImageUrl,
+          shareable: true,
+        },
+      ]
       : [];
 
     const assignedUser =

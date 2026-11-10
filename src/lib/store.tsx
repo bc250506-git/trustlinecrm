@@ -429,15 +429,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     removeDeletedId(DELETED_RENTALS_KEY, "rnt-1794231745001");
     const raw = loadFromStorage(RENTALS_STORAGE_KEY, initialRentals);
     const deleted = getDeletedIds(DELETED_RENTALS_KEY);
-    const todayStr = new Date().toISOString().split("T")[0];
-    return raw
-      .filter((r) => !deleted.has(r.id))
-      .map((r) => {
-        if (r.active === false && (!r.contractEnd || r.contractEnd >= todayStr)) {
-          return { ...r, active: true };
-        }
-        return r;
-      });
+    return raw.filter((r) => !deleted.has(r.id));
   });
 
   const [mandates, setMandates] = useState<MandateContract[]>(() => {
@@ -552,6 +544,19 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       } catch (e) {}
     }
   }, [followUps]);
+
+  // SSR Hydration Güvenliği: İstemcide sözleşme geçerlilik durumlarını doğrula (Next.js prerender koruması)
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split("T")[0];
+    setRentals((prev) =>
+      prev.map((r) => {
+        if (r.active === false && (!r.contractEnd || r.contractEnd >= todayStr)) {
+          return { ...r, active: true };
+        }
+        return r;
+      })
+    );
+  }, []);
 
   // Supabase Realtime Canlı Senkronizasyon (Faz 5) ve Kullanıcı Kimlikleri
   useEffect(() => {

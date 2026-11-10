@@ -122,24 +122,24 @@ export function AddCustomerModal({
           customerToEdit.regions && customerToEdit.regions.length > 0
             ? customerToEdit.regions
             : customerToEdit.region
-            ? customerToEdit.region.split(",").map((s) => s.trim()).filter(Boolean)
-            : [];
+              ? customerToEdit.region.split(",").map((s) => s.trim()).filter(Boolean)
+              : [];
         setSelectedRegions(parsedRegs);
 
         const parsedTypes =
           customerToEdit.propertyTypes && customerToEdit.propertyTypes.length > 0
             ? customerToEdit.propertyTypes
             : customerToEdit.propertyType
-            ? customerToEdit.propertyType.split(",").map((s) => s.trim()).filter(Boolean)
-            : [];
+              ? customerToEdit.propertyType.split(",").map((s) => s.trim()).filter(Boolean)
+              : [];
         setSelectedTypes(parsedTypes);
 
         const parsedRooms =
           customerToEdit.roomsList && customerToEdit.roomsList.length > 0
             ? customerToEdit.roomsList
             : customerToEdit.rooms
-            ? customerToEdit.rooms.split(",").map((s) => s.trim()).filter(Boolean)
-            : [];
+              ? customerToEdit.rooms.split(",").map((s) => s.trim()).filter(Boolean)
+              : [];
         setSelectedRooms(parsedRooms);
 
         setFormBudget(customerToEdit.budget ? String(customerToEdit.budget) : "");
@@ -435,18 +435,16 @@ export function AddCustomerModal({
 
               {/* +90 Formatlı Telefon Input */}
               <div
-                className={`flex items-center border transition h-[38px] ${
-                  isForeignNumber
-                    ? "bg-slate-100 opacity-50 cursor-not-allowed border-slate-200 select-none"
-                    : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
-                }`}
+                className={`flex items-center border transition h-[38px] ${isForeignNumber
+                  ? "bg-slate-100 opacity-50 cursor-not-allowed border-slate-200 select-none"
+                  : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
+                  }`}
               >
                 <span
-                  className={`px-2.5 h-full border-r font-mono font-bold text-xs flex items-center select-none shrink-0 ${
-                    isForeignNumber
-                      ? "bg-slate-200/50 border-slate-200 text-slate-400"
-                      : "bg-slate-50 border-slate-200 text-[#1d2566]"
-                  }`}
+                  className={`px-2.5 h-full border-r font-mono font-bold text-xs flex items-center select-none shrink-0 ${isForeignNumber
+                    ? "bg-slate-200/50 border-slate-200 text-slate-400"
+                    : "bg-slate-50 border-slate-200 text-[#1d2566]"
+                    }`}
                 >
                   +90
                 </span>
@@ -484,11 +482,10 @@ export function AddCustomerModal({
               </label>
 
               <div
-                className={`flex items-center border transition h-[38px] ${
-                  isForeignNumber
-                    ? "bg-amber-50/20 border-amber-400 ring-1 ring-amber-400/40"
-                    : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
-                }`}
+                className={`flex items-center border transition h-[38px] ${isForeignNumber
+                  ? "bg-amber-50/20 border-amber-400 ring-1 ring-amber-400/40"
+                  : "bg-white border-slate-300 focus-within:border-[#00adb5] focus-within:ring-1 focus-within:ring-[#00adb5]"
+                  }`}
               >
                 <input
                   type="tel"
@@ -640,11 +637,10 @@ export function AddCustomerModal({
               <button
                 type="button"
                 onClick={() => setIsAlsoBuyer(!isAlsoBuyer)}
-                className={`px-3 py-1.5 text-xs font-mono font-bold border transition cursor-pointer shrink-0 shadow-2xs ${
-                  isAlsoBuyer
-                    ? "bg-[#1d2566] text-white border-[#1d2566]"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
-                }`}
+                className={`px-3 py-1.5 text-xs font-mono font-bold border transition cursor-pointer shrink-0 shadow-2xs ${isAlsoBuyer
+                  ? "bg-[#1d2566] text-white border-[#1d2566]"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                  }`}
               >
                 {isAlsoBuyer ? "✓ Evet (Alıcı Kriterleri Açık)" : "+ Alıcı Adayı Olarak da Ekle"}
               </button>

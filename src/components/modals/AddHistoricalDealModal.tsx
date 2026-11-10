@@ -174,29 +174,56 @@ export function AddHistoricalDealModal({
           setAdvisorId(matched.id);
         }
       }
+      const toISODate = (val?: string) => {
+        if (!val) return "";
+        const parts = val.trim().split(/[./-]/);
+        if (parts.length === 3) {
+          if (parts[2].length === 4) {
+            return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+          }
+          if (parts[0].length === 4) {
+            return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+          }
+        }
+        return val;
+      };
+
       if (d.portfolioNo) setPortfolioNo(d.portfolioNo);
-      if (d.reportDate) setReportDate(d.reportDate);
-      if (d.closingDate) setClosingDate(d.closingDate);
-      if (d.dealType) setDealType(d.dealType);
+      if (d.reportDate) setReportDate(toISODate(d.reportDate));
+      if (d.closingDate) setClosingDate(toISODate(d.closingDate));
+      if (d.dealType) {
+        const dt = String(d.dealType).toLowerCase();
+        setDealType(dt.includes("kira") || dt === "rent" ? "rent" : "sale");
+      }
       if (d.propertyAddress) setPropertyAddress(d.propertyAddress);
-      if (d.propertyType && PROPERTY_TYPES.includes(d.propertyType)) {
-        setPropertyType(d.propertyType);
+      if (d.propertyType) {
+        const pt = String(d.propertyType);
+        const match = PROPERTY_TYPES.find((t) => t.toLowerCase() === pt.toLowerCase());
+        if (match) setPropertyType(match);
       }
       if (d.landArea) setLandArea(String(d.landArea));
       if (d.sellerName) setSellerName(d.sellerName);
       if (d.sellerPhone) setSellerPhone(d.sellerPhone);
-      if (d.mandateDate) setMandateDate(d.mandateDate);
+      if (d.mandateDate) setMandateDate(toISODate(d.mandateDate));
       if (d.buyerName) setBuyerName(d.buyerName);
       if (d.buyerPhone) setBuyerPhone(d.buyerPhone);
-      if (d.depositDate) setDepositDate(d.depositDate);
+      if (d.depositDate) setDepositDate(toISODate(d.depositDate));
       if (d.dealDuration) setDealDuration(d.dealDuration);
-      if (d.leadSource) setLeadChannel(d.leadSource);
-      if (d.currency) setCurrency(d.currency);
-      if (d.listingPrice) setListingPrice(String(d.listingPrice));
-      if (d.closingPrice) setClosingPrice(String(d.closingPrice));
+      if (d.leadSource) {
+        const ls = String(d.leadSource);
+        const match = LEAD_CHANNELS.find((c) => c.toLowerCase() === ls.toLowerCase());
+        setLeadChannel(match || ls);
+      }
+      if (d.currency) {
+        const c = String(d.currency).toUpperCase().trim();
+        if (["GBP", "TRY", "USD", "EUR"].includes(c)) setCurrency(c as Currency);
+      }
+      if (d.listingPrice) setListingPrice(String(d.listingPrice).replace(/[^0-9.]/g, ""));
+      if (d.closingPrice) setClosingPrice(String(d.closingPrice).replace(/[^0-9.]/g, ""));
       if (d.commissionAmount) {
-        setCommissionAmount(String(d.commissionAmount));
-        calculateCommissionShares(Number(d.commissionAmount), sharingType, portfolioOrigin);
+        const cleanComm = String(d.commissionAmount).replace(/[^0-9.]/g, "");
+        setCommissionAmount(cleanComm);
+        calculateCommissionShares(parseFloat(cleanComm) || 0, sharingType, portfolioOrigin);
       }
       if (d.collectionDateMethod) setPaymentMethod(d.collectionDateMethod);
       if (d.notes) setNotes(d.notes);

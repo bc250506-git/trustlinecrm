@@ -67,8 +67,13 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
 Rakamları noktalama işaretlerinden arındırıp sayısal (number) olarak ver (örn: "120.000 GBP" -> listingPrice: 120000, currency: "GBP").
 Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
-    // Gemini API'ye istek gönder (önce gemini-2.0-flash, gerekirse gemini-1.5-flash)
-    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash"];
+    // Gemini Vision API modelleri (gemini-3-flash-preview ve gemini-3.6-flash)
+    const modelsToTry = [
+      "gemini-3-flash-preview",
+      "gemini-3.6-flash",
+      "gemini-3.8-flash",
+      "gemini-flash-latest",
+    ];
     let lastError = null;
 
     for (const model of modelsToTry) {
@@ -113,12 +118,20 @@ Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
         // JSON bloğunu ayıkla
         let jsonStr = candidateText.trim();
-        if (jsonStr.startsWith("```")) {
-          jsonStr = jsonStr.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+        if (jsonStr.includes("```")) {
+          const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (match) {
+            jsonStr = match[1];
+          }
+        }
+        const firstBrace = jsonStr.indexOf("{");
+        const lastBrace = jsonStr.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace !== -1) {
+          jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
         }
 
         const parsed = JSON.parse(jsonStr);
-        return NextResponse.json({ success: true, data: parsed });
+        return NextResponse.json({ success: true, data: parsed, usedModel: model });
       } catch (e: any) {
         lastError = e?.message || String(e);
       }
@@ -141,3 +154,4 @@ Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
     );
   }
 }
+

@@ -164,14 +164,60 @@ export function AddHistoricalDealModal({
       // Alanları yapay zeka verileriyle doldur
       if (d.advisorName) {
         setAdvisorName(d.advisorName);
-        // Sistemdeki kullanıcılarla eşleştir
-        const matched = users.find(
-          (u) =>
-            u.name.toLowerCase().includes(d.advisorName.toLowerCase()) ||
-            d.advisorName.toLowerCase().includes(u.name.toLowerCase())
-        );
-        if (matched) {
-          setAdvisorId(matched.id);
+
+        // Türkçe karakterleri normalize edip kelime bazlı eşleştirme yap (örn: "Bora İbrahim Boran" -> "Bora Boran")
+        const normalize = (s: string) =>
+          s
+            .toLowerCase()
+            .replace(/ı/g, "i")
+            .replace(/ğ/g, "g")
+            .replace(/ü/g, "u")
+            .replace(/ş/g, "s")
+            .replace(/ö/g, "o")
+            .replace(/ç/g, "c")
+            .replace(/[^a-z0-9]/g, " ")
+            .trim();
+
+        const cleanRaw = normalize(d.advisorName);
+        const rawWords = cleanRaw.split(/\s+/).filter(Boolean);
+
+        let bestMatch: any = null;
+        let highestScore = 0;
+
+        for (const u of users) {
+          const cleanUserName = normalize(u.name);
+          const userWords = cleanUserName.split(/\s+/).filter(Boolean);
+
+          // 1. Birebir eşitlik veya alt dize
+          if (
+            cleanUserName === cleanRaw ||
+            cleanRaw.includes(cleanUserName) ||
+            cleanUserName.includes(cleanRaw)
+          ) {
+            bestMatch = u;
+            break;
+          }
+
+          // 2. Kelime ve kök bazlı örtüşme (Ad ve soyad kökü geçiyor mu? Örn: "Bora" <-> "Boran")
+          let matchedWordCount = 0;
+          for (const uw of userWords) {
+            if (rawWords.some((rw) => rw === uw || rw.startsWith(uw) || uw.startsWith(rw))) {
+              matchedWordCount++;
+            }
+          }
+
+          if (userWords.length > 0 && matchedWordCount >= 1) {
+            const score = matchedWordCount / userWords.length;
+            if (score > highestScore) {
+              highestScore = score;
+              bestMatch = u;
+            }
+          }
+        }
+
+        if (bestMatch) {
+          setAdvisorId(bestMatch.id);
+          setAdvisorName(bestMatch.name);
         }
       }
       const toISODate = (val?: string) => {

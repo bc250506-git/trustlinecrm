@@ -12,6 +12,7 @@ import { MatchmakerView } from "@/components/matchmaker/MatchmakerView";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { MonthCalendarView } from "@/components/calendar/MonthCalendarView";
 import { RentalsView } from "@/components/rentals/RentalsView";
+import { Trust360View } from "@/components/trust360/Trust360View";
 import { MandatesView } from "@/components/mandates/MandatesView";
 import { FinanceView } from "@/components/finance/FinanceView";
 import { SecurityView } from "@/components/security/SecurityView";
@@ -30,6 +31,7 @@ const VALID_TABS: NavTab[] = [
   "properties",
   "matchmaker",
   "rentals",
+  "trust360",
   "mandates",
   "finance",
   "security",
@@ -208,6 +210,8 @@ function MainApp() {
             {activeTab === "calendar" && <CalendarView />}
 
             {activeTab === "rentals" && <RentalsView />}
+
+            {activeTab === "trust360" && <Trust360View />}
 
             {activeTab === "mandates" && <MandatesView />}
 

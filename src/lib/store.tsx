@@ -18,6 +18,10 @@ import {
   isOfficeSystemAccount,
   isVolkanUser,
   isVolkanDeal,
+  Trust360Contract,
+  Trust360Expense,
+  Trust360ChecklistItem,
+  createDefaultTrust360Checklist,
 } from "./types";
 import {
   initialUsers,
@@ -29,6 +33,7 @@ import {
   initialAutomationRules,
   initialNotifications,
   initialMandates,
+  initialTrust360Contracts,
 } from "./mockData";
 import {
   saveCustomer,
@@ -166,6 +171,17 @@ interface StoreContextType {
   addMandateContract: (mandate: Omit<MandateContract, "id" | "createdAt">) => MandateContract;
   updateMandateContract: (id: string, updates: Partial<MandateContract>) => boolean;
   deleteMandateContract: (id: string) => boolean;
+  // Trust 360 Kiralık Mülk Yönetimi
+  trust360Contracts: Trust360Contract[];
+  canManageTrust360: (contract?: Trust360Contract | null) => boolean;
+  addTrust360Contract: (data: Omit<Trust360Contract, "id" | "createdAt" | "expenses" | "checklist">) => Trust360Contract;
+  updateTrust360Contract: (id: string, updates: Partial<Trust360Contract>) => boolean;
+  deleteTrust360Contract: (id: string) => boolean;
+  addTrust360Expense: (contractId: string, expense: Omit<Trust360Expense, "id" | "createdAt">) => boolean;
+  updateTrust360Expense: (contractId: string, expenseId: string, updates: Partial<Trust360Expense>) => boolean;
+  deleteTrust360Expense: (contractId: string, expenseId: string) => boolean;
+  updateTrust360Checklist: (contractId: string, checklist: Trust360ChecklistItem[]) => boolean;
+  toggleTrust360FeeStatus: (contractId: string) => boolean;
   isBroker: boolean;
   // Auth & Settings (Kriptografik ve Bulut Senkronizasyonlu)
   isAuthenticated: boolean;
@@ -213,12 +229,14 @@ const CUSTOMERS_STORAGE_KEY = "trustline_crm_customers_kktc_v1";
 const DEALS_STORAGE_KEY = "trustline_crm_deals_kktc_v1";
 const RENTALS_STORAGE_KEY = "trustline_crm_rentals_kktc_v1";
 const MANDATES_STORAGE_KEY = "trustline_crm_mandates_kktc_v1";
+const TRUST360_STORAGE_KEY = "trustline_crm_trust360_kktc_v1";
 const FOLLOWUPS_STORAGE_KEY = "trustline_crm_followups_kktc_v1";
 const CURRENT_USER_STORAGE_KEY = "trustline_crm_current_user_kktc_v1";
 const AUTH_STORAGE_KEY = "trustline_crm_auth_v3";
 const DELETED_DEALS_KEY = "trustline_crm_deleted_deals_v1";
 const DELETED_MANDATES_KEY = "trustline_crm_deleted_mandates_v1";
 const DELETED_RENTALS_KEY = "trustline_crm_deleted_rentals_v1";
+const DELETED_TRUST360_KEY = "trustline_crm_deleted_trust360_v1";
 const DELETED_PROPERTIES_KEY = "trustline_crm_deleted_properties_v1";
 const DELETED_CUSTOMERS_KEY = "trustline_crm_deleted_customers_v1";
 const AUTOMATION_RULES_STORAGE_KEY = "trustline_crm_automation_rules_v1";
@@ -438,6 +456,12 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     return raw.filter((m) => !deleted.has(m.id));
   });
 
+  const [trust360Contracts, setTrust360Contracts] = useState<Trust360Contract[]>(() => {
+    const raw = loadFromStorage(TRUST360_STORAGE_KEY, initialTrust360Contracts);
+    const deleted = getDeletedIds(DELETED_TRUST360_KEY);
+    return raw.filter((c) => !deleted.has(c.id));
+  });
+
   const [notifications, setNotifications] = useState<WorkflowNotification[]>(initialNotifications);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>(() => {
     const saved = loadFromStorage<AutomationRule>(AUTOMATION_RULES_STORAGE_KEY, []);
@@ -536,6 +560,14 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       } catch (e) {}
     }
   }, [mandates]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(TRUST360_STORAGE_KEY, JSON.stringify(trust360Contracts));
+      } catch (e) {}
+    }
+  }, [trust360Contracts]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1087,6 +1119,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           "rule-internal-deal-notify": ["internal_deal"],
           "rule-stale-property": ["stale_property"],
           "rule-missing-mandate": ["missing_mandate"],
+          "rule-trust360-reminder": ["trust360_expiring"],
         };
         const typesToRemove = ruleTypeMap[id];
         if (typesToRemove && typesToRemove.length > 0) {
@@ -1306,6 +1339,43 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
                 urgency: isCritical ? "high" : "medium",
               });
             }
+          }
+        }
+      });
+    }
+
+    // 3.1 Trust 360 Mülk Yönetimi Sözleşme Yenileme Uyarısı (30 Gün Kala)
+    if (isRuleEnabled("rule-trust360-reminder")) {
+      trust360Contracts.forEach((c) => {
+        if (!c.active || !c.endDate) return;
+        const isAssigned = isBroker || c.assignedToId === currentUser.id;
+        if (!isAssigned) return;
+
+        const endDate = new Date(c.endDate);
+        const diffDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+        if (diffDays <= 30) {
+          const notifId = `notif-t360-${c.id}`;
+          const alreadyExists = notifications.some(
+            (n) => n.id.startsWith(notifId) || (n.targetId === c.id && n.type === "trust360_expiring")
+          );
+          if (!alreadyExists) {
+            newNotifications.push({
+              id: `${notifId}-${Date.now()}`,
+              type: "trust360_expiring",
+              title: `🔄 Trust 360 Yönetim Sözleşmesi Yenileme (30 Gün): ${c.propertyTitle}`,
+              message: `Mülk sahibi ${c.ownerName} ile yapılan Trust 360 sözleşmesinin bitişine ${
+                diffDays <= 0 ? "SÜRESİ DOLDU!" : `yalnızca ${diffDays} gün kaldı!`
+              } Yıllık hizmet bedeli (${c.annualFee} ${c.currency}) yenileme görüşmesini başlatın.`,
+              targetTab: "trust360",
+              targetId: c.id,
+              whatsappPhone: c.ownerWhatsapp || c.ownerPhone,
+              whatsappDraft: `Merhaba ${c.ownerName}, ${c.propertyTitle} mülkünüz için 1 yıllık Trust 360 profesyonel mülk yönetimi sözleşmeniz ${
+                diffDays <= 0 ? "süresi dolmuştur" : `${diffDays} gün sonra tamamlanacaktır`
+              }. Yönetim ve operasyonel takibin kesintisiz devamı için yeni dönem sözleşmemizi yenilemek ister misiniz?\n\nTrustline Estate • Trust 360`,
+              read: false,
+              createdAt: "Acil (30 Gün)",
+              urgency: "high",
+            });
           }
         }
       });
@@ -3816,6 +3886,208 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     return true;
   };
 
+  // ==========================================
+  // TRUST 360 - PROFESYONEL MÜLK YÖNETİMİ
+  // ==========================================
+
+  const canManageTrust360 = (contract?: Trust360Contract | null): boolean => {
+    if (!contract) return false;
+    if (isBroker) return true;
+    return contract.assignedToId === currentUser.id;
+  };
+
+  const addTrust360Contract = (
+    data: Omit<Trust360Contract, "id" | "createdAt" | "expenses" | "checklist">
+  ): Trust360Contract => {
+    const finalAssignedToId = isBroker ? (data.assignedToId || currentUser.id) : currentUser.id;
+    const finalAssignedToName = isBroker
+      ? (data.assignedToName || (users.find((u) => u.id === data.assignedToId)?.name || currentUser.name))
+      : currentUser.name;
+
+    const newContract: Trust360Contract = {
+      ...data,
+      assignedToId: finalAssignedToId,
+      assignedToName: finalAssignedToName,
+      id: `t360-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      expenses: [],
+      checklist: createDefaultTrust360Checklist(),
+    };
+
+    removeDeletedId(DELETED_TRUST360_KEY, newContract.id);
+    setTrust360Contracts((prev) => {
+      const updated = [newContract, ...prev.filter((c) => c.id !== newContract.id)];
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(TRUST360_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+
+    return newContract;
+  };
+
+  const updateTrust360Contract = (id: string, updates: Partial<Trust360Contract>): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === id);
+    if (!contract) return false;
+    if (!canManageTrust360(contract)) {
+      alert("Bu Trust 360 sözleşmesi size ait değildir. Yalnızca sahibi veya ofis düzenleyebilir.");
+      return false;
+    }
+    const safeUpdates = { ...updates, updatedAt: new Date().toISOString() };
+    if (!isBroker) {
+      safeUpdates.assignedToId = contract.assignedToId || currentUser.id;
+      safeUpdates.assignedToName = contract.assignedToName || currentUser.name;
+    }
+    const updatedContract: Trust360Contract = { ...contract, ...safeUpdates };
+    setTrust360Contracts((prev) => {
+      const updated = prev.map((c) => (c.id === id ? updatedContract : c));
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(TRUST360_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+    return true;
+  };
+
+  const deleteTrust360Contract = (id: string): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === id);
+    if (!contract) return false;
+    if (!canManageTrust360(contract)) {
+      alert("Bu Trust 360 sözleşmesi size ait değildir. Yalnızca sahibi veya ofis silebilir.");
+      return false;
+    }
+    addDeletedId(DELETED_TRUST360_KEY, id);
+    setTrust360Contracts((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(TRUST360_STORAGE_KEY, JSON.stringify(updated));
+        } catch {}
+      }
+      return updated;
+    });
+    return true;
+  };
+
+  const addTrust360Expense = (
+    contractId: string,
+    expense: Omit<Trust360Expense, "id" | "createdAt">
+  ): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === contractId);
+    if (!contract || !canManageTrust360(contract)) return false;
+
+    const newExpense: Trust360Expense = {
+      ...expense,
+      id: `t360exp-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
+      createdAt: new Date().toISOString(),
+    };
+
+    setTrust360Contracts((prev) =>
+      prev.map((c) => {
+        if (c.id === contractId) {
+          return {
+            ...c,
+            expenses: [newExpense, ...(c.expenses || [])],
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      })
+    );
+    return true;
+  };
+
+  const updateTrust360Expense = (
+    contractId: string,
+    expenseId: string,
+    updates: Partial<Trust360Expense>
+  ): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === contractId);
+    if (!contract || !canManageTrust360(contract)) return false;
+
+    setTrust360Contracts((prev) =>
+      prev.map((c) => {
+        if (c.id === contractId) {
+          return {
+            ...c,
+            expenses: (c.expenses || []).map((exp) =>
+              exp.id === expenseId ? { ...exp, ...updates, updatedAt: new Date().toISOString() } : exp
+            ),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      })
+    );
+    return true;
+  };
+
+  const deleteTrust360Expense = (contractId: string, expenseId: string): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === contractId);
+    if (!contract || !canManageTrust360(contract)) return false;
+
+    setTrust360Contracts((prev) =>
+      prev.map((c) => {
+        if (c.id === contractId) {
+          return {
+            ...c,
+            expenses: (c.expenses || []).filter((exp) => exp.id !== expenseId),
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      })
+    );
+    return true;
+  };
+
+  const updateTrust360Checklist = (
+    contractId: string,
+    checklist: Trust360ChecklistItem[]
+  ): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === contractId);
+    if (!contract || !canManageTrust360(contract)) return false;
+
+    setTrust360Contracts((prev) =>
+      prev.map((c) => {
+        if (c.id === contractId) {
+          return {
+            ...c,
+            checklist,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      })
+    );
+    return true;
+  };
+
+  const toggleTrust360FeeStatus = (contractId: string): boolean => {
+    const contract = trust360Contracts.find((c) => c.id === contractId);
+    if (!contract || !canManageTrust360(contract)) return false;
+
+    const nextPaid = contract.feePaymentStatus !== "paid";
+    setTrust360Contracts((prev) =>
+      prev.map((c) => {
+        if (c.id === contractId) {
+          return {
+            ...c,
+            feePaymentStatus: nextPaid ? "paid" : "pending",
+            feePaidDate: nextPaid ? new Date().toISOString().split("T")[0] : undefined,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return c;
+      })
+    );
+    return true;
+  };
+
   const visibleMandates = isBroker
     ? mandates
     : mandates.filter((m) => m.assignedToId === currentUser.id);
@@ -4046,6 +4318,16 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         addMandateContract,
         updateMandateContract,
         deleteMandateContract,
+        trust360Contracts,
+        canManageTrust360,
+        addTrust360Contract,
+        updateTrust360Contract,
+        deleteTrust360Contract,
+        addTrust360Expense,
+        updateTrust360Expense,
+        deleteTrust360Expense,
+        updateTrust360Checklist,
+        toggleTrust360FeeStatus,
         isBroker,
         isAuthenticated,
         login,

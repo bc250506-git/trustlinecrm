@@ -18,6 +18,7 @@ import {
   LogOut,
   Landmark,
   ExternalLink,
+  ShieldCheck,
 } from "lucide-react";
 
 export type NavTab =
@@ -28,6 +29,7 @@ export type NavTab =
   | "properties"
   | "matchmaker"
   | "rentals"
+  | "trust360"
   | "mandates"
   | "finance"
   | "security"
@@ -48,6 +50,7 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     deals,
     mandates,
     rentals,
+    trust360Contracts,
     logout,
   } = useStore();
 
@@ -98,6 +101,12 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         (d) => d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id
       ).length;
 
+  const activeTrust360Count = isBroker
+    ? (trust360Contracts || []).filter((c) => c.active !== false).length
+    : (trust360Contracts || []).filter(
+        (c) => c.active !== false && c.assignedToId === currentUser.id
+      ).length;
+
   const navItems = [
     {
       id: "dashboard" as NavTab,
@@ -139,6 +148,13 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       label: "Kira Takip",
       icon: KeyRound,
       badge: activeRentalsCount,
+      brokerOnly: false,
+    },
+    {
+      id: "trust360" as NavTab,
+      label: "Trust 360",
+      icon: ShieldCheck,
+      badge: activeTrust360Count,
       brokerOnly: false,
     },
     {

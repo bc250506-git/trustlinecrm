@@ -360,7 +360,8 @@ export interface WorkflowNotification {
     | "deal_approved"
     | "deal_shared"
     | "stale_property"
-    | "missing_mandate";
+    | "missing_mandate"
+    | "trust360_expiring";
   title: string;
   message: string;
   targetTab?:
@@ -372,7 +373,8 @@ export interface WorkflowNotification {
     | "calendar"
     | "month_calendar"
     | "finance"
-    | "dashboard";
+    | "dashboard"
+    | "trust360";
   targetId?: string;
   whatsappPhone?: string;
   whatsappDraft?: string;
@@ -394,7 +396,105 @@ export interface AutomationRule {
     | "birthday"
     | "agenda"
     | "finance"
-    | "property";
+    | "property"
+    | "trust360";
   lastTriggeredAt?: string;
 }
+
+// ==========================================
+// TRUST 360 - PROFESYONEL MÜLK YÖNETİMİ
+// ==========================================
+
+export type Trust360ExpenseCategory =
+  | "maintenance" // Arıza, Tamirat & Usta
+  | "pool_garden" // Havuz & Bahçe Bakımı
+  | "utility" // Elektrik, Su & Abonelikler
+  | "tax_duty" // Vergi, Damga Pulu & Resmi Harçlar
+  | "cleaning_paint" // Temizlik, Boya & Badana
+  | "lock_fixture" // Çilingir, Kilit & Demirbaş Temini
+  | "official_paper" // Resmi Evrak & Bildirim
+  | "other"; // Diğer
+
+export type Trust360PaidBy =
+  | "owner" // Mülk Sahibi Karşıladı
+  | "agent" // Danışman / Ofis Cebinden Ödendi
+  | "tenant"; // Kiracıdan Tahsil Edildi
+
+export interface Trust360Expense {
+  id: string;
+  contractId: string;
+  date: string; // YYYY-MM-DD
+  category: Trust360ExpenseCategory;
+  categoryLabel?: string;
+  description: string;
+  amount: number;
+  currency: Currency;
+  paidBy: Trust360PaidBy;
+  receiptName?: string;
+  receiptData?: string; // Base64 veri veya dosya adı
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Trust360ChecklistItem {
+  id: string;
+  label: string;
+  type: "move_in" | "move_out" | "periodic";
+  completed: boolean;
+  notes?: string;
+  completedAt?: string;
+}
+
+export interface Trust360Contract {
+  id: string;
+  propertyId?: string;
+  propertyTitle: string;
+  propertyType?: string;
+  region?: string;
+  ownerCustomerId?: string | null;
+  ownerName: string;
+  ownerPhone: string;
+  ownerWhatsapp?: string;
+  tenantName?: string;
+  tenantPhone?: string;
+  annualFee: number; // £450 varsayılan
+  currency: Currency; // "GBP" varsayılan
+  feePaymentStatus: "paid" | "pending"; // Yıllık ücret tahsil edildi mi
+  feePaidDate?: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD (1 yıl)
+  active: boolean;
+  status: "active" | "expiring_soon" | "expired" | "cancelled";
+  contractNumber?: string;
+  notes?: string;
+  assignedToId: string;
+  assignedToName: string;
+  createdAt: string;
+  updatedAt?: string;
+  expenses: Trust360Expense[];
+  checklist?: Trust360ChecklistItem[];
+}
+
+export function createDefaultTrust360Checklist(): Trust360ChecklistItem[] {
+  return [
+    // 04 Kiracı Giriş Kontrolleri
+    { id: "chk-1", label: "Gayrimenkulün genel temizlik ve teslime hazır oluş kontrolü", type: "move_in", completed: false },
+    { id: "chk-2", label: "Detaylı demirbaş ve eşya listesi kontrolü / fotoğraf kaydı", type: "move_in", completed: false },
+    { id: "chk-3", label: "Elektrik ve su sayaç endekslerinin tespiti ve devir koordinasyonu", type: "move_in", completed: false },
+    { id: "chk-4", label: "Kira kontratının KKTC Vergi Dairesi damga pulu kontrolü", type: "move_in", completed: false },
+    { id: "chk-5", label: "Anahtar ve kumandaların (klima, garaj vb.) eksiksiz teslimi", type: "move_in", completed: false },
+    // 01-02 Dönemsel & İdari
+    { id: "chk-6", label: "Aylık kira ve aidat ödeme kontrolü ve hatırlatması", type: "periodic", completed: false },
+    { id: "chk-7", label: "Periyodik klima, havuz ve termosifon/kombi bakım koordinasyonu", type: "periodic", completed: false },
+    { id: "chk-8", label: "Belediye emlak ve çöp vergisi ödeme takibi", type: "periodic", completed: false },
+    // 04 Kiracı Çıkış Kontrolleri
+    { id: "chk-9", label: "Eşyaların ve demirbaşların detaylı çıkış kontrolü", type: "move_out", completed: false },
+    { id: "chk-10", label: "Hasar, kırık, dökük ve boya yıpranma tespiti", type: "move_out", completed: false },
+    { id: "chk-11", label: "Elektrik, su ve aidat borçsuzluk sorgulaması", type: "move_out", completed: false },
+    { id: "chk-12", label: "Vergi dairesine kiracı tahliye çıkış bildirimi", type: "move_out", completed: false },
+    { id: "chk-13", label: "Depozito iadesi veya kesinti hesaplama koordinasyonu", type: "move_out", completed: false },
+  ];
+}
+
 

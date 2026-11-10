@@ -8,6 +8,7 @@ import {
   WorkflowNotification,
   AutomationRule,
   MandateContract,
+  Trust360Contract,
 } from "./types";
 
 export const initialUsers: User[] = [
@@ -166,6 +167,7 @@ export const initialFollowUps: FollowUp[] = [];
 export const initialDeals: Deal[] = [];
 export const initialRentals: RentalContract[] = [];
 export const initialMandates: MandateContract[] = [];
+export const initialTrust360Contracts: Trust360Contract[] = [];
 export const initialNotifications: WorkflowNotification[] = [];
 
 export const initialAutomationRules: AutomationRule[] = [
@@ -287,6 +289,14 @@ export const initialAutomationRules: AutomationRule[] = [
     description: "Şirket içi 2. danışman ile ortak kapatılan işlemlerde broker onayı çıktığında 2. danışmanın sistemine otomatik işlem ve komisyon hak ediş teyidi düşürür.",
     enabled: true,
     category: "finance",
+    lastTriggeredAt: "Bugün 09:00",
+  },
+  {
+    id: "rule-trust360-reminder",
+    name: "Trust 360 Sözleşme Yenileme Uyarısı",
+    description: "Trust 360 mülk yönetim sözleşmelerinin bitimine 30 gün kala danışmana yenileme ve yıllık bedel tahsilat uyarısı gönderir.",
+    enabled: true,
+    category: "trust360",
     lastTriggeredAt: "Bugün 09:00",
   },
 ];

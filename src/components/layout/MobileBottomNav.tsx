@@ -21,6 +21,7 @@ import {
   Clock,
   ChevronRight,
   UserCheck,
+  ShieldCheck,
 } from "lucide-react";
 
 interface MobileBottomNavProps {
@@ -38,6 +39,7 @@ export function MobileBottomNav({ activeTab, setActiveTab }: MobileBottomNavProp
     deals,
     mandates,
     rentals,
+    trust360Contracts,
     logout,
   } = useStore();
 
@@ -59,6 +61,10 @@ export function MobileBottomNav({ activeTab, setActiveTab }: MobileBottomNavProp
   const activeRentalsCount = isBroker
     ? rentals.filter((r) => r.active !== false).length
     : rentals.filter((r) => r.active !== false && r.assignedToId === currentUser.id).length;
+
+  const activeTrust360Count = isBroker
+    ? (trust360Contracts || []).filter((c) => c.active !== false).length
+    : (trust360Contracts || []).filter((c) => c.active !== false && c.assignedToId === currentUser.id).length;
 
   const activeMandatesCount = isBroker
     ? mandates.filter((m) => m.status !== "cancelled").length
@@ -119,6 +125,14 @@ export function MobileBottomNav({ activeTab, setActiveTab }: MobileBottomNavProp
       icon: KeyRound,
       description: "Sözleşmeler, aidat ve vadesi gelen kiralar",
       badge: activeRentalsCount,
+      brokerOnly: false,
+    },
+    {
+      id: "trust360" as NavTab,
+      label: "Trust 360 Mülk Yönetimi",
+      icon: ShieldCheck,
+      description: "Yıllık profesyonel mülk takibi, bakım ve resmi işlemler",
+      badge: activeTrust360Count,
       brokerOnly: false,
     },
     {

@@ -176,8 +176,7 @@ export function MandatesView() {
   const handleSendWhatsAppRenewal = (m: MandateContract) => {
     const days = calculateDaysRemaining(m.endDate);
     const text = encodeURIComponent(
-      `Merhaba ${m.ownerName}, ${m.propertyTitle} portföyünüz için akdettiğimiz emlak aracılık sözleşmesi ${
-        days <= 0 ? "süresi dolmuştur" : `${days} gün sonra sona erecektir`
+      `Merhaba ${m.ownerName}, ${m.propertyTitle} portföyünüz için akdettiğimiz emlak aracılık sözleşmesi ${days <= 0 ? "süresi dolmuştur" : `${days} gün sonra sona erecektir`
       }. Satış çalışmalarımızı kesintisiz sürdürmek ve yetki süresini uzatmak üzere görüşebilir miyiz?\n\nTrustline Estate`
     );
     const cleanPhone = cleanWhatsAppNumber(m.ownerPhone);
@@ -399,41 +398,37 @@ export function MandatesView() {
           <div className="flex items-center gap-1 font-mono">
             <button
               onClick={() => setFilterStatus("all")}
-              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${
-                filterStatus === "all"
-                  ? "bg-[#1d2566] text-white border-[#1d2566]"
-                  : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-              }`}
+              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${filterStatus === "all"
+                ? "bg-[#1d2566] text-white border-[#1d2566]"
+                : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                }`}
             >
               Tümü ({mandates.length})
             </button>
             <button
               onClick={() => setFilterStatus("active")}
-              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${
-                filterStatus === "active"
-                  ? "bg-emerald-700 text-white border-emerald-700"
-                  : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-              }`}
+              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${filterStatus === "active"
+                ? "bg-emerald-700 text-white border-emerald-700"
+                : "bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                }`}
             >
               Aktif
             </button>
             <button
               onClick={() => setFilterStatus("expiring")}
-              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${
-                filterStatus === "expiring"
-                  ? "bg-amber-600 text-white border-amber-600"
-                  : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"
-              }`}
+              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${filterStatus === "expiring"
+                ? "bg-amber-600 text-white border-amber-600"
+                : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"
+                }`}
             >
               Yenileme Yaklaşan ({expiringCount})
             </button>
             <button
               onClick={() => setFilterStatus("expired")}
-              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${
-                filterStatus === "expired"
-                  ? "bg-rose-700 text-white border-rose-700"
-                  : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50"
-              }`}
+              className={`px-2.5 py-1.5 border text-xs cursor-pointer font-bold transition ${filterStatus === "expired"
+                ? "bg-rose-700 text-white border-rose-700"
+                : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50"
+                }`}
             >
               Süresi Dolan ({expiredCount})
             </button>
@@ -508,11 +503,10 @@ export function MandatesView() {
                   {/* 3. Yetki Türü */}
                   <td className="py-3 px-4 text-center">
                     <span
-                      className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 ${
-                        m.mandateType === "exclusive"
-                          ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30"
-                          : "bg-slate-100 text-slate-600 border-slate-300"
-                      }`}
+                      className={`text-[10px] font-mono uppercase px-2 py-0.5 border font-bold inline-flex items-center gap-1 ${m.mandateType === "exclusive"
+                        ? "bg-[#1d2566]/10 text-[#1d2566] border-[#1d2566]/30"
+                        : "bg-slate-100 text-slate-600 border-slate-300"
+                        }`}
                     >
                       {m.mandateType === "exclusive" ? (
                         <>
@@ -571,11 +565,10 @@ export function MandatesView() {
                     <button
                       type="button"
                       onClick={() => handleSendWhatsAppRenewal(m)}
-                      className={`px-2.5 py-1 text-[11px] font-mono font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 mx-auto ${
-                        isExpiringSoon || isExpired
-                          ? "bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-700 shadow-2xs"
-                          : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
-                      }`}
+                      className={`px-2.5 py-1 text-[11px] font-mono font-bold border transition cursor-pointer flex items-center justify-center gap-1.5 mx-auto ${isExpiringSoon || isExpired
+                        ? "bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-700 shadow-2xs"
+                        : "bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300"
+                        }`}
                       title="Mal sahibine tek tıkla resmi yetki uzatma mesajı gönder"
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
@@ -800,29 +793,29 @@ export function MandatesView() {
                   />
                 </div>
 
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">
-                      Sorumlu Danışman
-                    </label>
-                    {isBroker ? (
-                      <select
-                        value={formAdvisorId}
-                        onChange={(e) => setFormAdvisorId(e.target.value)}
-                        className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
-                      >
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="w-full p-2 border border-slate-300 text-xs bg-slate-100 text-slate-700 font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
-                        <span className="truncate">{users.find((u) => u.id === formAdvisorId)?.name || currentUser.name}</span>
-                        <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Sorumlu Danışman
+                  </label>
+                  {isBroker ? (
+                    <select
+                      value={formAdvisorId}
+                      onChange={(e) => setFormAdvisorId(e.target.value)}
+                      className="w-full p-2 border border-slate-300 text-xs focus:border-[#00adb5] outline-none bg-white font-mono"
+                    >
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full p-2 border border-slate-300 text-xs bg-slate-100 text-slate-700 font-mono font-semibold flex items-center justify-between cursor-not-allowed select-none">
+                      <span className="truncate">{users.find((u) => u.id === formAdvisorId)?.name || currentUser.name}</span>
+                      <span className="text-[10px] text-slate-500 font-normal shrink-0 ml-1">🔒 Kilitli</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* 6. Notlar */}

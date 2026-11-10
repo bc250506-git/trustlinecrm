@@ -351,8 +351,8 @@ export function AddDealModal({
 
   const effectiveAdvisorId = isBroker
     ? (!formAdvisorId || isOfficeSystemAccount({ id: formAdvisorId })
-        ? "usr-volkan"
-        : formAdvisorId)
+      ? "usr-volkan"
+      : formAdvisorId)
     : currentUser.id;
   const assignedUser =
     users.find((u) => u.id === effectiveAdvisorId) ||
@@ -499,8 +499,8 @@ export function AddDealModal({
         formSharingType === "external"
           ? formPartnerName
           : formSharingType === "internal"
-          ? internalPartnerUser?.name
-          : undefined,
+            ? internalPartnerUser?.name
+            : undefined,
       partnerPhone: formSharingType === "external" ? formPartnerPhone : undefined,
       partnerAdvisorId: formSharingType === "internal" ? formPartnerAdvisorId : undefined,
       partnerAdvisorName: formSharingType === "internal" ? internalPartnerUser?.name : undefined,
@@ -731,11 +731,10 @@ export function AddDealModal({
                       }
                     }
                   }}
-                  className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
-                    formDealType === "sale"
-                      ? "bg-[#1d2566] text-white border-[#1d2566]"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-300"
-                  }`}
+                  className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${formDealType === "sale"
+                    ? "bg-[#1d2566] text-white border-[#1d2566]"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-300"
+                    }`}
                 >
                   {formDealType === "sale" ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
                   <span>Satış</span>
@@ -756,11 +755,10 @@ export function AddDealModal({
                       }
                     }
                   }}
-                  className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${
-                    formDealType === "rent"
-                      ? "bg-[#00adb5] text-white border-[#00adb5]"
-                      : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-300"
-                  }`}
+                  className={`px-3 py-1 font-mono text-[11px] font-bold border transition cursor-pointer flex items-center gap-1.5 ${formDealType === "rent"
+                    ? "bg-[#00adb5] text-white border-[#00adb5]"
+                    : "bg-slate-50 text-slate-600 hover:bg-slate-100 border-slate-300"
+                    }`}
                 >
                   {formDealType === "rent" ? <CheckSquare className="w-3.5 h-3.5" /> : <Square className="w-3.5 h-3.5" />}
                   <span>Kiralama</span>
@@ -851,11 +849,10 @@ export function AddDealModal({
                       key={pt}
                       type="button"
                       onClick={() => setFormPropertyType(pt)}
-                      className={`p-1 text-center font-mono text-[10px] font-bold border transition cursor-pointer ${
-                        formPropertyType === pt
-                          ? "bg-[#1d2566] text-white border-[#1d2566]"
-                          : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                      }`}
+                      className={`p-1 text-center font-mono text-[10px] font-bold border transition cursor-pointer ${formPropertyType === pt
+                        ? "bg-[#1d2566] text-white border-[#1d2566]"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                        }`}
                     >
                       {pt}
                     </button>
@@ -1084,11 +1081,10 @@ export function AddDealModal({
                   key={ch}
                   type="button"
                   onClick={() => setFormLeadChannel(formLeadChannel === ch ? "" : ch)}
-                  className={`p-2 font-mono text-[11px] font-bold border transition text-left flex items-center gap-2 cursor-pointer ${
-                    formLeadChannel === ch
-                      ? "bg-cyan-50 border-[#00adb5] text-[#1d2566] shadow-2xs"
-                      : "bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100"
-                  }`}
+                  className={`p-2 font-mono text-[11px] font-bold border transition text-left flex items-center gap-2 cursor-pointer ${formLeadChannel === ch
+                    ? "bg-cyan-50 border-[#00adb5] text-[#1d2566] shadow-2xs"
+                    : "bg-slate-50/70 border-slate-200 text-slate-600 hover:bg-slate-100"
+                    }`}
                 >
                   {formLeadChannel === ch ? (
                     <CheckSquare className="w-3.5 h-3.5 text-[#00adb5] shrink-0" />
@@ -1249,11 +1245,10 @@ export function AddDealModal({
                   <button
                     type="button"
                     onClick={() => setFormOrigin("advisor")}
-                    className={`p-2.5 font-mono text-[11px] font-bold border transition text-center cursor-pointer ${
-                      formOrigin === "advisor"
-                        ? "bg-[#1d2566] text-white border-[#1d2566] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`p-2.5 font-mono text-[11px] font-bold border transition text-center cursor-pointer ${formOrigin === "advisor"
+                      ? "bg-[#1d2566] text-white border-[#1d2566] shadow-2xs"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     Danışman Kendi Portföyü
                   </button>
@@ -1261,11 +1256,10 @@ export function AddDealModal({
                   <button
                     type="button"
                     onClick={() => setFormOrigin("office")}
-                    className={`p-2.5 font-mono text-[11px] font-bold border transition text-center cursor-pointer ${
-                      formOrigin === "office"
-                        ? "bg-[#1d2566] text-white border-[#1d2566] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`p-2.5 font-mono text-[11px] font-bold border transition text-center cursor-pointer ${formOrigin === "office"
+                      ? "bg-[#1d2566] text-white border-[#1d2566] shadow-2xs"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     Ofis Portföyü (Ofis Havuzu)
                   </button>
@@ -1281,11 +1275,10 @@ export function AddDealModal({
                   <button
                     type="button"
                     onClick={() => setFormSharingType("none")}
-                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${
-                      formSharingType === "none"
-                        ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${formSharingType === "none"
+                      ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     Tek Danışman (Paylaşım Yok)
                   </button>
@@ -1293,11 +1286,10 @@ export function AddDealModal({
                   <button
                     type="button"
                     onClick={() => setFormSharingType("external")}
-                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${
-                      formSharingType === "external"
-                        ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${formSharingType === "external"
+                      ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     Dışarı ile Paylaşım (Dış Ofis)
                   </button>
@@ -1305,11 +1297,10 @@ export function AddDealModal({
                   <button
                     type="button"
                     onClick={() => setFormSharingType("internal")}
-                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${
-                      formSharingType === "internal"
-                        ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                    }`}
+                    className={`p-2 font-mono text-[10px] font-bold border transition text-center cursor-pointer ${formSharingType === "internal"
+                      ? "bg-[#00adb5] text-white border-[#00adb5] shadow-2xs"
+                      : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
                   >
                     İçeri ile Paylaşım (2. Danışman)
                   </button>
@@ -1445,19 +1436,19 @@ export function AddDealModal({
                             ? formSharingType === "internal"
                               ? "Broker / Yönetici Ortak (2. Danışman %25 Payı Sonrası Kalan %75 Tamamı Kendisine)"
                               : formSharingType === "external"
-                              ? "Broker / Yönetici Ortak (Dış Ortak %50 Payı Sonrası Kalan %50 Tamamı Kendisine)"
-                              : "Broker / Yönetici Ortak (Ofis kesintisi yapılmaz, %100 tam hak ediş)"
+                                ? "Broker / Yönetici Ortak (Dış Ortak %50 Payı Sonrası Kalan %50 Tamamı Kendisine)"
+                                : "Broker / Yönetici Ortak (Ofis kesintisi yapılmaz, %100 tam hak ediş)"
                             : formSharingType === "internal"
-                            ? formOrigin === "advisor"
-                              ? "Kendi Portföyü: %50 Brüt Paylaşım — %40 Ofis Kesintisi = Net %30"
-                              : "Ofis Portföyü: %50 Brüt Paylaşım — %50 Ofis Kesintisi = Net %25"
-                            : formSharingType === "external"
-                            ? formOrigin === "advisor"
-                              ? "Trustline GD (Kalan %50'nin %60'ı = %30)"
-                              : "Trustline GD (Kalan %50'nin %50'si = %25)"
-                            : formOrigin === "advisor"
-                            ? "Danışman Kendi Portföyü (%60)"
-                            : "Ofis Portföyü (%50)"}
+                              ? formOrigin === "advisor"
+                                ? "Kendi Portföyü: %50 Brüt Paylaşım — %40 Ofis Kesintisi = Net %30"
+                                : "Ofis Portföyü: %50 Brüt Paylaşım — %50 Ofis Kesintisi = Net %25"
+                              : formSharingType === "external"
+                                ? formOrigin === "advisor"
+                                  ? "Trustline GD (Kalan %50'nin %60'ı = %30)"
+                                  : "Trustline GD (Kalan %50'nin %50'si = %25)"
+                                : formOrigin === "advisor"
+                                  ? "Danışman Kendi Portföyü (%60)"
+                                  : "Ofis Portföyü (%50)"}
                         </div>
                       </td>
                       <td className="py-2.5 px-2 text-center">
@@ -1503,16 +1494,16 @@ export function AddDealModal({
                           {isVolkanAdvisor
                             ? "Broker (Yönetici) işlemi olduğu için ofis kasası kesintisi uygulanmaz (%0)"
                             : formSharingType === "internal"
-                            ? formOrigin === "advisor"
-                              ? "Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45"
-                              : "Danışman A'dan %25 (250 GBP) + Danışman B'den %25 (250 GBP) = Toplam %50"
-                            : formSharingType === "external"
-                            ? formOrigin === "advisor"
-                              ? "Trustline Ofis (Kalan %50'nin %40'ı = %20)"
-                              : "Trustline Ofis (Kalan %50'nin %50'si = %25)"
-                            : formOrigin === "advisor"
-                            ? "Merkez Ofis Payı (%40)"
-                            : "Merkez Ofis Payı (%50)"}
+                              ? formOrigin === "advisor"
+                                ? "Danışman A'dan %20 (200 GBP) + Danışman B'den %25 (250 GBP) = Toplam %45"
+                                : "Danışman A'dan %25 (250 GBP) + Danışman B'den %25 (250 GBP) = Toplam %50"
+                              : formSharingType === "external"
+                                ? formOrigin === "advisor"
+                                  ? "Trustline Ofis (Kalan %50'nin %40'ı = %20)"
+                                  : "Trustline Ofis (Kalan %50'nin %50'si = %25)"
+                                : formOrigin === "advisor"
+                                  ? "Merkez Ofis Payı (%40)"
+                                  : "Merkez Ofis Payı (%50)"}
                         </div>
                       </td>
                       <td className="py-2.5 px-2 text-center">

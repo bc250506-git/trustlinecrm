@@ -120,9 +120,10 @@ Rakamları para birimlerinden ve noktalama işaretlerinden arındırıp sayısal
 Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
     // Hızlı ve yüksek kotalı aktif Gemini Vision modelleri (sırayla denenir)
+    // 3.5-flash-lite Free Tier'da daha geniş kota sağladığı ve daha hızlı yanıt verdiği için ilk sırada denenir
     const modelsToTry = [
-      "gemini-3.5-flash",
       "gemini-3.5-flash-lite",
+      "gemini-3.5-flash",
       "gemini-3-flash-preview",
       "gemini-3.6-flash",
     ];
@@ -160,7 +161,13 @@ Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
         if (!res.ok) {
           const errText = await res.text();
-          lastError = `Gemini (${model}) hatası: ${res.status} - ${errText.slice(0, 150)}`;
+          if (res.status === 429) {
+            lastError = `Google AI Studio günlük ücretsiz kota sınırı (Free Tier: 20 istek/gün) doldu. Kesintisiz kullanım için Google AI Studio projenize kart (Pay-as-you-go) bağlayabilirsiniz (maliyet form başına 0.001 TL civarıdır).`;
+          } else if (res.status === 503) {
+            lastError = `Gemini (${model}) anlık sunucu yoğunluğu yaşıyor (503). Lütfen birkaç saniye sonra tekrar deneyin.`;
+          } else {
+            lastError = `Gemini (${model}) hatası: ${res.status} - ${errText.slice(0, 150)}`;
+          }
           // 503 veya 429 yoğunluk/kota anlık ise biraz bekle ve sonraki modele geç
           await new Promise((resolve) => setTimeout(resolve, 600));
           continue;

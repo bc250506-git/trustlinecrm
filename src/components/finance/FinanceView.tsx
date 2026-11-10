@@ -96,9 +96,13 @@ export function FinanceView() {
   const [editTitle, setEditTitle] = useState("");
   const [editDealType, setEditDealType] = useState<"sale" | "rent">("sale");
   const [editCustomerId, setEditCustomerId] = useState("");
+  const [editCustomerName, setEditCustomerName] = useState("");
   const [editPropertyId, setEditPropertyId] = useState("");
+  const [editPropertyTitle, setEditPropertyTitle] = useState("");
   const [editCurrency, setEditCurrency] = useState<Currency>("GBP");
+  const [editPriceCurrency, setEditPriceCurrency] = useState<Currency>("GBP");
   const [editAgreedPrice, setEditAgreedPrice] = useState("");
+  const [editCommissionAmount, setEditCommissionAmount] = useState<string>("");
   const [editCommissionRate, setEditCommissionRate] = useState<number>(5);
   const [editOrigin, setEditOrigin] = useState<"advisor" | "office">("advisor");
   const [editSharingType, setEditSharingType] = useState<DealSharingType>("none");
@@ -335,14 +339,22 @@ export function FinanceView() {
     setEditTitle(deal.title);
     setEditDealType(deal.dealType || "sale");
     setEditCustomerId(deal.customerId);
+    setEditCustomerName(deal.customerName || "");
     setEditPropertyId(deal.propertyId);
-    setEditCurrency(deal.currency);
+    setEditPropertyTitle(deal.propertyTitle || deal.title || "");
+    setEditCurrency(deal.currency); // Ana komisyon para birimi (TRY, GBP vb.)
+    setEditPriceCurrency(deal.priceCurrency || (deal.currency === "TRY" ? "GBP" : deal.currency)); // Mülk satış/kira kuru (GBP vb.)
     setEditAgreedPrice(deal.agreedPrice.toString());
+    setEditCommissionAmount(deal.commissionExpected ? deal.commissionExpected.toString() : "");
+
     const rate =
-      deal.agreedPrice > 0
+      deal.commissionRate ||
+      (deal.dealType === "rent"
+        ? 100
+        : deal.agreedPrice > 0
         ? Math.round((deal.commissionExpected / deal.agreedPrice) * 100)
-        : 5;
-    setEditCommissionRate([1, 2, 3, 4, 5, 10, 15, 100].includes(rate) ? rate : 5);
+        : 5);
+    setEditCommissionRate([1, 2, 3, 4, 5, 10, 15, 100].includes(rate) ? rate : (deal.dealType === "rent" ? 100 : 5));
     setEditOrigin(deal.portfolioOrigin || "advisor");
     setEditSharingType(deal.sharingType || "none");
     setEditPartnerCompany(deal.partnerCompany || "");
@@ -363,7 +375,9 @@ export function FinanceView() {
 
   const editAgreedNum = Number(editAgreedPrice) || 0;
   const editCalculatedCommission =
-    editCommissionRate === 100
+    editCommissionAmount !== "" && !isNaN(Number(editCommissionAmount))
+      ? Number(editCommissionAmount)
+      : editCommissionRate === 100
       ? editAgreedNum
       : Math.round((editAgreedNum * editCommissionRate) / 100);
 
@@ -430,12 +444,32 @@ export function FinanceView() {
     e.preventDefault();
     if (!editingDeal) return;
     const agreedNumVal = Number(editAgreedPrice) || 0;
-    const calcComm =
-      editCommissionRate === 100
-        ? agreedNumVal
-        : Math.round((agreedNumVal * editCommissionRate) / 100);
+    const calcComm = editCalculatedCommission;
+
+    const isHist =
+      !!editingDeal.isHistorical ||
+      editingDeal.customerId?.startsWith("hist-") ||
+      editingDeal.propertyId?.startsWith("hist-") ||
+      !customers.some((c) => c.id === editCustomerId);
+
     const cust = customers.find((c) => c.id === editCustomerId);
     const prop = properties.find((p) => p.id === editPropertyId);
+
+    const finalCustomerName = isHist
+      ? (editCustomerName.trim() || editingDeal.customerName || "Geçmiş Müşteri")
+      : (cust?.fullName || editingDeal.customerName);
+
+    const finalPropertyTitle = isHist
+      ? (editPropertyTitle.trim() || editingDeal.propertyTitle || editingDeal.title)
+      : (prop?.title || editingDeal.propertyTitle);
+
+    const finalCustomerId = isHist
+      ? (editingDeal.customerId || `hist-cust-${Date.now()}`)
+      : editCustomerId;
+
+    const finalPropertyId = isHist
+      ? (editingDeal.propertyId || `hist-prop-${Date.now()}`)
+      : editPropertyId;
 
     let targetAdvisorId = isBroker ? editAdvisorId : (editingDeal.createdById || currentUser.id);
     if (!targetAdvisorId || targetAdvisorId === "usr-ofis" || isOfficeSystemAccount({ id: targetAdvisorId })) {
@@ -452,18 +486,22 @@ export function FinanceView() {
         : null;
 
     updateDeal(editingDeal.id, {
-      title: editTitle,
+      title: finalPropertyTitle,
       dealType: editDealType,
-      customerId: editCustomerId,
-      customerName: cust?.fullName || editingDeal.customerName,
-      propertyId: editPropertyId,
-      propertyTitle: prop?.title || editingDeal.propertyTitle,
+      customerId: finalCustomerId,
+      customerName: finalCustomerName,
+      propertyId: finalPropertyId,
+      propertyTitle: finalPropertyTitle,
       currency: editCurrency,
+      priceCurrency: editPriceCurrency,
+      commissionCurrency: editCurrency,
       agreedPrice: agreedNumVal,
       offeredPrice: agreedNumVal,
       deposit: 0,
+      commissionRate: editCommissionRate,
       commissionExpected: calcComm,
       commissionReceived: calcComm,
+      isHistorical: isHist,
       portfolioOrigin: editOrigin,
       sharingType: editSharingType,
       partnerCompany: editSharingType === "external" ? editPartnerCompany : undefined,
@@ -1035,8 +1073,13 @@ export function FinanceView() {
                             </span>
                           )}
                         </div>
-                        <div className="font-bold text-[#1d2566] mt-1">
-                          {d.propertyTitle || d.title}
+                        <div className="font-bold text-[#1d2566] mt-1 flex items-center gap-1.5 flex-wrap">
+                          <span>{d.propertyTitle || d.title}</span>
+                          {d.isHistorical && (
+                            <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                              📜 Arşiv
+                            </span>
+                          )}
                         </div>
                         <div className="text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1.5 mt-0.5">
                           {isBroker && (
@@ -1127,7 +1170,7 @@ export function FinanceView() {
 
                       {/* 5. Anlaşılan Bedel */}
                       <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
-                        {d.agreedPrice.toLocaleString("tr-TR")} {d.currency}
+                        {d.agreedPrice.toLocaleString("tr-TR")} {d.priceCurrency || d.currency}
                       </td>
 
                       {/* 6. Toplam Komisyon */}
@@ -1397,109 +1440,201 @@ export function FinanceView() {
                 )}
               </div>
 
-              {/* Müşteri & Portföy Seçimi */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Alıcı / Kiracı Müşteri *
-                  </label>
-                  <select
-                    value={editCustomerId}
-                    onChange={(e) => setEditCustomerId(e.target.value)}
-                    className="sharp-input w-full p-2 bg-white"
-                  >
-                    {customers.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.fullName}
-                      </option>
-                    ))}
-                  </select>
+              {/* Müşteri & Portföy Alanı */}
+              {editingDeal?.isHistorical ||
+              editingDeal?.customerId?.startsWith("hist-") ||
+              editingDeal?.propertyId?.startsWith("hist-") ||
+              !customers.some((c) => c.id === editCustomerId) ? (
+                <div className="p-3 bg-purple-50/70 border border-purple-200 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-purple-900">
+                    <FileText className="w-3.5 h-3.5 text-purple-700" />
+                    <span>Geçmiş Fiziki Arşiv Kaydı (Mevcut portföy ve müşteri havuzundan bağımsızdır)</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-semibold">
+                        {editDealType === "rent" ? "Kiracı Adı Soyadı *" : "Alıcı Müşteri Adı Soyadı *"}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editCustomerName}
+                        onChange={(e) => setEditCustomerName(e.target.value)}
+                        placeholder="Müşteri Adı Soyadı..."
+                        className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-700 font-mono text-[11px] mb-1 font-semibold">
+                        Gayrimenkul / Portföy Başlığı veya Adresi *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={editPropertyTitle}
+                        onChange={(e) => setEditPropertyTitle(e.target.value)}
+                        placeholder="Gayrimenkul adresi veya başlığı..."
+                        className="sharp-input w-full p-2 bg-white font-medium text-slate-800"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                      Alıcı / Kiracı Müşteri *
+                    </label>
+                    <select
+                      value={editCustomerId}
+                      onChange={(e) => setEditCustomerId(e.target.value)}
+                      className="sharp-input w-full p-2 bg-white"
+                    >
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.fullName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                      İlgili Portföy / Mülk *
+                    </label>
+                    <select
+                      value={editPropertyId}
+                      onChange={(e) => setEditPropertyId(e.target.value)}
+                      className="sharp-input w-full p-2 bg-white"
+                    >
+                      {properties.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              {/* Fiyat, Komisyon ve Kurlar (Kurlar Birbirinden Bağımsızdır) */}
+              <div className="p-3 bg-slate-50 border border-slate-200 space-y-3">
+                <div className="text-[11px] font-bold text-[#1d2566] flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>İşlem Bedeli & Hizmet Bedeli Dağılımı</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    Fiyat ile komisyon farklı kurlarda olabilir (örn: Kira 700 GBP, Alınan Komisyon 43.000 TL)
+                  </span>
                 </div>
 
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    İlgili Portföy / Mülk *
-                  </label>
-                  <select
-                    value={editPropertyId}
-                    onChange={(e) => setEditPropertyId(e.target.value)}
-                    className="sharp-input w-full p-2 bg-white"
-                  >
-                    {properties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Satış/Kira Fiyatı */}
+                  <div className="p-2.5 bg-white border border-slate-200 space-y-1.5">
+                    <label className="block text-slate-700 font-mono text-[11px] font-bold">
+                      {editDealType === "rent" ? "Kira Bedeli" : "Satış Bedeli"} *
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={editPriceCurrency}
+                        onChange={(e) => setEditPriceCurrency(e.target.value as Currency)}
+                        className="sharp-input w-28 p-2 bg-white font-mono font-bold text-[#1d2566]"
+                      >
+                        <option value="GBP">GBP (£)</option>
+                        <option value="TRY">TRY (₺)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="USD">USD ($)</option>
+                      </select>
+                      <input
+                        type="number"
+                        required
+                        value={editAgreedPrice}
+                        onChange={(e) => setEditAgreedPrice(e.target.value)}
+                        placeholder="0"
+                        className="sharp-input flex-1 p-2 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
 
-              {/* Para Birimi & Anlaşılan Bedel */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Para Birimi
-                  </label>
-                  <select
-                    value={editCurrency}
-                    onChange={(e) => setEditCurrency(e.target.value as Currency)}
-                    className="sharp-input w-full p-2 bg-white font-mono font-bold text-[#1d2566]"
-                  >
-                    <option value="GBP">GBP (£ - Sterlin)</option>
-                    <option value="EUR">EUR (€ - Euro)</option>
-                    <option value="USD">USD ($ - Dolar)</option>
-                    <option value="TRY">TRY (₺ - TL)</option>
-                  </select>
+                  {/* Alınan Hizmet Bedeli (Komisyon) */}
+                  <div className="p-2.5 bg-emerald-50/60 border border-emerald-200 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-emerald-900 font-mono text-[11px] font-bold">
+                        Tahsil Edilen Komisyon Tutarı *
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const p = Number(editAgreedPrice) || 0;
+                            const comm = editDealType === "rent" ? p : Math.round(p * 0.05);
+                            setEditCommissionAmount(comm.toString());
+                            setEditCurrency(editPriceCurrency);
+                            setEditCommissionRate(editDealType === "rent" ? 100 : 5);
+                          }}
+                          className="text-[9.5px] px-1.5 py-0.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded font-semibold cursor-pointer"
+                          title="Fiyat üzerinden standart komisyon hesapla"
+                        >
+                          {editDealType === "rent" ? "%100 Hesapla" : "%5 Hesapla"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <select
+                        value={editCurrency}
+                        onChange={(e) => setEditCurrency(e.target.value as Currency)}
+                        className="sharp-input w-28 p-2 bg-white font-mono font-bold text-emerald-900 border-emerald-300"
+                      >
+                        <option value="TRY">TRY (₺)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="USD">USD ($)</option>
+                      </select>
+                      <input
+                        type="number"
+                        required
+                        value={editCommissionAmount}
+                        onChange={(e) => setEditCommissionAmount(e.target.value)}
+                        placeholder="0"
+                        className="sharp-input flex-1 p-2 font-mono font-bold text-emerald-950 border-emerald-300 bg-white"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Gerçekleşen İşlem Bedeli *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={editAgreedPrice}
-                    onChange={(e) => setEditAgreedPrice(e.target.value)}
-                    className="sharp-input w-full p-2 font-mono font-bold"
-                  />
-                </div>
-              </div>
+                {/* Portföy Menşei & Standart Komisyon Oranı */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
+                  <div>
+                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                      Portföy Menşei *
+                    </label>
+                    <select
+                      value={editOrigin}
+                      onChange={(e) => setEditOrigin(e.target.value as "advisor" | "office")}
+                      className="sharp-input w-full p-2 bg-white font-medium"
+                    >
+                      <option value="advisor">Danışman Kendi Portföyü</option>
+                      <option value="office">Ofis Portföyü</option>
+                    </select>
+                  </div>
 
-              {/* Portföy Menşei & Komisyon Oranı */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Portföy Menşei *
-                  </label>
-                  <select
-                    value={editOrigin}
-                    onChange={(e) => setEditOrigin(e.target.value as "advisor" | "office")}
-                    className="sharp-input w-full p-2 bg-white font-medium"
-                  >
-                    <option value="advisor">Danışman Kendi Portföyü</option>
-                    <option value="office">Ofis Portföyü</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
-                    Komisyon Oranı (%)
-                  </label>
-                  <select
-                    value={editCommissionRate}
-                    onChange={(e) => setEditCommissionRate(Number(e.target.value))}
-                    className="sharp-input w-full p-2 bg-white font-mono font-bold"
-                  >
-                    <option value={1}>%1</option>
-                    <option value={2}>%2</option>
-                    <option value={3}>%3</option>
-                    <option value={4}>%4</option>
-                    <option value={5}>%5</option>
-                    <option value={10}>%10</option>
-                    <option value={15}>%15</option>
-                    <option value={100}>%100 (1 Kira Bedeli)</option>
-                  </select>
+                  <div>
+                    <label className="block text-slate-600 font-mono text-[11px] mb-1 font-semibold">
+                      Standart Komisyon Oranı
+                    </label>
+                    <select
+                      value={editCommissionRate}
+                      onChange={(e) => setEditCommissionRate(Number(e.target.value))}
+                      className="sharp-input w-full p-2 bg-white font-mono font-bold"
+                    >
+                      <option value={100}>%100 (Kiralama Standart - 1 Kira)</option>
+                      <option value={5}>%5 (Satış Standart)</option>
+                      <option value={1}>%1</option>
+                      <option value={2}>%2</option>
+                      <option value={3}>%3</option>
+                      <option value={4}>%4</option>
+                      <option value={10}>%10</option>
+                      <option value={15}>%15</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 

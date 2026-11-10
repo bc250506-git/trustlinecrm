@@ -314,8 +314,9 @@ export function normalizeVolkanDeal(d: Deal): Deal {
     advRate = 75;
     offRate = 0;
   }
+  const defaultCommRate = d.dealType === "rent" ? 1.0 : 0.05;
   const comm =
-    d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0);
+    d.commissionExpected || (d.agreedPrice ? d.agreedPrice * defaultCommRate : 0);
   const partAmount = Math.round((comm * partRate) / 100);
   const advAmount = comm - partAmount;
 
@@ -814,6 +815,8 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
                   reportDate: ld.reportDate || cd.reportDate,
                   archiveDocumentUrl: ld.archiveDocumentUrl || cd.archiveDocumentUrl,
                   archiveDocumentName: ld.archiveDocumentName || cd.archiveDocumentName,
+                  priceCurrency: ld.priceCurrency || cd.priceCurrency,
+                  commissionCurrency: ld.commissionCurrency || cd.commissionCurrency,
                 });
               }
             }
@@ -3053,9 +3056,10 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     let partAmount = dealData.partnerShareAmount;
 
     if (isVolkanDeal) {
+      const defaultCommRate = dealData.dealType === "rent" ? 1.0 : 0.05;
       const comm =
         dealData.commissionExpected ||
-        (dealData.agreedPrice ? dealData.agreedPrice * 0.05 : 0);
+        (dealData.agreedPrice ? dealData.agreedPrice * defaultCommRate : 0);
       if (dealData.sharingType === "external") {
         partRate = 50;
         advRate = 50;
@@ -3104,12 +3108,18 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     saveDeal(newDeal).catch(() => {});
 
     // İŞLEM KAPANDIĞINDA BAĞLI PORTFÖYÜ DERHAL AKTİFTEN PASİFE ÇEK (SOLD veya RENTED)
+    // DİKKAT: Geçmiş/Fiziki arşiv işlemleri (isHistorical) aktif CRM portföylerine ve müşteri havuzuna işlenmez!
     const targetPropId = dealData.propertyId;
     const targetPropTitle = normText(dealData.propertyTitle || dealData.title);
     const isRentDeal = newDeal.dealType === "rent";
     const newStatus: PropertyStatus = isRentDeal ? "RENTED" : "SOLD";
+    const isHist = Boolean(
+      newDeal.isHistorical ||
+      targetPropId?.startsWith("hist-prop-") ||
+      dealData.customerId?.startsWith("hist-cust-")
+    );
 
-    if (dealData.stage === "won" || !dealData.stage) {
+    if ((dealData.stage === "won" || !dealData.stage) && !isHist) {
       setProperties((prev) =>
         prev.map((p) => {
           if (isRentDeal && p.listingType === "sale") return p;
@@ -3272,7 +3282,14 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     // EĞER İŞLEM WON AŞAMASINA GEÇTİYSE BAĞLI PORTFÖYÜ PASİFE ÇEK
     const finalStage = updates.stage || deal.stage;
     const finalDealType = updates.dealType || deal.dealType;
-    if (finalStage === "won") {
+    const isHist = Boolean(
+      deal.isHistorical ||
+      updatedDeal.isHistorical ||
+      updatedDeal.propertyId?.startsWith("hist-prop-") ||
+      updatedDeal.customerId?.startsWith("hist-cust-")
+    );
+
+    if (finalStage === "won" && !isHist) {
       const targetPropId = updates.propertyId || deal.propertyId;
       const targetPropTitle = normText(updates.propertyTitle || deal.propertyTitle || updates.title || deal.title);
       const isRent = finalDealType === "rent";

@@ -250,9 +250,11 @@ export async function getDeals(): Promise<Deal[]> {
       return [];
     }
     return data.map((d: any) => {
-      let isHist = Boolean(d.isHistorical);
-      let repDate = d.reportDate;
-      let archName = d.archiveDocumentName;
+      let isHist = Boolean(d.isHistorical || d.is_historical);
+      let repDate = d.reportDate || d.report_date;
+      let archName = d.archiveDocumentName || d.archive_document_name;
+      let priceCurr = d.priceCurrency || d.price_currency;
+      let commCurr = d.commissionCurrency || d.commission_currency;
       let cleanNotes = d.notes;
 
       // notes içindeki [HISTORICAL:...] metadata etiketini çözümle
@@ -265,6 +267,8 @@ export async function getDeals(): Promise<Deal[]> {
             isHist = meta.isHistorical ?? true;
             repDate = meta.reportDate || repDate;
             archName = meta.archiveDocumentName || archName;
+            priceCurr = meta.priceCurrency || priceCurr;
+            commCurr = meta.commissionCurrency || commCurr;
             cleanNotes = d.notes.substring(endIdx + 1).replace(/^\n+/, "");
           } catch {}
         }
@@ -275,6 +279,8 @@ export async function getDeals(): Promise<Deal[]> {
         isHistorical: isHist,
         reportDate: repDate,
         archiveDocumentName: archName,
+        priceCurrency: priceCurr || (d.currency === "TRY" ? "GBP" : d.currency) || "GBP",
+        commissionCurrency: commCurr || d.currency || "TRY",
         notes: cleanNotes,
       } as Deal;
     });
@@ -285,17 +291,31 @@ export async function getDeals(): Promise<Deal[]> {
 
 export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
   try {
-    const isHist = Boolean(deal.isHistorical);
-    let payloadNotes = deal.notes || "";
+    const isHist = Boolean(
+      deal.isHistorical ||
+      deal.propertyId?.startsWith("hist-prop-") ||
+      deal.customerId?.startsWith("hist-cust-")
+    );
+    let rawNotes = deal.notes || "";
 
-    // Fiziki arşiv form metadata'sını notes içinde güvenli JSON olarak sakla
-    if (isHist && !payloadNotes.startsWith("[HISTORICAL:")) {
+    // Mevcut bir [HISTORICAL:...] etiketi varsa temizle
+    if (rawNotes.startsWith("[HISTORICAL:")) {
+      const endIdx = rawNotes.indexOf("]");
+      if (endIdx !== -1) {
+        rawNotes = rawNotes.substring(endIdx + 1).replace(/^\n+/, "");
+      }
+    }
+
+    let payloadNotes = rawNotes;
+    if (isHist) {
       const meta = {
         isHistorical: true,
         reportDate: deal.reportDate,
         archiveDocumentName: deal.archiveDocumentName,
+        priceCurrency: deal.priceCurrency,
+        commissionCurrency: deal.commissionCurrency,
       };
-      payloadNotes = `[HISTORICAL:${JSON.stringify(meta)}]` + (deal.notes ? `\n${deal.notes}` : "");
+      payloadNotes = `[HISTORICAL:${JSON.stringify(meta)}]` + (rawNotes ? `\n${rawNotes}` : "");
     }
 
     // Yalnızca Supabase PostgreSQL tablosunda tanımlı olan sütunları gönder
@@ -305,9 +325,7 @@ export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
         cleanPayload[key] = val;
       }
     }
-    if (isHist) {
-      cleanPayload.notes = payloadNotes;
-    }
+    cleanPayload.notes = payloadNotes;
 
     const { error } = await supabase.from("deals").upsert(cleanPayload);
     if (error) {

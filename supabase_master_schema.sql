@@ -195,6 +195,8 @@ CREATE TABLE IF NOT EXISTS deals (
     "durationText" TEXT,
     "leadChannel" TEXT,
     currency TEXT DEFAULT 'GBP',
+    "priceCurrency" TEXT DEFAULT 'GBP',
+    "commissionCurrency" TEXT DEFAULT 'GBP',
     stage TEXT DEFAULT 'offer', -- offer, won, lost
     "askingPrice" NUMERIC(15,2) DEFAULT 0,
     "offeredPrice" NUMERIC(15,2) DEFAULT 0,
@@ -240,6 +242,8 @@ CREATE TABLE IF NOT EXISTS deals (
 );
 
 -- Deals Tablosu Yeni Kolonları (Fiziki Kağıt Form & Yapay Zeka Arşivi)
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS "priceCurrency" TEXT DEFAULT 'GBP';
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS "commissionCurrency" TEXT DEFAULT 'GBP';
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS "reportDate" TEXT;
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS "report_date" TEXT;
 ALTER TABLE deals ADD COLUMN IF NOT EXISTS "isHistorical" BOOLEAN DEFAULT FALSE;
@@ -503,4 +507,3 @@ END $$;
 -- 12. POSTGREST ŞEMA ÖNBELLEĞİNİ (SCHEMA CACHE) ANINDA YENİLE
 -- ==============================================================================
 NOTIFY pgrst, 'reload schema';
-

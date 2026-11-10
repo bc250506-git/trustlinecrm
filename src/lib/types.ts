@@ -231,7 +231,9 @@ export interface Deal {
   depositDate?: string; // Depozito tarihi
   durationText?: string; // Satış/kiralama süresi (örn: "45 Gün", "2 Ay")
   leadChannel?: string; // Alıcının ulaştığı kanal (Branda, Telefon, Tavsiye, Web, Sosyal Medya, Saha Çalışması, YouTube, Yüz Yüze Sunum, Etkinlik, İlan Siteleri, Portföy Videosu, Reklam Alanları)
-  currency: Currency;
+  currency: Currency; // Ana komisyon para birimi
+  priceCurrency?: Currency; // İşlem bedelinin para birimi (örn: satış/kira bedeli GBP iken komisyon TL olabilir)
+  commissionCurrency?: Currency; // Alınan hizmet bedeli para birimi
   stage: "offer" | "won" | "lost";
   askingPrice: number;
   offeredPrice: number;

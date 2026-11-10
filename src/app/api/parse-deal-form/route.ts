@@ -76,7 +76,31 @@ FORMAT 2: TABLO / KUTU IZGARASI DÜZENİNDEKİ FORM ("TRUSTLINE ESTATE LTD. İŞ
 ---
 Görseldeki el yazılarını, basılı metinleri, kutucuk işaretlerini (tik, çarpı, daire, nokta veya boyama) ve rakamları titizlikle oku.
 
-ÇOK ÖNEMLİ KURAL (KENAR VE DİPNOTLAR):
+ÇOK ÖNEMLİ KURAL 1 - TARİH FORMATLARI (GÜN / AY / YIL):
+Türkiye ve KKTC'de tarihler daima GÜN.AY.YIL (GG.AA.YYYY veya GG/AA/YYYY) formatında yazılır.
+Örneğin kağıtta "05.06.2026" veya "05/06/2026" görüyorsan bu 5 Haziran 2026'dır (Gün: 05, Ay: 06, Yıl: 2026).
+ASLA Amerikan formatı sanıp gün ve ayı ters çevirme!
+Formda bulunan tüm tarih alanlarını (reportDate, closingDate, depositDate, mandateDate) kesinlikle "YYYY-MM-DD" formatında döndür (Örn: "2026-06-05").
+
+ÇOK ÖNEMLİ KURAL 2 - PARA BİRİMLERİ VE KURLAR (HER ALANIN KURU AYRIDIR):
+Formdaki fiyatlar ile komisyon bedelinin para birimleri FARKLI OLABİLİR!
+Örnek:
+- Satış / Kiralama Fiyatı "700 gbp" yazılmışsa: listingPrice: 700, listingCurrency: "GBP"
+- Kaça Satıldı / Kiralandı "700 gbp" yazılmışsa: closingPrice: 700, closingCurrency: "GBP"
+- Alınan Hizmet Bedeli "43,000 TL" veya "63,000 TL" yazılmışsa: commissionAmount: 43000 (veya 63000), commissionCurrency: "TRY"
+- currency: Alınan hizmet bedelinin para birimini ata ("TRY", "GBP", "USD", "EUR").
+Her alanın yanındaki para birimini (TL, TRY, ₺, GBP, STG, £, USD, $, EUR, €) çok dikkatli oku ve ilgili alana ata.
+
+ÇOK ÖNEMLİ KURAL 3 - İŞLEM TÜRÜ VE KOMİSYON ORANI:
+- Eğer formda "KİRALIK", "KİRALAMA", "KİRACI" işaretliyse:
+  dealType: "rent"
+  Kiralama işlemlerinde standart hizmet bedeli 1 aylık kira (%100) üzerinden hesaplanır.
+- Eğer "SATILIK", "SATIŞ", "ALICI" işaretliyse:
+  dealType: "sale"
+  Satış işlemlerinde standart hizmet bedeli %5 üzerinden hesaplanır.
+- Eğer "ALINAN HİZMET BEDELİ" kutusunda el yazısıyla net bir tutar belirtilmişse o tutarı commissionAmount'a yaz.
+
+ÇOK ÖNEMLİ KURAL 4 (KENAR VE DİPNOTLAR):
 Kağıdın kenar boşluklarına (marjinlere), form kutularının dışına, sayfanın sağına, soluna, üstüne veya altına sonradan el yazısıyla iliştirilmiş herhangi bir not, açıklama, telefon veya hatırlatma varsa bunu ASLA atlama. Bu metinleri de eksiksiz okuyup "notes" alanına "Kenar Notu: ..." şeklinde ekle.
 
 Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıktısı üret (markdown kod blokları veya açıklama metni olmadan doğrudan { ... }):
@@ -84,7 +108,7 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
 {
   "advisorName": "Satış GD veya GD Adı Soyadı alanındaki danışman adı soyadı",
   "portfolioNo": "İşlem veya Portföy No varsa yaz, yoksa boş dize",
-  "reportDate": "Rapor Tarihi veya üstteki Tarih alanı (örn: 19.10.2026 veya YYYY-MM-DD)",
+  "reportDate": "Rapor Tarihi (YYYY-MM-DD)",
   "dealType": "Satılık işaretliyse 'sale', Kiralık işaretliyse 'rent' (varsayılan: 'sale')",
   "propertyAddress": "Gayrimenkul adresi",
   "propertyType": "Daire, Villa, Ofis, Apartman, Arsa, Dükkan",
@@ -92,17 +116,20 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
   "landType": "Ticari veya Villalık",
   "sellerName": "Mülk Sahibi Adı Soyadı",
   "sellerPhone": "Mülk Sahibi Telefon",
-  "mandateDate": "Yetki Belgesi Alınan Tarih",
+  "mandateDate": "Yetki Belgesi Alınan Tarih (YYYY-MM-DD)",
   "buyerName": "Alıcı / Kiracı Adı Soyadı",
   "buyerPhone": "Alıcı / Kiracı Telefon",
-  "depositDate": "Depozito Tarihi",
-  "closingDate": "İşlem Kapatma Tarihi",
+  "depositDate": "Depozito Tarihi (YYYY-MM-DD)",
+  "closingDate": "İşlem Kapatma Tarihi (YYYY-MM-DD)",
   "dealDuration": "Satış / Kiralama Süresi (örn: 2 gün, 1 ay)",
   "leadSource": "Alıcının Ulaştığı Kanal (Branda, Telefon, Tavsiye, Web, Sosyal medya, Saha çalışması, İlan siteleri, YouTube, Yüz yüze sunum, Etkinlik, Portföy videosu, Reklam alanları)",
-  "currency": "Para birimi (GBP, TRY, USD, EUR) - yazmıyorsa 'GBP'",
+  "currency": "Ana komisyon para birimi (GBP, TRY, USD, EUR)",
   "listingPrice": 0,
+  "listingCurrency": "GBP, TRY, USD veya EUR",
   "closingPrice": 0,
+  "closingCurrency": "GBP, TRY, USD veya EUR",
   "commissionAmount": 0,
+  "commissionCurrency": "GBP, TRY, USD veya EUR",
   "collectionDateMethod": "Tahsilat Tarihi / Yöntemi",
   "portfolioOrigin": "Kendi portföyü ise 'advisor', Ofis ise 'office', Ortak ise 'partner'",
   "partnerAdvisorName": "Portföy GD veya Ortak Danışman Adı",
@@ -116,7 +143,7 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
   "notes": "Notlar, Özel Notlar ve kağıdın kenarına/dışına iliştirilmiş tüm el yazısı ek açıklamalar"
 }
 
-Rakamları para birimlerinden ve noktalama işaretlerinden arındırıp sayısal (number) olarak ver (örn: "800 GBP" -> 800).
+Rakamları para birimlerinden ve noktalama işaretlerinden arındırıp sayısal (number) olarak ver (örn: "700 GBP" -> 700).
 Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
     // Hızlı ve yüksek kotalı aktif Gemini Vision modelleri (sırayla denenir)

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { Deal, Currency, DealSharingType } from "@/lib/types";
+import { DateInput } from "@/components/common/DateInput";
 import {
   X,
   UploadCloud,
@@ -105,19 +106,31 @@ function findMatchingAdvisor(rawName: string, users: any[]): any | undefined {
   return bestMatch;
 }
 
-// Tarih Formatlayıcı (DD.MM.YYYY -> YYYY-MM-DD)
+// Tarih Formatlayıcı (Türkiye formatı GG.AA.YYYY veya GG/AA/YYYY -> ISO YYYY-MM-DD)
 function toISODate(val?: string): string {
   if (!val) return "";
-  const parts = val.trim().split(/[./-]/);
+  const trimmed = val.trim();
+  // Zaten YYYY-MM-DD ise doğrudan döndür
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const parts = trimmed.split(/[./-]/);
   if (parts.length === 3) {
+    // DD.MM.YYYY veya DD/MM/YYYY (Türkiye/KKTC formatı: parts[0]=Gün, parts[1]=Ay, parts[2]=Yıl)
     if (parts[2].length === 4) {
-      return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+      const day = parts[0].padStart(2, "0");
+      const month = parts[1].padStart(2, "0");
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
     }
+    // YYYY.MM.DD
     if (parts[0].length === 4) {
-      return `${parts[0]}-${parts[1].padStart(2, "0")}-${parts[2].padStart(2, "0")}`;
+      const year = parts[0];
+      const month = parts[1].padStart(2, "0");
+      const day = parts[2].padStart(2, "0");
+      return `${year}-${month}-${day}`;
     }
   }
-  return val;
+  return trimmed;
 }
 
 // İstemci Tarafında Akıllı Boyutlandırma ve Sıkıştırma
@@ -238,11 +251,21 @@ function parseAiDataToDeal(
   const closingDateIso = toISODate(d.closingDate) || toISODate(d.reportDate) || todayStr;
   const reportDateIso = toISODate(d.reportDate) || closingDateIso;
 
-  const currencyVal: Currency = ["GBP", "TRY", "USD", "EUR"].includes(
-    String(d.currency || "").toUpperCase()
+  const priceCurrVal: Currency = ["GBP", "TRY", "USD", "EUR"].includes(
+    String(d.closingCurrency || d.listingCurrency || "").toUpperCase()
   )
+    ? (String(d.closingCurrency || d.listingCurrency).toUpperCase() as Currency)
+    : ["GBP", "TRY", "USD", "EUR"].includes(String(d.currency || "").toUpperCase())
     ? (String(d.currency).toUpperCase() as Currency)
     : "GBP";
+
+  const commCurrVal: Currency = ["GBP", "TRY", "USD", "EUR"].includes(
+    String(d.commissionCurrency || "").toUpperCase()
+  )
+    ? (String(d.commissionCurrency).toUpperCase() as Currency)
+    : ["GBP", "TRY", "USD", "EUR"].includes(String(d.currency || "").toUpperCase())
+    ? (String(d.currency).toUpperCase() as Currency)
+    : priceCurrVal;
 
   return {
     id: `hist-deal-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`,
@@ -268,7 +291,10 @@ function parseAiDataToDeal(
     depositDate: toISODate(d.depositDate) || undefined,
     durationText: d.dealDuration?.trim() || undefined,
     leadChannel: d.leadSource || undefined,
-    currency: currencyVal,
+    currency: commCurrVal,
+    priceCurrency: priceCurrVal,
+    commissionCurrency: commCurrVal,
+    commissionRate: dealType === "rent" ? 100 : 5,
     stage: "won",
     askingPrice: listingPrice,
     offeredPrice: closingPrice,
@@ -357,6 +383,8 @@ export function AddHistoricalDealModal({
   const [dealDuration, setDealDuration] = useState("");
 
   const [leadChannel, setLeadChannel] = useState("");
+  const [priceCurrency, setPriceCurrency] = useState<Currency>("GBP");
+  const [commissionCurrency, setCommissionCurrency] = useState<Currency>("GBP");
   const [currency, setCurrency] = useState<Currency>("GBP");
   const [listingPrice, setListingPrice] = useState<string>("");
   const [closingPrice, setClosingPrice] = useState<string>("");
@@ -482,16 +510,41 @@ export function AddHistoricalDealModal({
         const match = LEAD_CHANNELS.find((c) => c.toLowerCase() === ls.toLowerCase());
         setLeadChannel(match || ls);
       }
-      if (d.currency) {
-        const c = String(d.currency).toUpperCase().trim();
-        if (["GBP", "TRY", "USD", "EUR"].includes(c)) setCurrency(c as Currency);
+      // Kurları bağımsız olarak tespit et ve ata
+      let parsedPriceCurr: Currency = "GBP";
+      if (d.closingCurrency && ["GBP", "TRY", "USD", "EUR"].includes(String(d.closingCurrency).toUpperCase())) {
+        parsedPriceCurr = String(d.closingCurrency).toUpperCase() as Currency;
+      } else if (d.listingCurrency && ["GBP", "TRY", "USD", "EUR"].includes(String(d.listingCurrency).toUpperCase())) {
+        parsedPriceCurr = String(d.listingCurrency).toUpperCase() as Currency;
+      } else if (d.currency && ["GBP", "TRY", "USD", "EUR"].includes(String(d.currency).toUpperCase())) {
+        parsedPriceCurr = String(d.currency).toUpperCase() as Currency;
       }
+      setPriceCurrency(parsedPriceCurr);
+
+      let parsedCommCurr: Currency = parsedPriceCurr;
+      if (d.commissionCurrency && ["GBP", "TRY", "USD", "EUR"].includes(String(d.commissionCurrency).toUpperCase())) {
+        parsedCommCurr = String(d.commissionCurrency).toUpperCase() as Currency;
+      } else if (d.currency && ["GBP", "TRY", "USD", "EUR"].includes(String(d.currency).toUpperCase())) {
+        parsedCommCurr = String(d.currency).toUpperCase() as Currency;
+      }
+      setCommissionCurrency(parsedCommCurr);
+      setCurrency(parsedCommCurr);
+
       if (d.listingPrice) setListingPrice(String(d.listingPrice).replace(/[^0-9.]/g, ""));
-      if (d.closingPrice) setClosingPrice(String(d.closingPrice).replace(/[^0-9.]/g, ""));
+      const cleanClosing = d.closingPrice ? String(d.closingPrice).replace(/[^0-9.]/g, "") : "";
+      if (cleanClosing) setClosingPrice(cleanClosing);
+
+      const isRent = String(d.dealType || "").toLowerCase().includes("kira") || String(d.dealType || "") === "rent";
+
       if (d.commissionAmount) {
         const cleanComm = String(d.commissionAmount).replace(/[^0-9.]/g, "");
         setCommissionAmount(cleanComm);
         calculateCommissionShares(parseFloat(cleanComm) || 0, sharingType, portfolioOrigin);
+      } else if (cleanClosing) {
+        const cNum = parseFloat(cleanClosing) || 0;
+        const autoComm = isRent ? cNum : cNum * 0.05;
+        setCommissionAmount(String(autoComm));
+        calculateCommissionShares(autoComm, sharingType, portfolioOrigin);
       }
       if (d.collectionDateMethod) setPaymentMethod(d.collectionDateMethod);
       if (d.notes) setNotes(d.notes);
@@ -582,7 +635,8 @@ export function AddHistoricalDealModal({
       setClosingPrice(val);
       const num = parseFloat(val) || 0;
       if (num > 0 && !commissionAmount) {
-        const estComm = dealType === "sale" ? num * 0.05 : num;
+        // Kiralıkta %100 (1 aylık kira), satılıkta %5
+        const estComm = dealType === "rent" ? num : num * 0.05;
         setCommissionAmount(String(estComm));
         calculateCommissionShares(estComm, sharingType, portfolioOrigin);
       }
@@ -629,7 +683,10 @@ export function AddHistoricalDealModal({
       depositDate: depositDate || undefined,
       durationText: dealDuration.trim() || undefined,
       leadChannel: leadChannel || undefined,
-      currency,
+      currency: commissionCurrency,
+      priceCurrency: priceCurrency,
+      commissionCurrency: commissionCurrency,
+      commissionRate: dealType === "rent" ? 100 : 5,
       stage: "won",
       askingPrice: parseFloat(listingPrice) || priceNum,
       offeredPrice: priceNum,
@@ -891,7 +948,12 @@ export function AddHistoricalDealModal({
     setSellerPhone(d.landlordPhone || "");
     setBuyerName(d.customerName || "");
     setBuyerPhone(d.customerPhone || "");
+    setMandateDate(d.mandateDate || "");
+    setDepositDate(d.depositDate || "");
+    setDealDuration(d.durationText || "");
     setLeadChannel(d.leadChannel || "");
+    setPriceCurrency(d.priceCurrency || d.currency || "GBP");
+    setCommissionCurrency(d.commissionCurrency || d.currency || "GBP");
     setCurrency(d.currency || "GBP");
     setListingPrice(d.askingPrice ? String(d.askingPrice) : "");
     setClosingPrice(d.agreedPrice ? String(d.agreedPrice) : "");
@@ -1112,7 +1174,7 @@ export function AddHistoricalDealModal({
             <div className="lg:col-span-7 p-4 sm:p-6 overflow-y-auto max-h-[calc(96vh-120px)] bg-white">
               <form onSubmit={handleSingleSubmit} className="space-y-5 text-xs">
                 {/* Form Üst Bilgileri */}
-                <div className="p-3 bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
                       Danışman (Satış GD) *
@@ -1149,14 +1211,24 @@ export function AddHistoricalDealModal({
 
                   <div>
                     <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                      İşlem / Kapanış Tarihi *
+                      Rapor Tarihi (GG/AA/YYYY)
                     </label>
-                    <input
-                      type="date"
-                      required
+                    <DateInput
+                      value={reportDate}
+                      onChange={(val) => setReportDate(val)}
+                      className="w-full"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
+                      İşlem / Kapanış Tarihi (GG/AA/YYYY) *
+                    </label>
+                    <DateInput
                       value={closingDate}
-                      onChange={(e) => setClosingDate(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
+                      onChange={(val) => setClosingDate(val)}
+                      required
+                      className="w-full"
                     />
                   </div>
                 </div>
@@ -1312,71 +1384,156 @@ export function AddHistoricalDealModal({
                       </div>
                     </div>
                   </div>
+
+                  {/* Formdaki İşlem Tarihleri */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-2.5 bg-slate-50 border border-slate-200">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                        Yetki Belgesi Alınan Tarih
+                      </label>
+                      <DateInput
+                        value={mandateDate}
+                        onChange={(val) => setMandateDate(val)}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                        Depozito Tarihi
+                      </label>
+                      <DateInput
+                        value={depositDate}
+                        onChange={(val) => setDepositDate(val)}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-700 block mb-1">
+                        Satış / Kiralama Süresi
+                      </label>
+                      <input
+                        type="text"
+                        value={dealDuration}
+                        onChange={(e) => setDealDuration(e.target.value)}
+                        placeholder="Örn: 2 gün veya 1 ay"
+                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white text-xs"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* 03 & 04 İŞLEM VE FİNANS BİLGİLERİ */}
                 <div className="space-y-3">
-                  <div className="border-b border-slate-200 pb-1.5 font-bold text-[#1d2566] text-xs flex items-center gap-1.5">
-                    <DollarSign className="w-3.5 h-3.5 text-[#00adb5]" />
-                    03 & 04 İşlem Bilgileri & Hizmet Bedeli
+                  <div className="border-b border-slate-200 pb-1.5 font-bold text-[#1d2566] text-xs flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5 text-[#00adb5]" />
+                      03 & 04 İşlem Bilgileri & Hizmet Bedeli
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-normal">
+                      Fiyat ile komisyon farklı kurlarda olabilir (örn: Kira 700 GBP, Alınan Komisyon 43.000 TL)
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                        Para Birimi
-                      </label>
-                      <select
-                        value={currency}
-                        onChange={(e) => setCurrency(e.target.value as Currency)}
-                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
-                      >
-                        <option value="GBP">GBP (£)</option>
-                        <option value="TRY">TRY (₺)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="USD">USD ($)</option>
-                      </select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Fiyat Grubu */}
+                    <div className="p-2.5 bg-white border border-slate-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-800">
+                          {dealType === "rent" ? "Kiralama Fiyatı" : "Satış Fiyatı"}
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-slate-500 font-medium">Fiyat Kuru:</span>
+                          <select
+                            value={priceCurrency}
+                            onChange={(e) => setPriceCurrency(e.target.value as Currency)}
+                            className="px-1.5 py-0.5 border border-slate-300 bg-white font-mono font-bold text-[11px]"
+                          >
+                            <option value="GBP">GBP (£)</option>
+                            <option value="TRY">TRY (₺)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="USD">USD ($)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-600 block mb-0.5">İlan Fiyatı</label>
+                          <input
+                            type="number"
+                            value={listingPrice}
+                            onChange={(e) => setListingPrice(e.target.value)}
+                            placeholder="0"
+                            className="w-full px-2 py-1 border border-slate-300 bg-white font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-[#1d2566] block mb-0.5">
+                            {dealType === "rent" ? "Kaça Kiralandı *" : "Kaça Satıldı *"}
+                          </label>
+                          <input
+                            type="number"
+                            required
+                            value={closingPrice}
+                            onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "closing")}
+                            placeholder="0"
+                            className="w-full px-2 py-1 border border-slate-300 bg-white font-mono font-bold text-xs"
+                          />
+                        </div>
+                      </div>
                     </div>
 
-                    <div>
-                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                        İlan Fiyatı
-                      </label>
-                      <input
-                        type="number"
-                        value={listingPrice}
-                        onChange={(e) => setListingPrice(e.target.value)}
-                        placeholder="0"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono text-xs focus:outline-none focus:border-[#00adb5]"
-                      />
-                    </div>
+                    {/* Komisyon Grubu */}
+                    <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-emerald-950">
+                          Alınan Hizmet Bedeli (Komisyon) *
+                        </label>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cNum = parseFloat(closingPrice) || 0;
+                              const est = dealType === "rent" ? cNum : cNum * 0.05;
+                              setCommissionAmount(String(est));
+                              setCommissionCurrency(priceCurrency);
+                              setCurrency(priceCurrency);
+                              calculateCommissionShares(est, sharingType, portfolioOrigin);
+                            }}
+                            className="text-[9.5px] px-1.5 py-0.5 bg-emerald-200 hover:bg-emerald-300 text-emerald-900 rounded font-semibold cursor-pointer"
+                            title="Fiyat üzerinden hesapla"
+                          >
+                            {dealType === "rent" ? "%100 Hesapla" : "%5 Hesapla"}
+                          </button>
+                          <select
+                            value={commissionCurrency}
+                            onChange={(e) => {
+                              setCommissionCurrency(e.target.value as Currency);
+                              setCurrency(e.target.value as Currency);
+                            }}
+                            className="px-1.5 py-0.5 border border-emerald-300 bg-white font-mono font-bold text-[11px] text-emerald-900"
+                          >
+                            <option value="TRY">TRY (₺)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="USD">USD ($)</option>
+                          </select>
+                        </div>
+                      </div>
 
-                    <div>
-                      <label className="text-[10.5px] font-bold text-slate-700 block mb-1">
-                        Kapanış Fiyatı *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={closingPrice}
-                        onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "closing")}
-                        placeholder="0"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 bg-white font-mono font-bold text-xs focus:outline-none focus:border-[#00adb5]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10.5px] font-bold text-emerald-800 block mb-1">
-                        Alınan Komisyon *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        value={commissionAmount}
-                        onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "comm")}
-                        placeholder="0"
-                        className="w-full px-2.5 py-1.5 border border-emerald-400 bg-emerald-50/50 font-mono font-bold text-xs text-emerald-900 focus:outline-none focus:border-emerald-600"
-                      />
+                      <div>
+                        <input
+                          type="number"
+                          required
+                          value={commissionAmount}
+                          onChange={(e) => handleClosingPriceOrCommChange(e.target.value, "comm")}
+                          placeholder="Örn: 43000 veya 700"
+                          className="w-full px-2.5 py-1.5 border border-emerald-400 bg-white font-mono font-bold text-xs text-emerald-950 focus:outline-none focus:border-emerald-600"
+                        />
+                        <span className="text-[9.5px] text-emerald-700 block mt-0.5">
+                          Formdaki "Alınan Hizmet Bedeli" kutusundaki tutar ve kur buraya işlenir.
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -1520,7 +1677,7 @@ export function AddHistoricalDealModal({
                         GD1 ({users.find((u) => u.id === advisorId)?.name?.split(" ")[0] || "Siz"})
                       </div>
                       <div className="font-bold text-xs text-emerald-950 mt-0.5">
-                        {advisorShareAmount.toLocaleString("tr-TR")} {currency}
+                        {advisorShareAmount.toLocaleString("tr-TR")} {commissionCurrency}
                       </div>
                       <div className="text-[9.5px] text-emerald-700 font-normal">%{advisorShareRate}</div>
                     </div>
@@ -1528,7 +1685,7 @@ export function AddHistoricalDealModal({
                     <div className="p-2 bg-slate-100 border border-slate-300">
                       <div className="text-[10px] font-bold text-slate-800">Ofis Payı</div>
                       <div className="font-bold text-xs text-slate-900 mt-0.5">
-                        {officeShareAmount.toLocaleString("tr-TR")} {currency}
+                        {officeShareAmount.toLocaleString("tr-TR")} {commissionCurrency}
                       </div>
                       <div className="text-[9.5px] text-slate-600 font-normal">%{officeShareRate}</div>
                     </div>
@@ -1538,7 +1695,7 @@ export function AddHistoricalDealModal({
                         {sharingType === "internal" ? "GD2 Payı" : "Ortak Payı"}
                       </div>
                       <div className="font-bold text-xs text-purple-950 mt-0.5">
-                        {partnerShareAmount.toLocaleString("tr-TR")} {currency}
+                        {partnerShareAmount.toLocaleString("tr-TR")} {commissionCurrency}
                       </div>
                       <div className="text-[9.5px] text-purple-700 font-normal">%{partnerShareRate}</div>
                     </div>
@@ -1850,10 +2007,10 @@ export function AddHistoricalDealModal({
                             {d ? (
                               <div>
                                 <span className="font-bold text-emerald-700 text-xs">
-                                  {d.commissionExpected.toLocaleString("tr-TR")} {d.currency}
+                                  {d.commissionExpected.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}
                                 </span>
                                 <div className="text-[10px] text-slate-400">
-                                  Bedel: {d.agreedPrice.toLocaleString("tr-TR")} {d.currency}
+                                  Bedel: {d.agreedPrice.toLocaleString("tr-TR")} {d.priceCurrency || d.currency}
                                 </div>
                               </div>
                             ) : (

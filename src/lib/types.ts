@@ -261,6 +261,10 @@ export interface Deal {
   paymentDue?: string;
   closingDate?: string;
   closingNotes?: string;
+  reportDate?: string; // İşlem Sonrası Ofis Rapor Tarihi
+  isHistorical?: boolean; // Geçmiş fiziki arşiv işlemi (Aktif havuzu kirletmeyen)
+  archiveDocumentUrl?: string; // Taranmış fiziki kağıt form görseli (Base64 / URL)
+  archiveDocumentName?: string;
   notes?: string;
   createdById?: string;
   createdByName?: string;

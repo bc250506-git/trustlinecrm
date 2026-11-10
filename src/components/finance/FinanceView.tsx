@@ -7,6 +7,7 @@ import { ActionMenu } from "@/components/common/ActionMenu";
 import { DeleteConfirmModal } from "@/components/common/DeleteConfirmModal";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 import { AddDealModal } from "@/components/modals/AddDealModal";
+import { AddHistoricalDealModal } from "@/components/modals/AddHistoricalDealModal";
 import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
@@ -31,6 +32,9 @@ import {
   Handshake,
   ShieldCheck,
   FileText,
+  Sparkles,
+  Camera,
+  Image as ImageIcon,
 } from "lucide-react";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl)
@@ -66,6 +70,8 @@ export function FinanceView() {
   } = useStore();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
+  const [viewingArchiveUrl, setViewingArchiveUrl] = useState<string | null>(null);
   const [financeTab, setFinanceTab] = useState<"matrix" | "analytics">(() => {
     if (typeof window === "undefined") return "matrix";
     try {
@@ -224,7 +230,8 @@ export function FinanceView() {
         const propMatch = d.propertyTitle?.toLowerCase().includes(q) || false;
         const custMatch = d.customerName?.toLowerCase().includes(q) || false;
         const advisorMatch = d.createdByName?.toLowerCase().includes(q) || false;
-        if (!titleMatch && !propMatch && !custMatch && !advisorMatch) {
+        const dealNumMatch = d.dealNumber?.toLowerCase().includes(q) || false;
+        if (!titleMatch && !propMatch && !custMatch && !advisorMatch && !dealNumMatch) {
           return false;
         }
       }
@@ -540,13 +547,25 @@ export function FinanceView() {
             </button>
           </div>
 
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className="sharp-btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer self-start md:self-auto shadow-xs"
-          >
-            <Plus className="w-4 h-4" />
-            <span>İşlem Kapama (Ofis Raporu)</span>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setIsHistoricalModalOpen(true)}
+              className="px-3.5 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-xs transition"
+              title="CRM öncesi kağıt formları fotoğrafla AI tarayarak veya hızlıca manuel sisteme aktarın"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Eski Kağıt Form Arşivle (AI & Fotoğraf)</span>
+            </button>
+
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="sharp-btn-primary px-4 py-2 text-xs flex items-center gap-2 cursor-pointer self-start md:self-auto shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>İşlem Kapama (Ofis Raporu)</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1009,6 +1028,12 @@ export function FinanceView() {
                           >
                             {d.dealType === "rent" ? "KİRALIK" : "SATILIK"}
                           </span>
+                          {d.isHistorical && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-purple-50 text-purple-700 border border-purple-300 inline-flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-purple-600" />
+                              Fiziki Arşiv
+                            </span>
+                          )}
                         </div>
                         <div className="font-bold text-[#1d2566] mt-1">
                           {d.propertyTitle || d.title}
@@ -1147,29 +1172,43 @@ export function FinanceView() {
 
                       {/* 8. Broker Onayı */}
                       <td className="py-3 px-4 text-center">
-                        {d.brokerApproval ? (
-                          <div className="inline-flex items-center gap-1.5 justify-center">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              Onaylandı
+                        <div className="flex flex-col items-center gap-1">
+                          {d.brokerApproval ? (
+                            <div className="inline-flex items-center gap-1.5 justify-center flex-wrap">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-300">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Onaylandı
+                              </span>
+                              {(isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedDealForReport(d)}
+                                  className="px-1.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs"
+                                  title="İşlem Sonrası Ofis Raporu (Resmi PDF Görüntüle / İndir / Yazdır)"
+                                >
+                                  <FileText className="w-3 h-3 text-red-600" />
+                                  <span>PDF</span>
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-300">
+                              Bekliyor
                             </span>
-                            {(isBroker || d.createdById === currentUser.id || d.partnerAdvisorId === currentUser.id) && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedDealForReport(d)}
-                                className="px-1.5 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs"
-                                title="İşlem Sonrası Ofis Raporu (Resmi PDF Görüntüle / İndir / Yazdır)"
-                              >
-                                <FileText className="w-3 h-3 text-red-600" />
-                                <span>PDF</span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono text-amber-700 bg-amber-50 border border-amber-300">
-                            Bekliyor
-                          </span>
-                        )}
+                          )}
+
+                          {d.archiveDocumentUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingArchiveUrl(d.archiveDocumentUrl!)}
+                              className="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs mt-0.5"
+                              title="Yüklenen Kağıt Form Fotoğrafını / Taramasını İncele"
+                            >
+                              <ImageIcon className="w-3 h-3 text-purple-600" />
+                              <span>Form Fotoğrafı</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
 
                       {/* 9. İşlem Aksiyonları (Düzenle & Sil) */}
@@ -1221,6 +1260,57 @@ export function FinanceView() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
       />
+
+      {/* Geçmiş Kağıt Form Arşivleme (AI & Express Form) Modalı */}
+      <AddHistoricalDealModal
+        isOpen={isHistoricalModalOpen}
+        onClose={() => setIsHistoricalModalOpen(false)}
+      />
+
+      {/* Orijinal Kağıt Form Fotoğrafı / Taraması İnceleme Modalı */}
+      {viewingArchiveUrl && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-6 animate-fade-in">
+          <div className="relative max-w-4xl w-full max-h-[92vh] bg-slate-900 border border-slate-700 shadow-2xl flex flex-col overflow-hidden">
+            <div className="p-3 bg-slate-800 text-white flex items-center justify-between border-b border-slate-700 shrink-0">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                <div>
+                  <h3 className="text-xs font-mono font-bold text-white">
+                    Orijinal Kağıt İşlem Formu Fotoğrafı / Taraması
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    Fiziksel arşiv dökümanı dijital önizleme
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={viewingArchiveUrl}
+                  download="islem-formu-arsiv.jpg"
+                  className="px-2.5 py-1 text-[11px] font-mono bg-purple-600 hover:bg-purple-700 text-white transition flex items-center gap-1.5"
+                >
+                  Fotoğrafı İndir
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingArchiveUrl(null)}
+                  className="p-1 text-slate-400 hover:text-white transition cursor-pointer"
+                  title="Kapat"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-3 overflow-auto flex items-center justify-center bg-slate-950 flex-1 min-h-[300px]">
+              <img
+                src={viewingArchiveUrl}
+                alt="Fiziki Form Arşiv Belgesi"
+                className="max-w-full max-h-[78vh] object-contain shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DÜZENLEME MODALI */}
       {editingDeal && (

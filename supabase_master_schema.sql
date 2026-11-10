@@ -503,3 +503,4 @@ END $$;
 -- 12. POSTGREST ŞEMA ÖNBELLEĞİNİ (SCHEMA CACHE) ANINDA YENİLE
 -- ==============================================================================
 NOTIFY pgrst, 'reload schema';
+

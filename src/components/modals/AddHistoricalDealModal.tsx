@@ -105,6 +105,7 @@ export function AddHistoricalDealModal({
   // 05 Portföy Türü & Paylaşım
   const [portfolioOrigin, setPortfolioOrigin] = useState<"advisor" | "office">("advisor");
   const [sharingType, setSharingType] = useState<DealSharingType>("none");
+  const [partnerAdvisorId, setPartnerAdvisorId] = useState("");
   const [partnerName, setPartnerName] = useState("");
   const [partnerPhone, setPartnerPhone] = useState("");
   const [advisorShareRate, setAdvisorShareRate] = useState<number>(100);
@@ -275,9 +276,28 @@ export function AddHistoricalDealModal({
       if (d.notes) setNotes(d.notes);
       if (d.partnerAdvisorName) {
         setPartnerName(d.partnerAdvisorName);
-        setSharingType("external");
+        const partnerUser = users.find(
+          (u) =>
+            u.name.toLowerCase().includes(d.partnerAdvisorName.toLowerCase()) ||
+            d.partnerAdvisorName.toLowerCase().includes(u.name.toLowerCase())
+        );
+        if (partnerUser) {
+          setSharingType("internal");
+          setPartnerAdvisorId(partnerUser.id);
+        } else {
+          setSharingType(d.portfolioOrigin === "partner" ? "external" : "internal");
+        }
       }
       if (d.partnerPhone) setPartnerPhone(d.partnerPhone);
+      if (d.advisorAmount && Number(d.advisorAmount) > 0) {
+        setAdvisorShareAmount(Number(d.advisorAmount));
+      }
+      if (d.partnerAmount && Number(d.partnerAmount) > 0) {
+        setPartnerShareAmount(Number(d.partnerAmount));
+      }
+      if (d.officeAmount && Number(d.officeAmount) > 0) {
+        setOfficeShareAmount(Number(d.officeAmount));
+      }
 
       setScanSuccessMsg("Form yapay zeka ile başarıyla tarandı ve kutucuklara aktarıldı. Sağ taraftan kontrol edip dilediğiniz gibi düzenleyebilirsiniz!");
     } catch (err: any) {
@@ -408,6 +428,11 @@ export function AddHistoricalDealModal({
       sharingType,
       partnerName: partnerName.trim() || undefined,
       partnerPhone: partnerPhone.trim() || undefined,
+      partnerAdvisorId: sharingType === "internal" ? (partnerAdvisorId || undefined) : undefined,
+      partnerAdvisorName:
+        sharingType === "internal"
+          ? (users.find((u) => u.id === partnerAdvisorId)?.name || partnerName.trim() || undefined)
+          : undefined,
       partnerShareRate,
       partnerShareAmount,
       advisorShareRate,

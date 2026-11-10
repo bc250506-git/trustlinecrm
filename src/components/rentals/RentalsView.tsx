@@ -1392,10 +1392,10 @@ export function RentalsView() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                <th className="py-3 px-4 min-w-[300px] w-[300px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
+                <th className="py-3 px-4 min-w-[300px] w-[300px] max-w-[300px] sticky left-0 bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)]">
                   Portföy & Sözleşme Detayları
                 </th>
-                <th className="py-3 px-3 text-right sticky left-[300px] bg-slate-50 z-20 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] min-w-[110px] w-[110px]">
+                <th className="py-3 px-3 text-right sticky left-[300px] bg-slate-50 z-20 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] min-w-[110px] w-[110px] max-w-[110px] border-r border-slate-200">
                   Kira / Aidat
                 </th>
                 {allTimelineMonths.map((m) => {
@@ -1455,15 +1455,15 @@ export function RentalsView() {
                     key={r.id}
                     className={`group transition ${
                       hasOverdue
-                        ? "bg-rose-50/60 hover:bg-rose-100/60"
+                        ? "bg-[#fff1f2] hover:bg-[#ffe4e6]"
                         : "hover:bg-slate-50"
                     }`}
                   >
-                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - Sönük Kırmızı Arkaplan */}
+                    {/* Mülk & Sözleşme Bilgisi (Sticky Sol) - %100 Opak Arkaplan */}
                     <td
-                      className={`py-3 px-3.5 sticky left-0 z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                      className={`py-3 px-3.5 sticky left-0 z-10 min-w-[300px] w-[300px] max-w-[300px] shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
                         hasOverdue
-                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6]"
                           : "bg-white group-hover:bg-slate-50"
                       } ${
                         r.isStamped
@@ -1545,11 +1545,11 @@ export function RentalsView() {
                       </div>
                     </td>
 
-                    {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) */}
+                    {/* Aylık Kira ve Aidat Tutarı (Sticky Sol 2) - %100 Opak Arkaplan */}
                     <td
-                      className={`py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] z-10 shadow-[2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
+                      className={`py-3 px-3 text-right font-mono font-bold text-[#1d2566] whitespace-nowrap sticky left-[300px] z-10 min-w-[110px] w-[110px] max-w-[110px] border-r border-slate-200 shadow-[4px_0_8px_-2px_rgba(0,0,0,0.08)] transition ${
                         hasOverdue
-                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6]"
                           : "bg-white group-hover:bg-slate-50"
                       }`}
                     >
@@ -1632,7 +1632,7 @@ export function RentalsView() {
                           key={m.key}
                           className={`py-2 px-1 text-center border-r border-slate-100 transition ${
                             hasOverdue
-                              ? "bg-rose-50/50 group-hover:bg-rose-100/60"
+                              ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6]"
                               : isCurrentRealMonth
                               ? "bg-cyan-50/20"
                               : ""
@@ -1642,10 +1642,12 @@ export function RentalsView() {
                             className={`p-1 border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                               isPaid
                                 ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-semibold"
+                                : isOverdue
+                                ? "bg-rose-100 border-rose-300 text-rose-800 font-semibold hover:border-rose-400"
                                 : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
                             }`}
                           >
-                            <div className="text-[10px] font-mono leading-none">
+                            <div className={`text-[10px] font-mono leading-none ${isOverdue ? "text-rose-900 font-bold" : ""}`}>
                               {dueDayLabel}
                             </div>
 
@@ -1668,9 +1670,13 @@ export function RentalsView() {
                                 title={
                                   isPaid
                                     ? `${m.fullName} ${m.year}: Kira Ödendi olarak işaretli (Tıkla ve kaldır)`
+                                    : isOverdue
+                                    ? `${m.fullName} ${m.year}: GÜNÜ GEÇTİ - Kira Ödendi olarak işaretle`
                                     : `${m.fullName} ${m.year}: Kira Ödendi olarak işaretle`
                                 }
-                                className="w-3.5 h-3.5 accent-emerald-600 rounded-none cursor-pointer"
+                                className={`w-3.5 h-3.5 rounded-none cursor-pointer ${
+                                  isOverdue ? "accent-rose-600" : "accent-emerald-600"
+                                }`}
                               />
 
                               {/* Dekont Butonu */}
@@ -1695,6 +1701,8 @@ export function RentalsView() {
                                 className={`p-0.5 cursor-pointer hover:text-[#1d2566] transition ${
                                   payment?.receiptName
                                     ? "text-[#00adb5]"
+                                    : isOverdue
+                                    ? "text-rose-400 hover:text-rose-700"
                                     : "text-slate-400 hover:text-slate-600"
                                 }`}
                               >
@@ -1708,11 +1716,15 @@ export function RentalsView() {
                                 className={`w-full mt-1 pt-0.5 border-t flex items-center justify-between px-1 text-[9px] font-mono transition ${
                                   isDuesPaid
                                     ? "border-indigo-200 bg-indigo-50/70 text-indigo-900 font-semibold"
+                                    : isDuesOverdue
+                                    ? "border-rose-300 bg-rose-200/70 text-rose-950 font-semibold"
                                     : "border-slate-200/80 bg-slate-50/60 text-slate-500"
                                 }`}
                                 title={
                                   isDuesPaid
                                     ? `${m.fullName}: Aidat Ödendi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
+                                    : isDuesOverdue
+                                    ? `${m.fullName}: Aidat Günü Geçti! (${r.duesAmount} ${r.duesCurrency || "TRY"})`
                                     : `${m.fullName}: Aidat Ödenmedi (${r.duesAmount} ${r.duesCurrency || "TRY"})`
                                 }
                               >
@@ -1733,7 +1745,9 @@ export function RentalsView() {
                                       ? `${m.fullName} ${m.year}: Aidat ödendi (Kaldırmak için tıkla)`
                                       : `${m.fullName} ${m.year}: Aidat ödendi olarak işaretle`
                                   }
-                                  className="w-3 h-3 accent-indigo-600 rounded-none cursor-pointer shrink-0"
+                                  className={`w-3 h-3 rounded-none cursor-pointer shrink-0 ${
+                                    isDuesOverdue ? "accent-rose-600" : "accent-indigo-600"
+                                  }`}
                                 />
                               </div>
                             ) : null}
@@ -1742,11 +1756,11 @@ export function RentalsView() {
                       );
                     })}
 
-                    {/* İşlem Aksiyonları (Düzenle & Sil) (Sticky Sağ) */}
+                    {/* İşlem Aksiyonları (Düzenle & Sil) (Sticky Sağ) - %100 Opak */}
                     <td
                       className={`py-2 px-2 text-center sticky right-0 z-10 shadow-[-2px_0_4px_-1px_rgba(0,0,0,0.06)] transition ${
                         hasOverdue
-                          ? "bg-rose-50/80 group-hover:bg-rose-100/70"
+                          ? "bg-[#fff1f2] group-hover:bg-[#ffe4e6]"
                           : "bg-white group-hover:bg-slate-50"
                       }`}
                     >

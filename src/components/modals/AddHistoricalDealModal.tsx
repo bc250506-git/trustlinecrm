@@ -120,6 +120,55 @@ function toISODate(val?: string): string {
   return val;
 }
 
+// İstemci Tarafında Akıllı Boyutlandırma ve Sıkıştırma
+// 10MB+ telefon fotoğraflarını 1600px JPEG (~250KB) seviyesine indirerek Vercel 4.5MB ve Timeout hatasını kesin olarak önler.
+function compressImageForOcr(file: File, maxDimension = 1600, quality = 0.85): Promise<string> {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          let { width, height } = img;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL("image/jpeg", quality));
+          } else {
+            resolve(e.target?.result as string);
+          }
+        } catch {
+          resolve(e.target?.result as string);
+        }
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 // AI'dan Dönen Ham Veriyi Tam Bir Deal Nesnesine Dönüştürme
 function parseAiDataToDeal(
   d: any,
@@ -345,7 +394,7 @@ export function AddHistoricalDealModal({
   if (!isOpen) return null;
 
   // TEKLİ: Tekil Görsel Yükleme
-  const handleSingleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSingleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -353,15 +402,22 @@ export function AddHistoricalDealModal({
     setImageName(file.name);
     setScanSuccessMsg("");
     setScanErrorMsg("");
+    setIsScanning(true);
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setImageBase64(reader.result);
-        scanImageWithAI(reader.result, file.type || "image/jpeg");
+    try {
+      // 1600px ve JPEG kalite optimizasyonu (Hızlı ve hafif transfer)
+      const compressedB64 = await compressImageForOcr(file);
+      if (!compressedB64) {
+        setIsScanning(false);
+        setScanErrorMsg("Görsel okunamadı.");
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      setImageBase64(compressedB64);
+      await scanImageWithAI(compressedB64, "image/jpeg");
+    } catch (err: any) {
+      setIsScanning(false);
+      setScanErrorMsg(err?.message || "Görsel işlenirken hata oluştu.");
+    }
   };
 
   // TEKLİ: AI ile Tarama
@@ -377,9 +433,15 @@ export function AddHistoricalDealModal({
         body: JSON.stringify({ imageBase64: base64Data, mimeType }),
       });
 
-      const json = await res.json();
+      let json: any = {};
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`Sunucudan yanıt alınamadı (Durum: ${res.status}).`);
+      }
+
       if (!res.ok || !json.success) {
-        throw new Error(json.error || "Form okunamadı.");
+        throw new Error(json.error || `Form okunamadı (${res.status}).`);
       }
 
       const d = json.data;
@@ -632,19 +694,6 @@ export function AddHistoricalDealModal({
     e.target.value = "";
   };
 
-  // Yardımcı: Dosyayı Base64'e dönüştür
-  const readFileAsBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") resolve(reader.result);
-        else reject(new Error("Dosya okunamadı."));
-      };
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(file);
-    });
-  };
-
   // Sıralı AI Tarama Motoru
   const runBatchScanning = async () => {
     if (batchIsRunning) return;
@@ -661,27 +710,53 @@ export function AddHistoricalDealModal({
 
       // Durumu 'scanning' yap
       setBatchItems((prev) =>
-        prev.map((it) => (it.id === item.id ? { ...it, status: "scanning" } : it))
+        prev.map((it) => (it.id === item.id ? { ...it, status: "scanning", errorMsg: undefined } : it))
       );
 
       try {
-        // 1. Görseli Base64'e oku
-        const b64 = item.imageBase64 || (await readFileAsBase64(item.file));
+        // 1. Görseli 1600px ve JPEG kalitede sıkıştırılmış Base64'e dönüştür
+        const b64 = item.imageBase64 || (await compressImageForOcr(item.file));
 
-        // 2. AI Endpoint'ine gönder
-        const res = await fetch("/api/parse-deal-form", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageBase64: b64, mimeType: item.file.type || "image/jpeg" }),
-        });
+        // 2. AI Endpoint'ine gönder (Geçici yoğunluk durumunda 1 kez otomatik tekrar)
+        let parsedData: any = null;
+        let lastErrorMsg = "";
 
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || "Okuma başarısız.");
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const res = await fetch("/api/parse-deal-form", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ imageBase64: b64, mimeType: "image/jpeg" }),
+            });
+
+            let json: any = {};
+            try {
+              json = await res.json();
+            } catch {
+              throw new Error(`Sunucu hatası (${res.status})`);
+            }
+
+            if (res.ok && json.success) {
+              parsedData = json.data;
+              break;
+            } else {
+              lastErrorMsg = json.error || `Okuma başarısız (${res.status})`;
+            }
+          } catch (e: any) {
+            lastErrorMsg = e?.message || "Bağlantı hatası";
+          }
+
+          if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
+
+        if (!parsedData) {
+          throw new Error(lastErrorMsg || "Form okunamadı.");
         }
 
         // 3. Veriyi Deal nesnesine dönüştür
-        const deal = parseAiDataToDeal(json.data, b64, item.fileName, users, currentUser);
+        const deal = parseAiDataToDeal(parsedData, b64, item.fileName, users, currentUser);
 
         // 4. Durumu güncelle
         setBatchItems((prev) =>
@@ -711,11 +786,56 @@ export function AddHistoricalDealModal({
         );
       }
 
-      // API rate limit aşımını önlemek için 400ms dinlen
-      await new Promise((r) => setTimeout(r, 400));
+      // API rate limit aşımını önlemek için 500ms dinlen
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     setBatchIsRunning(false);
+  };
+
+  // Tekil Başarısız Batch Öğesini Tekrar Dene
+  const retrySingleBatchItem = async (itemId: string) => {
+    const item = batchItems.find((it) => it.id === itemId);
+    if (!item) return;
+
+    setBatchItems((prev) =>
+      prev.map((it) => (it.id === itemId ? { ...it, status: "scanning", errorMsg: undefined } : it))
+    );
+
+    try {
+      const b64 = item.imageBase64 || (await compressImageForOcr(item.file));
+      const res = await fetch("/api/parse-deal-form", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: b64, mimeType: "image/jpeg" }),
+      });
+
+      let json: any = {};
+      try {
+        json = await res.json();
+      } catch {
+        throw new Error(`Sunucu hatası (${res.status})`);
+      }
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || `Form okunamadı (${res.status})`);
+      }
+
+      const deal = parseAiDataToDeal(json.data, b64, item.fileName, users, currentUser);
+      setBatchItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId
+            ? { ...it, status: "done", imageBase64: b64, dealData: deal, errorMsg: undefined }
+            : it
+        )
+      );
+    } catch (err: any) {
+      setBatchItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId ? { ...it, status: "error", errorMsg: err?.message || "Hata." } : it
+        )
+      );
+    }
   };
 
   // Tekil batch öğesini sil
@@ -1660,9 +1780,22 @@ export function AddHistoricalDealModal({
                                 </span>
                               )}
                               {item.status === "error" && (
-                                <span className="inline-flex items-center gap-1 text-[10px] text-red-600 font-bold" title={item.errorMsg}>
-                                  <AlertCircle className="w-3 h-3" /> Hata
-                                </span>
+                                <div className="space-y-0.5">
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] text-red-600 font-bold"
+                                    title={item.errorMsg}
+                                  >
+                                    <AlertCircle className="w-3 h-3" /> Hata
+                                  </span>
+                                  {item.errorMsg && (
+                                    <div
+                                      className="text-[9.5px] text-red-500 font-mono truncate max-w-[130px]"
+                                      title={item.errorMsg}
+                                    >
+                                      {item.errorMsg}
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </td>
@@ -1730,6 +1863,17 @@ export function AddHistoricalDealModal({
 
                           <td className="py-2.5 px-3 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {item.status === "error" && (
+                                <button
+                                  type="button"
+                                  onClick={() => retrySingleBatchItem(item.id)}
+                                  className="px-2 py-1 text-[10.5px] font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 transition flex items-center gap-1 cursor-pointer"
+                                  title="Bu formu tekrar dene"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  <span>Tekrar Dene</span>
+                                </button>
+                              )}
                               {item.status === "done" && (
                                 <button
                                   type="button"

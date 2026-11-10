@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60; // Vercel Serverless Function 60 saniye zaman aşımı izni
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -117,12 +119,12 @@ Aşağıdaki JSON şemasına birebir uygun, SADECE saf geçerli bir JSON çıkt�
 Rakamları para birimlerinden ve noktalama işaretlerinden arındırıp sayısal (number) olarak ver (örn: "800 GBP" -> 800).
 Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
-    // Gemini Vision API modelleri (gemini-3-flash-preview ve gemini-3.6-flash)
+    // Hızlı ve yüksek kotalı aktif Gemini Vision modelleri (sırayla denenir)
     const modelsToTry = [
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
       "gemini-3-flash-preview",
       "gemini-3.6-flash",
-      "gemini-3.8-flash",
-      "gemini-flash-latest",
     ];
     let lastError = null;
 
@@ -158,13 +160,20 @@ Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
 
         if (!res.ok) {
           const errText = await res.text();
-          lastError = `Gemini API (${model}) hatası: ${res.status} - ${errText}`;
+          lastError = `Gemini (${model}) hatası: ${res.status} - ${errText.slice(0, 150)}`;
+          // 503 veya 429 yoğunluk/kota anlık ise biraz bekle ve sonraki modele geç
+          await new Promise((resolve) => setTimeout(resolve, 600));
           continue;
         }
 
         const data = await res.json();
         const candidateText =
           data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+        if (!candidateText) {
+          lastError = `Gemini (${model}) boş yanıt döndürdü.`;
+          continue;
+        }
 
         // JSON bloğunu ayıkla
         let jsonStr = candidateText.trim();
@@ -184,15 +193,16 @@ Okuyamadığın alanları boş dize ("") veya 0 olarak bırak.`;
         return NextResponse.json({ success: true, data: parsed, usedModel: model });
       } catch (e: any) {
         lastError = e?.message || String(e);
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     }
 
     return NextResponse.json(
       {
         success: false,
-        error: lastError || "Görsel yapay zeka tarafından çözümlenemedi.",
+        error: lastError || "Görsel yapay zeka tarafından çözümlenemedi. Lütfen tekrar deneyin.",
       },
-      { status: 502 }
+      { status: 500 }
     );
   } catch (error: any) {
     return NextResponse.json(

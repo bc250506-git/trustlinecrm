@@ -225,6 +225,23 @@ export async function deleteFollowUpFromDb(id: string): Promise<boolean> {
 // ==========================================
 // 5. FİNANS & KOMİSYON ANLAŞMALARI (DEALS)
 // ==========================================
+
+const SUPABASE_DEAL_COLUMNS = new Set([
+  "id", "title", "dealNumber", "dealType", "customerId", "customerName",
+  "customerPhone", "propertyId", "propertyTitle", "address", "propertyType",
+  "area", "landType", "landlordName", "landlordPhone", "mandateDate",
+  "depositDate", "durationText", "leadChannel", "currency", "stage",
+  "askingPrice", "offeredPrice", "agreedPrice", "deposit", "commissionRate",
+  "commissionExpected", "commissionReceived", "paymentMethod", "collectionDate",
+  "portfolioOrigin", "sharingType", "partnerName", "partnerPhone",
+  "partnerCompany", "partnerAdvisorId", "partnerAdvisorName",
+  "partnerShareRate", "partnerShareAmount", "advisorShareRate",
+  "advisorShareAmount", "officeShareRate", "officeShareAmount",
+  "brokerApproval", "brokerApprovedAt", "brokerApprovedBy", "paymentDue",
+  "closingDate", "closingNotes", "notes", "dealDate", "createdById",
+  "createdByName", "createdAt",
+]);
+
 export async function getDeals(): Promise<Deal[]> {
   try {
     const { data, error } = await supabase.from("deals").select("*");
@@ -232,7 +249,35 @@ export async function getDeals(): Promise<Deal[]> {
     if (error || !data) {
       return [];
     }
-    return data as Deal[];
+    return data.map((d: any) => {
+      let isHist = Boolean(d.isHistorical);
+      let repDate = d.reportDate;
+      let archName = d.archiveDocumentName;
+      let cleanNotes = d.notes;
+
+      // notes içindeki [HISTORICAL:...] metadata etiketini çözümle
+      if (d.notes && typeof d.notes === "string" && d.notes.startsWith("[HISTORICAL:")) {
+        const endIdx = d.notes.indexOf("]");
+        if (endIdx !== -1) {
+          try {
+            const metaStr = d.notes.substring(12, endIdx);
+            const meta = JSON.parse(metaStr);
+            isHist = meta.isHistorical ?? true;
+            repDate = meta.reportDate || repDate;
+            archName = meta.archiveDocumentName || archName;
+            cleanNotes = d.notes.substring(endIdx + 1).replace(/^\n+/, "");
+          } catch {}
+        }
+      }
+
+      return {
+        ...d,
+        isHistorical: isHist,
+        reportDate: repDate,
+        archiveDocumentName: archName,
+        notes: cleanNotes,
+      } as Deal;
+    });
   } catch {
     return [];
   }
@@ -240,9 +285,38 @@ export async function getDeals(): Promise<Deal[]> {
 
 export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
   try {
-    const { error } = await supabase.from("deals").upsert(deal);
-    return !error;
-  } catch {
+    const isHist = Boolean(deal.isHistorical);
+    let payloadNotes = deal.notes || "";
+
+    // Fiziki arşiv form metadata'sını notes içinde güvenli JSON olarak sakla
+    if (isHist && !payloadNotes.startsWith("[HISTORICAL:")) {
+      const meta = {
+        isHistorical: true,
+        reportDate: deal.reportDate,
+        archiveDocumentName: deal.archiveDocumentName,
+      };
+      payloadNotes = `[HISTORICAL:${JSON.stringify(meta)}]` + (deal.notes ? `\n${deal.notes}` : "");
+    }
+
+    // Yalnızca Supabase PostgreSQL tablosunda tanımlı olan sütunları gönder
+    const cleanPayload: Record<string, any> = {};
+    for (const [key, val] of Object.entries(deal)) {
+      if (SUPABASE_DEAL_COLUMNS.has(key)) {
+        cleanPayload[key] = val;
+      }
+    }
+    if (isHist) {
+      cleanPayload.notes = payloadNotes;
+    }
+
+    const { error } = await supabase.from("deals").upsert(cleanPayload);
+    if (error) {
+      console.warn("Supabase deals upsert error:", error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn("Supabase deals save error:", err);
     return false;
   }
 }
@@ -604,7 +678,25 @@ export async function seedAllDataToSupabase(data: {
     }
 
     if (data.deals.length > 0) {
-      const { error: dealErr } = await supabase.from("deals").upsert(data.deals);
+      const cleanDeals = data.deals.map((deal) => {
+        const isHist = Boolean(deal.isHistorical);
+        let payloadNotes = deal.notes || "";
+        if (isHist && !payloadNotes.startsWith("[HISTORICAL:")) {
+          const meta = {
+            isHistorical: true,
+            reportDate: deal.reportDate,
+            archiveDocumentName: deal.archiveDocumentName,
+          };
+          payloadNotes = `[HISTORICAL:${JSON.stringify(meta)}]` + (deal.notes ? `\n${deal.notes}` : "");
+        }
+        const clean: Record<string, any> = {};
+        for (const [key, val] of Object.entries(deal)) {
+          if (SUPABASE_DEAL_COLUMNS.has(key)) clean[key] = val;
+        }
+        if (isHist) clean.notes = payloadNotes;
+        return clean;
+      });
+      const { error: dealErr } = await supabase.from("deals").upsert(cleanDeals);
       if (dealErr) errors.push(`deals: ${dealErr.message}`);
       else insertedCounts += data.deals.length;
     }

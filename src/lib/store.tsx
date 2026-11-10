@@ -507,6 +507,34 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
         });
       }
     });
+
+    // Sayfa açılır açılmaz IndexedDB'den arşivli / form fotoğraflı geçmiş işlemleri hemen (0ms) yükle
+    idbGet<Deal[]>("trustline_crm_deals_v2").then((cached) => {
+      if (cached && Array.isArray(cached) && cached.length > 0) {
+        const deletedDeals = getDeletedIds(DELETED_DEALS_KEY);
+        const validCached = cached.filter((d) => !deletedDeals.has(d.id));
+        setDeals((prev) => {
+          const prevMap = new Map(prev.map((d) => [d.id, d]));
+          for (const c of validCached) {
+            const existing = prevMap.get(c.id);
+            if (!existing) {
+              prevMap.set(c.id, c);
+            } else {
+              if (c.archiveDocumentUrl && !existing.archiveDocumentUrl) {
+                existing.archiveDocumentUrl = c.archiveDocumentUrl;
+              }
+              if (c.isHistorical && !existing.isHistorical) {
+                existing.isHistorical = true;
+              }
+              if (c.reportDate && !existing.reportDate) {
+                existing.reportDate = c.reportDate;
+              }
+            }
+          }
+          return Array.from(prevMap.values());
+        });
+      }
+    });
   }, []);
 
   // Otomatik LocalStorage ve IndexedDB Senkronizasyonları (Sayfa Yenilendiğinde Asla Veri Kaybolmaz)
@@ -539,6 +567,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      idbSet("trustline_crm_deals_v2", deals);
       try {
         localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(deals));
       } catch (e) {}
@@ -767,10 +796,44 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           const filteredDeals = cloudDeals
             .filter((d) => !deletedDealIds.has(d.id))
             .map(normalizeVolkanDeal);
-          setDeals(filteredDeals);
-          try {
-            localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(filteredDeals));
-          } catch {}
+
+          setDeals((prev) => {
+            const localMap = new Map(prev.map((d) => [d.id, d]));
+            const mergedMap = new Map<string, Deal>();
+
+            // 1. Buluttan gelen işlemler (yerel arşiv dökümanı ve geçmiş flag'lerini koruyarak birleştir)
+            for (const cd of filteredDeals) {
+              const ld = localMap.get(cd.id);
+              if (!ld) {
+                mergedMap.set(cd.id, cd);
+              } else {
+                mergedMap.set(cd.id, {
+                  ...cd,
+                  ...ld,
+                  isHistorical: ld.isHistorical ?? cd.isHistorical,
+                  reportDate: ld.reportDate || cd.reportDate,
+                  archiveDocumentUrl: ld.archiveDocumentUrl || cd.archiveDocumentUrl,
+                  archiveDocumentName: ld.archiveDocumentName || cd.archiveDocumentName,
+                });
+              }
+            }
+
+            // 2. Henüz buluta yansımamış yerel işlemler (yeni girilen geçmiş/arşiv işlemleri vb.)
+            for (const ld of prev) {
+              if (!mergedMap.has(ld.id) && !deletedDealIds.has(ld.id)) {
+                mergedMap.set(ld.id, ld);
+                saveDeal(ld).catch(() => {});
+              }
+            }
+
+            const merged = Array.from(mergedMap.values());
+            idbSet("trustline_crm_deals_v2", merged);
+            try {
+              localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
+
           // Silinmiş eski bulut kayıtlarını temizle
           cloudDeals.forEach((d) => {
             if (deletedDealIds.has(d.id)) {
@@ -3031,6 +3094,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     setDeals((prev) => {
       const updated = [newDeal, ...prev.filter((d) => d.id !== newDeal.id)];
       if (typeof window !== "undefined") {
+        idbSet("trustline_crm_deals_v2", updated);
         try {
           localStorage.setItem(DEALS_STORAGE_KEY, JSON.stringify(updated));
         } catch {}

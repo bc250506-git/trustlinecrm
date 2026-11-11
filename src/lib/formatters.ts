@@ -417,4 +417,51 @@ export function resolveDealCurrencies(d: Deal): {
   return { priceCurr, commCurr, commGbp, priceGbp };
 }
 
+/**
+ * Tabloda farklı para birimlerindeki tutarları (TL, USD, EUR) orijinal para birimiyle
+ * ve parantez içinde kur çevrimiyle gösterir (Örn: "28.667 TL (÷65=441 GBP)").
+ * Para birimi zaten GBP ise sadece "28.667 GBP" döndürür.
+ */
+export function formatWithGbpConversion(
+  amount: number,
+  currency: string = "GBP"
+): {
+  primary: string;
+  conversionNote: string | null;
+  fullText: string;
+} {
+  const curr = (currency || "GBP").toUpperCase() as Currency;
+  const currLabel = curr === "TRY" ? "TL" : curr;
+  const formattedAmount = (amount || 0).toLocaleString("tr-TR");
+  const primary = `${formattedAmount} ${currLabel}`;
+
+  if (curr === "GBP") {
+    return {
+      primary,
+      conversionNote: null,
+      fullText: primary,
+    };
+  }
+
+  const gbpAmount = convertToGbp(amount, curr);
+  let formula = "";
+  if (curr === "TRY") {
+    formula = `÷65=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+  } else if (curr === "USD") {
+    formula = `÷1.30=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+  } else if (curr === "EUR") {
+    formula = `÷1.18=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+  } else {
+    formula = `=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+  }
+
+  const conversionNote = `(${formula})`;
+  return {
+    primary,
+    conversionNote,
+    fullText: `${primary} ${conversionNote}`,
+  };
+}
+
+
 

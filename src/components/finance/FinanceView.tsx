@@ -12,7 +12,7 @@ import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
-import { formatDateTR, convertToGbp, resolveDealCurrencies } from "@/lib/formatters";
+import { formatDateTR, convertToGbp, resolveDealCurrencies, formatWithGbpConversion } from "@/lib/formatters";
 import { updateLiveExchangeRates } from "@/lib/currency";
 import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import {
@@ -1657,47 +1657,105 @@ export function FinanceView() {
 
                       {/* 5. Anlaşılan Bedel */}
                       <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
-                        {d.agreedPrice.toLocaleString("tr-TR")} {d.priceCurrency || d.currency}
+                        {(() => {
+                          const { priceCurr } = resolveDealCurrencies(d);
+                          const formatted = formatWithGbpConversion(d.agreedPrice || 0, priceCurr);
+                          return (
+                            <div>
+                              <span>{formatted.primary}</span>
+                              {formatted.conversionNote && (
+                                <span className="block text-[10px] text-slate-500 font-normal">
+                                  {formatted.conversionNote}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* 6. Toplam Komisyon */}
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {d.commissionExpected.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}
+                        {(() => {
+                          const { commCurr } = resolveDealCurrencies(d);
+                          const commExpected =
+                            d.commissionExpected !== undefined && d.commissionExpected !== null
+                              ? d.commissionExpected
+                              : d.agreedPrice
+                              ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05)
+                              : 0;
+                          const formatted = formatWithGbpConversion(commExpected, commCurr);
+                          return (
+                            <div>
+                              <span className="text-[#1d2566]">{formatted.primary}</span>
+                              {formatted.conversionNote && (
+                                <span className="block text-[10px] text-emerald-700 font-semibold">
+                                  {formatted.conversionNote}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* 7. Hakediş Dağılımı */}
                       <td className="py-3 px-4 font-mono text-[11px] space-y-0.5">
-                        <div
-                          className={
-                            d.createdById === currentUser.id
-                              ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
-                              : "text-[#00adb5] font-bold"
-                          }
-                        >
-                          GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
-                          <span className="text-[10px] font-normal text-slate-500">(%{advRate})</span>
-                        </div>
-                        {isBroker && (
-                          <div className="text-[#1d2566] font-bold">
-                            Ofis: {offShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
-                            <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
-                          </div>
-                        )}
-                        {partShare > 0 && (
-                          <div
-                            className={
-                              d.partnerAdvisorId === currentUser.id
-                                ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
-                                : "text-[#00adb5] font-bold"
-                            }
-                          >
-                            {d.sharingType === "internal"
-                              ? `GD2 ${d.partnerAdvisorId === currentUser.id ? "(Siz)" : ""}: `
-                              : "Ortak: "}
-                            {partShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
-                            <span className="text-[10px] font-normal text-slate-500">(%{partRate})</span>
-                          </div>
-                        )}
+                        {(() => {
+                          const { commCurr } = resolveDealCurrencies(d);
+                          const advFormatted = formatWithGbpConversion(advShare, commCurr);
+                          const offFormatted = formatWithGbpConversion(offShare, commCurr);
+                          const partFormatted = formatWithGbpConversion(partShare, commCurr);
+
+                          return (
+                            <>
+                              <div
+                                className={
+                                  d.createdById === currentUser.id
+                                    ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
+                                    : "text-[#00adb5] font-bold"
+                                }
+                              >
+                                GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advFormatted.primary}{" "}
+                                {advFormatted.conversionNote && (
+                                  <span className="text-[10px] text-slate-500 font-normal">
+                                    {advFormatted.conversionNote}{" "}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-normal text-slate-500">(%{advRate})</span>
+                              </div>
+                              {isBroker && (
+                                <div className="text-[#1d2566] font-bold">
+                                  Ofis: {offFormatted.primary}{" "}
+                                  {offFormatted.conversionNote && (
+                                    <span className="text-[10px] text-slate-500 font-normal">
+                                      {offFormatted.conversionNote}{" "}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
+                                </div>
+                              )}
+                              {partShare > 0 && (
+                                <div
+                                  className={
+                                    d.partnerAdvisorId === currentUser.id
+                                      ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
+                                      : "text-[#00adb5] font-bold"
+                                  }
+                                >
+                                  {d.sharingType === "internal"
+                                    ? `GD2 ${d.partnerAdvisorId === currentUser.id ? "(Siz)" : ""}: `
+                                    : "Ortak: "}
+                                  {partFormatted.primary}{" "}
+                                  {partFormatted.conversionNote && (
+                                    <span className="text-[10px] text-slate-500 font-normal">
+                                      {partFormatted.conversionNote}{" "}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] font-normal text-slate-500">(%{partRate})</span>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </td>
 
                       {/* 8. Broker Onayı */}

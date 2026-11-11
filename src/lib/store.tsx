@@ -817,6 +817,7 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
                   archiveDocumentName: cd.archiveDocumentName || ld.archiveDocumentName,
                   priceCurrency: cd.priceCurrency || ld.priceCurrency || "GBP",
                   commissionCurrency: cd.commissionCurrency || ld.commissionCurrency || "GBP",
+                  currency: cd.commissionCurrency || cd.currency || ld.currency || "GBP",
                 });
               }
             }

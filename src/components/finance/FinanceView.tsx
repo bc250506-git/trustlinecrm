@@ -143,19 +143,25 @@ export function FinanceView() {
   const [originFilter, setOriginFilter] = useState<string>("ALL"); // ALL | advisor | office
   const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
-  const [sortBy, setSortBy] = useState<string>("newest");
+  const [sortBy, setSortBy] = useState<string>("default");
 
-  // === SIRALAMA STATELERİ (Tarih, Anlaşılan Bedel, Toplam Komisyon) ===
-  const [sortField, setSortField] = useState<"date" | "agreedPrice" | "commissionExpected" | null>("date");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  // === SIRALAMA STATELERİ (Varsayılan: Sisteme giriş sırası) ===
+  const [sortField, setSortField] = useState<"date" | "agreedPrice" | "commissionExpected" | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
   const handleToggleSort = (field: "date" | "agreedPrice" | "commissionExpected") => {
     if (sortField === field) {
-      const nextOrder = sortOrder === "desc" ? "asc" : "desc";
-      setSortOrder(nextOrder);
-      if (field === "date") setSortBy(nextOrder === "desc" ? "newest" : "oldest");
-      else if (field === "agreedPrice") setSortBy(nextOrder === "desc" ? "price_desc" : "price_asc");
-      else if (field === "commissionExpected") setSortBy(nextOrder === "desc" ? "comm_desc" : "comm_asc");
+      if (sortOrder === "desc") {
+        setSortOrder("asc");
+        if (field === "date") setSortBy("oldest");
+        else if (field === "agreedPrice") setSortBy("price_asc");
+        else if (field === "commissionExpected") setSortBy("comm_asc");
+      } else {
+        // İkinci tıklamada (asc sonrası) sütun sıralamasını sıfırla -> Sisteme Giriş Sırasına dön!
+        setSortField(null);
+        setSortOrder("asc");
+        setSortBy("default");
+      }
     } else {
       setSortField(field);
       setSortOrder("desc");
@@ -186,6 +192,19 @@ export function FinanceView() {
   const getDealDate = useCallback((d: Deal): Date => {
     const raw = d.closingDate || d.paymentDue || d.createdAt;
     return new Date(raw);
+  }, []);
+
+  // Yardımcı: İşlemin sisteme girilme sırası (Oluşturulma zamanı / ID sırası)
+  const getDealCreationOrder = useCallback((d: Deal): number => {
+    const match = d.id.match(/\d{10,}/);
+    if (match) {
+      return parseInt(match[0], 10);
+    }
+    if (d.createdAt) {
+      const t = new Date(d.createdAt).getTime();
+      if (!isNaN(t) && t > 0) return t;
+    }
+    return 0;
   }, []);
 
   const getDealMonthKey = useCallback((d: Deal): string => {
@@ -411,9 +430,14 @@ export function FinanceView() {
     getDealMonthKey,
   ]);
 
-  // Sıralanmış İşlemler (Tarih, Anlaşılan Bedel, Toplam Komisyon)
+  // Sıralanmış İşlemler (Varsayılan: Sisteme girildiği sıra; İsteğe bağlı: Tarih, Anlaşılan Bedel, Toplam Komisyon)
   const sortedDeals = useMemo(() => {
-    if (!sortField) return filteredDeals;
+    if (!sortField) {
+      // Hiçbir sütun sıralaması seçilmediğinde varsayılan: İşlemlerin sisteme girildiği sıra
+      return [...filteredDeals].sort((a, b) => {
+        return getDealCreationOrder(a) - getDealCreationOrder(b);
+      });
+    }
 
     return [...filteredDeals].sort((a, b) => {
       let valA = 0;
@@ -423,21 +447,19 @@ export function FinanceView() {
         valA = getDealDate(a).getTime();
         valB = getDealDate(b).getTime();
       } else if (sortField === "agreedPrice") {
-        const currA = a.priceCurrency || a.currency || "GBP";
-        const currB = b.priceCurrency || b.currency || "GBP";
-        valA = convertToGbp(a.agreedPrice || 0, currA);
-        valB = convertToGbp(b.agreedPrice || 0, currB);
+        valA = resolveDealCurrencies(a).priceGbp;
+        valB = resolveDealCurrencies(b).priceGbp;
       } else if (sortField === "commissionExpected") {
-        const currA = a.commissionCurrency || a.currency || "GBP";
-        const currB = b.commissionCurrency || b.currency || "GBP";
-        valA = convertToGbp(a.commissionExpected || 0, currA);
-        valB = convertToGbp(b.commissionExpected || 0, currB);
+        valA = resolveDealCurrencies(a).commGbp;
+        valB = resolveDealCurrencies(b).commGbp;
       }
 
-      if (valA === valB) return 0;
+      if (valA === valB) {
+        return getDealCreationOrder(a) - getDealCreationOrder(b);
+      }
       return sortOrder === "asc" ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
     });
-  }, [filteredDeals, sortField, sortOrder, getDealDate]);
+  }, [filteredDeals, sortField, sortOrder, getDealDate, getDealCreationOrder]);
 
   // Filtrelenmiş Finans Özeti (Tüm Para Birimleri Canlı Kurlarla GBP'ye Çevrilerek Hesaplanır)
   const totalAgreedGbp = filteredDeals.reduce((sum, d) => {
@@ -523,9 +545,9 @@ export function FinanceView() {
     setOriginFilter("ALL");
     setPeriodFilter("ALL");
     setSelectedMonth("");
-    setSortBy("newest");
-    setSortField("date");
-    setSortOrder("desc");
+    setSortBy("default");
+    setSortField(null);
+    setSortOrder("asc");
   };
 
   const activeFilterCount =
@@ -975,7 +997,10 @@ export function FinanceView() {
                     onChange={(e) => {
                       const val = e.target.value;
                       setSortBy(val);
-                      if (val === "newest") {
+                      if (val === "default") {
+                        setSortField(null);
+                        setSortOrder("asc");
+                      } else if (val === "newest") {
                         setSortField("date");
                         setSortOrder("desc");
                       } else if (val === "oldest") {
@@ -998,8 +1023,9 @@ export function FinanceView() {
                     className="sharp-input pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white text-[#1d2566] border border-slate-200 focus:border-[#00adb5]"
                     title="Sıralama Ölçütü"
                   >
-                    <option value="newest">Sırala: En Son Eklenen (Varsayılan)</option>
-                    <option value="oldest">Sırala: En Eski Eklenen</option>
+                    <option value="default">Sırala: Sisteme Giriş Sırası (Varsayılan)</option>
+                    <option value="newest">Sırala: Tarih (En Yeni Kapanış)</option>
+                    <option value="oldest">Sırala: Tarih (En Eski Kapanış)</option>
                     <option value="price_desc">Sırala: Bedel (Yüksekten Düşüğe)</option>
                     <option value="price_asc">Sırala: Bedel (Düşükten Yükseğe)</option>
                     <option value="comm_desc">Sırala: Komisyon (Yüksekten Düşüğe)</option>

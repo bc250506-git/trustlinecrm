@@ -1032,7 +1032,7 @@ export function AddHistoricalDealModal({
               <Layers className="w-3.5 h-3.5" />
               <span>Toplu Arşiv Tarama (50+ Fotoğraf)</span>
               {batchItems.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 bg-purple-600 text-white text-[10px] rounded-full">
+                <span className="ml-1 px-1.5 py-0.2 bg-[#1d2566] text-[#00adb5] text-[10px] font-bold rounded-full">
                   {batchItems.length}
                 </span>
               )}
@@ -1623,9 +1623,9 @@ export function AddHistoricalDealModal({
                   </div>
 
                   {sharingType !== "none" && (
-                    <div className="p-2.5 bg-purple-50/70 border border-purple-200 grid grid-cols-2 gap-3">
+                    <div className="p-2.5 bg-indigo-50/60 border border-indigo-200 grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-[10px] font-bold text-purple-900 block mb-1">
+                        <label className="text-[10px] font-bold text-indigo-950 block mb-1">
                           {sharingType === "internal" ? "2. Danışman (Müşteri GD)" : "Dış Ortak / Şirket Adı"}
                         </label>
                         {sharingType === "internal" ? (
@@ -1636,7 +1636,7 @@ export function AddHistoricalDealModal({
                               const u = users.find((user) => user.id === e.target.value);
                               if (u) setPartnerName(u.name);
                             }}
-                            className="w-full px-2 py-1 border border-purple-300 bg-white text-xs font-bold"
+                            className="w-full px-2 py-1 border border-indigo-300 bg-white text-xs font-bold"
                           >
                             <option value="">Seçiniz...</option>
                             {users.map((u) => (
@@ -1651,12 +1651,12 @@ export function AddHistoricalDealModal({
                             value={partnerName}
                             onChange={(e) => setPartnerName(e.target.value)}
                             placeholder="Ortak Danışman / Ofis..."
-                            className="w-full px-2 py-1 border border-purple-300 bg-white text-xs"
+                            className="w-full px-2 py-1 border border-indigo-300 bg-white text-xs"
                           />
                         )}
                       </div>
                       <div>
-                        <label className="text-[10px] font-bold text-purple-900 block mb-1">
+                        <label className="text-[10px] font-bold text-indigo-950 block mb-1">
                           Ortak Telefon / İletişim
                         </label>
                         <input
@@ -1664,7 +1664,7 @@ export function AddHistoricalDealModal({
                           value={partnerPhone}
                           onChange={(e) => setPartnerPhone(e.target.value)}
                           placeholder="Telefon..."
-                          className="w-full px-2 py-1 border border-purple-300 bg-white text-xs font-mono"
+                          className="w-full px-2 py-1 border border-indigo-300 bg-white text-xs font-mono"
                         />
                       </div>
                     </div>
@@ -1690,14 +1690,14 @@ export function AddHistoricalDealModal({
                       <div className="text-[9.5px] text-slate-600 font-normal">%{officeShareRate}</div>
                     </div>
 
-                    <div className="p-2 bg-purple-50 border border-purple-200">
-                      <div className="text-[10px] font-bold text-purple-800">
+                    <div className="p-2 bg-indigo-50 border border-indigo-200">
+                      <div className="text-[10px] font-bold text-indigo-900">
                         {sharingType === "internal" ? "GD2 Payı" : "Ortak Payı"}
                       </div>
-                      <div className="font-bold text-xs text-purple-950 mt-0.5">
+                      <div className="font-bold text-xs text-indigo-950 mt-0.5">
                         {partnerShareAmount.toLocaleString("tr-TR")} {commissionCurrency}
                       </div>
-                      <div className="text-[9.5px] text-purple-700 font-normal">%{partnerShareRate}</div>
+                      <div className="text-[9.5px] text-indigo-700 font-normal">%{partnerShareRate}</div>
                     </div>
                   </div>
                 </div>
@@ -1728,7 +1728,7 @@ export function AddHistoricalDealModal({
 
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                    className="sharp-btn-primary px-5 py-2 text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer text-white"
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Arşiv İşlemini Kaydet (Finansa Ekle)</span>

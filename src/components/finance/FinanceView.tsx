@@ -688,10 +688,10 @@ export function FinanceView() {
             <button
               type="button"
               onClick={() => setIsHistoricalModalOpen(true)}
-              className="px-3.5 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-800 hover:to-indigo-800 text-white shadow-xs transition"
+              className="px-3.5 py-2 text-xs font-bold flex items-center gap-2 cursor-pointer bg-[#00adb5] hover:bg-[#00969d] text-white shadow-xs transition"
               title="CRM öncesi kağıt formları fotoğrafla AI tarayarak veya hızlıca manuel sisteme aktarın"
             >
-              <Sparkles className="w-4 h-4 text-amber-300" />
+              <Sparkles className="w-4 h-4 text-white" />
               <span>Eski Kağıt Form Arşivle (AI & Fotoğraf)</span>
             </button>
 
@@ -1383,18 +1383,18 @@ export function FinanceView() {
                             <button
                               type="button"
                               onClick={() => setViewingArchiveUrl(d.archiveDocumentUrl!)}
-                              className="px-1.5 py-0.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs mt-0.5"
+                              className="px-1.5 py-0.5 bg-[#00adb5]/10 hover:bg-[#00adb5]/20 text-[#008288] border border-[#00adb5]/30 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-bold font-mono shadow-2xs mt-0.5"
                               title="Yüklenen Kağıt Form Fotoğrafını / Taramasını İncele"
                             >
-                              <ImageIcon className="w-3 h-3 text-purple-600" />
+                              <ImageIcon className="w-3 h-3 text-[#00adb5]" />
                               <span>Form Fotoğrafı</span>
                             </button>
                           ) : (d.isHistorical || d.archiveDocumentName) ? (
                             <label
-                              className="px-1.5 py-0.5 bg-purple-50/70 hover:bg-purple-100 text-purple-800 border border-purple-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-mono mt-0.5 shadow-2xs"
+                              className="px-1.5 py-0.5 bg-slate-50 hover:bg-[#00adb5]/10 text-slate-700 hover:text-[#008288] border border-slate-300 hover:border-[#00adb5]/40 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-mono mt-0.5 shadow-2xs"
                               title={`Fiziki Kağıt Form Fotoğrafını Yükle / Bağla (${d.archiveDocumentName || "Arşiv Belgesi"})`}
                             >
-                              <Camera className="w-3 h-3 text-purple-600" />
+                              <Camera className="w-3 h-3 text-[#00adb5]" />
                               <span>{d.archiveDocumentName ? "Fotoğrafı Bağla" : "+ Fotoğraf"}</span>
                               <input
                                 type="file"
@@ -1943,37 +1943,37 @@ export function FinanceView() {
               <div className="pt-2 border-t border-slate-200">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-slate-700 font-mono text-[11px] font-semibold flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                    <ImageIcon className="w-3.5 h-3.5 text-[#00adb5]" />
                     Fiziki Kağıt Rapor / Evrak Fotoğrafı
                   </label>
                   {editArchiveUrl && (
                     <button
                       type="button"
                       onClick={() => setViewingArchiveUrl(editArchiveUrl)}
-                      className="text-[10px] text-purple-700 hover:text-purple-900 underline font-mono cursor-pointer"
+                      className="text-[10px] text-[#00adb5] hover:text-[#008288] underline font-mono cursor-pointer"
                     >
                       Büyük Boyut Görüntüle
                     </button>
                   )}
                 </div>
                 {editArchiveUrl ? (
-                  <div className="flex items-center gap-3 p-2 bg-purple-50/60 border border-purple-200">
+                  <div className="flex items-center gap-3 p-2 bg-slate-50 border border-slate-200">
                     <img
                       src={editArchiveUrl}
                       alt="Form Evrakı"
-                      className="w-12 h-12 object-cover rounded border border-purple-300 shadow-2xs cursor-pointer"
+                      className="w-12 h-12 object-cover rounded border border-slate-300 shadow-2xs cursor-pointer"
                       onClick={() => setViewingArchiveUrl(editArchiveUrl)}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-mono font-bold text-purple-900 truncate">
+                      <p className="text-xs font-mono font-bold text-slate-800 truncate">
                         {editArchiveName || "Fiziki Form Taraması"}
                       </p>
-                      <p className="text-[10px] text-purple-700 font-mono">
+                      <p className="text-[10px] text-slate-500 font-mono">
                         Fiziki belge sisteme ekli.
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
-                      <label className="px-2 py-1 bg-white border border-purple-300 hover:bg-purple-100 text-purple-800 text-[10px] font-mono cursor-pointer transition">
+                      <label className="px-2 py-1 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-[10px] font-mono cursor-pointer transition">
                         Değiştir
                         <input
                           type="file"
@@ -1997,7 +1997,7 @@ export function FinanceView() {
                           setEditArchiveUrl(undefined);
                           setEditArchiveName(undefined);
                         }}
-                        className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 transition"
+                        className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 transition cursor-pointer"
                         title="Fotoğrafı Kaldır"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -2005,8 +2005,8 @@ export function FinanceView() {
                     </div>
                   </div>
                 ) : (
-                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-purple-300 bg-purple-50/30 hover:bg-purple-50 text-purple-800 text-xs font-mono cursor-pointer transition">
-                    <Camera className="w-4 h-4 text-purple-600" />
+                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-[#00adb5]/40 bg-[#00adb5]/5 hover:bg-[#00adb5]/10 text-slate-700 text-xs font-mono cursor-pointer transition">
+                    <Camera className="w-4 h-4 text-[#00adb5]" />
                     <span>Fiziki kağıt form fotoğrafı yükle veya bağla</span>
                     <input
                       type="file"

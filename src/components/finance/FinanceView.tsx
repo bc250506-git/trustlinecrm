@@ -463,11 +463,23 @@ export function FinanceView() {
 
   // Filtrelenmiş Finans Özeti (Tüm Para Birimleri Canlı Kurlarla GBP'ye Çevrilerek Hesaplanır)
   const totalAgreedGbp = filteredDeals.reduce((sum, d) => {
-    return sum + resolveDealCurrencies(d).priceGbp;
+    const { priceGbp } = resolveDealCurrencies(d);
+    // Belirli bir danışman filtrelendiğinde veya danışman hesabında iç paylaşımlı işlem %50 bölünerek yansır
+    const isSpecificAdvisor = advisorFilter !== "ALL" || !isBroker;
+    if (isSpecificAdvisor && d.sharingType === "internal") {
+      return sum + Math.round(priceGbp * 0.5);
+    }
+    return sum + priceGbp;
   }, 0);
 
   const totalCommissionGbp = filteredDeals.reduce((sum, d) => {
-    return sum + resolveDealCurrencies(d).commGbp;
+    const { commGbp } = resolveDealCurrencies(d);
+    // Belirli bir danışman filtrelendiğinde veya danışman hesabında iç paylaşımlı işlem %50 bölünerek yansır
+    const isSpecificAdvisor = advisorFilter !== "ALL" || !isBroker;
+    if (isSpecificAdvisor && d.sharingType === "internal") {
+      return sum + (commGbp * 0.5);
+    }
+    return sum + commGbp;
   }, 0);
 
   const totalAdvisorGbp = filteredDeals.reduce((sum, d) => {
@@ -1655,7 +1667,7 @@ export function FinanceView() {
 
                       {/* 6. Toplam Komisyon */}
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
-                        {d.commissionExpected.toLocaleString("tr-TR")} {d.currency}
+                        {d.commissionExpected.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}
                       </td>
 
                       {/* 7. Hakediş Dağılımı */}
@@ -1667,12 +1679,12 @@ export function FinanceView() {
                               : "text-[#00adb5] font-bold"
                           }
                         >
-                          GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                          GD1 {d.createdById === currentUser.id ? "(Siz)" : ""}: {advShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
                           <span className="text-[10px] font-normal text-slate-500">(%{advRate})</span>
                         </div>
                         {isBroker && (
                           <div className="text-[#1d2566] font-bold">
-                            Ofis: {offShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                            Ofis: {offShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
                             <span className="text-[10px] font-normal text-slate-500">(%{offRate})</span>
                           </div>
                         )}
@@ -1687,7 +1699,7 @@ export function FinanceView() {
                             {d.sharingType === "internal"
                               ? `GD2 ${d.partnerAdvisorId === currentUser.id ? "(Siz)" : ""}: `
                               : "Ortak: "}
-                            {partShare.toLocaleString("tr-TR")} {d.currency}{" "}
+                            {partShare.toLocaleString("tr-TR")} {d.commissionCurrency || d.currency}{" "}
                             <span className="text-[10px] font-normal text-slate-500">(%{partRate})</span>
                           </div>
                         )}

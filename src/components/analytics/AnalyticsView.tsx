@@ -274,14 +274,20 @@ export function AnalyticsView() {
         return `${y}-${mStr}` === m.key;
       });
 
-      const volume = monthDeals.reduce(
-        (sum, d) => sum + resolveDealCurrencies(d).priceGbp,
-        0
-      );
-      const commission = monthDeals.reduce(
-        (sum, d) => sum + resolveDealCurrencies(d).commGbp,
-        0
-      );
+      const volume = monthDeals.reduce((sum, d) => {
+        const { priceGbp } = resolveDealCurrencies(d);
+        if (!isBroker && d.sharingType === "internal") {
+          return sum + Math.round(priceGbp * 0.5);
+        }
+        return sum + priceGbp;
+      }, 0);
+      const commission = monthDeals.reduce((sum, d) => {
+        const { commGbp } = resolveDealCurrencies(d);
+        if (!isBroker && d.sharingType === "internal") {
+          return sum + (commGbp * 0.5);
+        }
+        return sum + commGbp;
+      }, 0);
       const advisor = monthDeals.reduce((sum, d) => {
         const { commGbp, commCurr } = resolveDealCurrencies(d);
         const isVolkan = isVolkanDeal(d);
@@ -526,8 +532,13 @@ export function AnalyticsView() {
             (d.createdById === "usr-ofis" && user.id === "usr-volkan");
           const { priceGbp, commGbp, commCurr } = resolveDealCurrencies(d);
 
-          totalVolumeGbp += priceGbp;
-          totalCommissionGbp += commGbp;
+          // İç paylaşımlı işlemlerde üretilen komisyon ve satış hacmi her iki danışmandan mükerrer toplanmaz;
+          // İşlem iki danışmanın ortak çalışması olduğu için istatistikte eşit (%50 / %50) bölünür
+          const isInternalShared = d.sharingType === "internal";
+          const shareFactor = isInternalShared ? 0.5 : 1.0;
+
+          totalVolumeGbp += Math.round(priceGbp * shareFactor);
+          totalCommissionGbp += (commGbp * shareFactor);
 
           if (d.dealType === "rent") rentCount++;
           else saleCount++;
@@ -545,22 +556,35 @@ export function AnalyticsView() {
             } else {
               const advRate = d.advisorShareRate ?? 60;
               const offRate = d.officeShareRate ?? 40;
-              advisorEarningsGbp +=
+              const advEarn =
                 d.advisorShareAmount !== undefined
                   ? convertToGbp(d.advisorShareAmount, commCurr)
                   : Math.round((commGbp * advRate) / 100);
-              officeContributionGbp +=
-                d.officeShareAmount !== undefined
-                  ? convertToGbp(d.officeShareAmount, commCurr)
-                  : Math.round((commGbp * offRate) / 100);
+              advisorEarningsGbp += advEarn;
+
+              if (isInternalShared) {
+                // GD1'in ürettiği komisyon payı (50%) - hak edişi = ofise kalan katkı
+                const gd1Produced = commGbp * 0.5;
+                officeContributionGbp += Math.max(0, Math.round(gd1Produced - advEarn));
+              } else {
+                officeContributionGbp +=
+                  d.officeShareAmount !== undefined
+                    ? convertToGbp(d.officeShareAmount, commCurr)
+                    : Math.round((commGbp * offRate) / 100);
+              }
             }
           } else {
-            // Şirket içi ortak danışman ise partner payı
+            // Şirket içi ortak danışman ise partner payı (GD2)
             const partRate = d.partnerShareRate ?? 25;
-            advisorEarningsGbp +=
+            const partEarn =
               d.partnerShareAmount !== undefined
                 ? convertToGbp(d.partnerShareAmount, commCurr)
                 : Math.round((commGbp * partRate) / 100);
+            advisorEarningsGbp += partEarn;
+
+            // GD2'nin ürettiği komisyon payı (50%) - partner hak edişi = ofise kalan katkı
+            const gd2Produced = commGbp * 0.5;
+            officeContributionGbp += Math.max(0, Math.round(gd2Produced - partEarn));
           }
 
           const pType = d.propertyType || "Daire";
@@ -954,12 +978,12 @@ export function AnalyticsView() {
         </div>
 
         {/* Net Ofis vs Danışman Dağılımı (Danışman için sadece kendi hak edişi!) */}
-        <div className="sharp-card p-4 border-t-3 border-t-purple-600 bg-white shadow-xs">
+        <div className="sharp-card p-4 border-t-3 border-t-[#00adb5] bg-white shadow-xs">
           <div className="flex items-center justify-between text-xs font-mono mb-2">
-            <span className="font-bold text-purple-900 px-2 py-0.5 bg-purple-50 border border-purple-200 uppercase">
+            <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
               {isBroker ? "Net Gelir & Prim Dağılımı" : "Kişisel Prim Hak Edişim"}
             </span>
-            <Coins className="w-4 h-4 text-purple-600" />
+            <Coins className="w-4 h-4 text-[#00adb5]" />
           </div>
           {isBroker ? (
             <>
@@ -968,23 +992,23 @@ export function AnalyticsView() {
                   <span className="text-xs font-normal text-slate-500">Ofis: </span>
                   £{totalOfficeShareSum.toLocaleString("tr-TR")}
                 </div>
-                <div className="text-purple-700">
-                  <span className="text-xs font-normal text-purple-500">Danışman: </span>
+                <div className="text-[#00adb5]">
+                  <span className="text-xs font-normal text-slate-500">Danışman: </span>
                   £{totalAdvisorShareSum.toLocaleString("tr-TR")}
                 </div>
               </div>
               <div className="text-[11px] font-mono text-slate-500 mt-1 flex items-center justify-between">
                 <span>Ofis Payı: %40-50</span>
-                <span className="text-purple-600 font-semibold">Danışman Primleri: %60</span>
+                <span className="text-[#00adb5] font-semibold">Danışman Primleri: %60</span>
               </div>
             </>
           ) : (
             <>
-              <div className="text-2xl font-bold font-mono text-purple-700 mt-2">
+              <div className="text-2xl font-bold font-mono text-[#00adb5] mt-2">
                 £{totalAdvisorShareSum.toLocaleString("tr-TR")}{" "}
                 <span className="text-xs font-normal text-slate-500">GBP</span>
               </div>
-              <div className="text-[11px] font-mono text-purple-600 mt-1">
+              <div className="text-[11px] font-mono text-slate-600 mt-1">
                 Kapanan işlemlerinizden onaylı net prim hak edişiniz
               </div>
             </>
@@ -1466,7 +1490,7 @@ export function AnalyticsView() {
                         {medalEmoji}
                       </span>
                       {isTopCommission && isTopDeals ? (
-                        <span className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-0.5">
+                        <span className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-[#1d2566]/10 text-[#1d2566] border border-[#1d2566]/30 flex items-center gap-0.5">
                           👑 Çifte Şampiyon
                         </span>
                       ) : (
@@ -1540,7 +1564,7 @@ export function AnalyticsView() {
                     </div>
                     <div>
                       <div className="text-[10px] text-slate-400 uppercase">Danışman Prim Payı</div>
-                      <div className="text-xs font-bold text-purple-700 mt-0.5">
+                      <div className="text-xs font-bold text-[#00adb5] mt-0.5">
                         {canSeeNumbers ? (
                           `£${adv.advisorEarningsGbp.toLocaleString("tr-TR")}`
                         ) : (
@@ -1613,7 +1637,7 @@ export function AnalyticsView() {
                           </span>
                         )}
                         {topCommissionAdvisorIds.has(agent.id) && topDealsAdvisorIds.has(agent.id) ? (
-                          <span className="px-1.5 py-0.2 bg-purple-100 text-purple-900 border border-purple-300 text-[9.5px] font-mono font-bold flex items-center gap-0.5 shadow-2xs">
+                          <span className="px-1.5 py-0.2 bg-[#1d2566]/10 text-[#1d2566] border border-[#1d2566]/30 text-[9.5px] font-mono font-bold flex items-center gap-0.5 shadow-2xs">
                             👑 Çifte Şampiyon
                           </span>
                         ) : (
@@ -1671,7 +1695,7 @@ export function AnalyticsView() {
                         </span>
                       </div>
                     </td>
-                    <td className="py-3 px-3 text-right font-bold text-purple-700">
+                    <td className="py-3 px-3 text-right font-bold text-[#00adb5]">
                       {canSeeAgentNumbers ? (
                         `£${agent.advisorEarningsGbp.toLocaleString("tr-TR")}`
                       ) : (
@@ -1765,10 +1789,10 @@ export function AnalyticsView() {
         <div className="sharp-card p-5 bg-white border border-slate-200 space-y-4 shadow-xs">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <h3 className="text-sm font-bold text-[#1d2566] font-mono flex items-center gap-2">
-              <Share2 className="w-4 h-4 text-purple-600" />
+              <Share2 className="w-4 h-4 text-[#00adb5]" />
               Portföy Menşei & Komisyon Bölüşüm Modelleri
             </h3>
-            <span className="text-[11px] font-mono text-purple-700 font-bold bg-purple-50 px-2 py-0.5 border border-purple-200">
+            <span className="text-[11px] font-mono text-[#1d2566] font-bold bg-slate-100 px-2 py-0.5 border border-slate-200">
               4 Model
             </span>
           </div>
@@ -1805,7 +1829,7 @@ export function AnalyticsView() {
               <span className="font-semibold text-slate-700">
                 {isBroker ? "Şirket İçi Ortak Danışman (%25 GD2, %30 GD1, %45 Ofis):" : "Şirket İçi Ortak Danışman (%25 GD2, %30 GD1 Paylaşımı):"}
               </span>
-              <span className="font-bold text-purple-700">
+              <span className="font-bold text-[#00adb5]">
                 {dealEconomics.internalSharingCount} İşlem (%{dealEconomics.internalPercent})
               </span>
             </div>

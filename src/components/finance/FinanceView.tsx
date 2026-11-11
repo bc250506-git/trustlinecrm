@@ -14,6 +14,7 @@ import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR, convertToGbp } from "@/lib/formatters";
 import { updateLiveExchangeRates } from "@/lib/currency";
+import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import {
   Calculator,
   Plus,
@@ -40,6 +41,8 @@ import {
   ArrowUp,
   ArrowDown,
   UserCheck,
+  MapPin,
+  User,
 } from "lucide-react";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl)
@@ -131,10 +134,15 @@ export function FinanceView() {
 
   // === FİLTRELEME STATELERİ ===
   const [searchQuery, setSearchQuery] = useState("");
+  const [dealTypeFilter, setDealTypeFilter] = useState<string>("ALL"); // ALL | sale | rent
+  const [districtFilter, setDistrictFilter] = useState<string>("ALL");
+  const [subRegionFilter, setSubRegionFilter] = useState<string>("ALL");
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState<string>("ALL");
   const [advisorFilter, setAdvisorFilter] = useState<string>("ALL"); // ALL | userId
   const [originFilter, setOriginFilter] = useState<string>("ALL"); // ALL | advisor | office
   const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
+  const [sortBy, setSortBy] = useState<string>("newest");
 
   // === SIRALAMA STATELERİ (Tarih, Anlaşılan Bedel, Toplam Komisyon) ===
   const [sortField, setSortField] = useState<"date" | "agreedPrice" | "commissionExpected" | null>("date");
@@ -142,10 +150,17 @@ export function FinanceView() {
 
   const handleToggleSort = (field: "date" | "agreedPrice" | "commissionExpected") => {
     if (sortField === field) {
-      setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+      const nextOrder = sortOrder === "desc" ? "asc" : "desc";
+      setSortOrder(nextOrder);
+      if (field === "date") setSortBy(nextOrder === "desc" ? "newest" : "oldest");
+      else if (field === "agreedPrice") setSortBy(nextOrder === "desc" ? "price_desc" : "price_asc");
+      else if (field === "commissionExpected") setSortBy(nextOrder === "desc" ? "comm_desc" : "comm_asc");
     } else {
       setSortField(field);
       setSortOrder("desc");
+      if (field === "date") setSortBy("newest");
+      else if (field === "agreedPrice") setSortBy("price_desc");
+      else if (field === "commissionExpected") setSortBy("comm_desc");
     }
   };
 
@@ -242,17 +257,90 @@ export function FinanceView() {
     }
   }, [selectedMonth]);
 
+  // Seçilen ilçeye bağlı alt mahalle/bölge listesi
+  const availableSubRegions = useMemo(() => {
+    if (districtFilter === "ALL") return [];
+    return getRegionsByDistrict(districtFilter);
+  }, [districtFilter]);
+
+  // Standart ve Dinamik Mülk Tipleri Listesi
+  const availablePropertyTypes = useMemo(() => {
+    const set = new Set([
+      "Daire",
+      "Villa",
+      "Müstakil Ev",
+      "Penthouse",
+      "Ticari",
+      "Arsa",
+      "Bina",
+      "Ofis",
+      "Dükkan",
+      "İkiz Villa",
+      "Rezidans",
+      "Tarla",
+    ]);
+    deals.forEach((d) => {
+      if (d.propertyType && d.propertyType.trim()) {
+        set.add(d.propertyType.trim());
+      }
+    });
+    properties.forEach((p) => {
+      if (p.propertyType && p.propertyType.trim()) {
+        set.add(p.propertyType.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "tr"));
+  }, [deals, properties]);
+
+  // Aktif Danışmanlar Listesi
+  const availableAdvisors = useMemo(() => {
+    return users
+      .filter((u) => u.active && !isOfficeSystemAccount(u))
+      .sort((a, b) => a.name.localeCompare(b.name, "tr"));
+  }, [users]);
+
   // Filtreleri uygulama
   const filteredDeals = useMemo(() => {
     const now = new Date();
 
     return visibleDeals.filter((d) => {
-      // 1. Portföy Menşei Filtresi
+      // 1. Satılık / Kiralık Filtresi
+      if (dealTypeFilter !== "ALL") {
+        const dType = d.dealType || "sale";
+        if (dType !== dealTypeFilter) return false;
+      }
+
+      // 2. İlçe (Şehir) Filtresi
+      if (districtFilter !== "ALL") {
+        const prop = properties.find((p) => p.id === d.propertyId);
+        const qDist = districtFilter.toLowerCase();
+        const combined = `${d.address || ""} ${d.title} ${d.propertyTitle || ""} ${prop?.region || ""} ${prop?.address || ""} ${prop?.location || ""}`.toLowerCase();
+        if (!combined.includes(qDist)) return false;
+      }
+
+      // 3. Mahalle / Bölge Filtresi
+      if (subRegionFilter !== "ALL") {
+        const prop = properties.find((p) => p.id === d.propertyId);
+        const qSub = subRegionFilter.toLowerCase();
+        const combined = `${d.address || ""} ${d.title} ${d.propertyTitle || ""} ${prop?.region || ""} ${prop?.address || ""} ${prop?.location || ""}`.toLowerCase();
+        if (!combined.includes(qSub)) return false;
+      }
+
+      // 4. Mülk Tipi Filtresi
+      if (propertyTypeFilter !== "ALL") {
+        const prop = properties.find((p) => p.id === d.propertyId);
+        const pType = d.propertyType || prop?.propertyType || "";
+        const combined = `${d.propertyType || ""} ${d.title} ${d.propertyTitle || ""} ${prop?.propertyType || ""}`.toLowerCase();
+        const matches = (pType && pType.toLowerCase() === propertyTypeFilter.toLowerCase()) || combined.includes(propertyTypeFilter.toLowerCase());
+        if (!matches) return false;
+      }
+
+      // 5. Portföy Menşei Filtresi
       if (originFilter !== "ALL" && d.portfolioOrigin !== originFilter) {
         return false;
       }
 
-      // 1.5. Danışman Filtresi
+      // 6. Danışman Filtresi
       if (advisorFilter !== "ALL") {
         const adv = users.find((u) => u.id === advisorFilter);
         const advNameNorm = adv ? adv.name.trim().toLowerCase() : "";
@@ -264,7 +352,7 @@ export function FinanceView() {
         if (!isMatch) return false;
       }
 
-      // 2. Arama Filtresi (Başlık, Mülk, Müşteri, Danışman)
+      // 7. Arama Filtresi (Başlık, Mülk, Müşteri, Danışman, Adres)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const titleMatch = d.title.toLowerCase().includes(q);
@@ -272,12 +360,13 @@ export function FinanceView() {
         const custMatch = d.customerName?.toLowerCase().includes(q) || false;
         const advisorMatch = d.createdByName?.toLowerCase().includes(q) || false;
         const dealNumMatch = d.dealNumber?.toLowerCase().includes(q) || false;
-        if (!titleMatch && !propMatch && !custMatch && !advisorMatch && !dealNumMatch) {
+        const addressMatch = d.address?.toLowerCase().includes(q) || false;
+        if (!titleMatch && !propMatch && !custMatch && !advisorMatch && !dealNumMatch && !addressMatch) {
           return false;
         }
       }
 
-      // 3. Tarih Filtreleme
+      // 8. Tarih Filtreleme
       const dt = getDealDate(d);
       if (isNaN(dt.getTime())) return true;
 
@@ -304,7 +393,22 @@ export function FinanceView() {
 
       return true;
     });
-  }, [visibleDeals, originFilter, advisorFilter, users, searchQuery, periodFilter, selectedMonth, getDealDate, getDealMonthKey]);
+  }, [
+    visibleDeals,
+    dealTypeFilter,
+    districtFilter,
+    subRegionFilter,
+    propertyTypeFilter,
+    originFilter,
+    advisorFilter,
+    properties,
+    users,
+    searchQuery,
+    periodFilter,
+    selectedMonth,
+    getDealDate,
+    getDealMonthKey,
+  ]);
 
   // Sıralanmış İşlemler (Tarih, Anlaşılan Bedel, Toplam Komisyon)
   const sortedDeals = useMemo(() => {
@@ -415,18 +519,31 @@ export function FinanceView() {
   // Filtreleri sıfırlama
   const handleResetFilters = () => {
     setSearchQuery("");
+    setDealTypeFilter("ALL");
+    setDistrictFilter("ALL");
+    setSubRegionFilter("ALL");
+    setPropertyTypeFilter("ALL");
     setAdvisorFilter("ALL");
     setOriginFilter("ALL");
     setPeriodFilter("ALL");
     setSelectedMonth("");
+    setSortBy("newest");
+    setSortField("date");
+    setSortOrder("desc");
   };
 
-  const hasActiveFilter =
-    searchQuery.trim() !== "" ||
-    advisorFilter !== "ALL" ||
-    originFilter !== "ALL" ||
-    periodFilter !== "ALL" ||
-    selectedMonth !== "";
+  const activeFilterCount =
+    (searchQuery.trim() !== "" ? 1 : 0) +
+    (dealTypeFilter !== "ALL" ? 1 : 0) +
+    (districtFilter !== "ALL" ? 1 : 0) +
+    (subRegionFilter !== "ALL" ? 1 : 0) +
+    (propertyTypeFilter !== "ALL" ? 1 : 0) +
+    (advisorFilter !== "ALL" ? 1 : 0) +
+    (originFilter !== "ALL" ? 1 : 0) +
+    (periodFilter !== "ALL" ? 1 : 0) +
+    (selectedMonth !== "" ? 1 : 0);
+
+  const hasActiveFilter = activeFilterCount > 0;
 
   // Düzenleme Handlers
   const handleOpenEditDeal = (deal: Deal) => {
@@ -803,121 +920,214 @@ export function FinanceView() {
             </div>
           </div>
 
-          {/* === GELİŞMİŞ FİLTRELEME MERKEZİ === */}
+          {/* === GELİŞMİŞ FİLTRELEME VE KONTROL MERKEZİ === */}
           <div className="sharp-card p-4 bg-white border border-slate-300 space-y-3.5 shadow-xs">
-            {/* 1. Üst Filtre Satırı: Arama, Danışman Seçimi, Portföy Menşei ve Zaman Aralığı */}
-            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 text-xs">
-              {/* Arama Inputu ve Danışman Filtresi Grubu */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
-                {/* Arama Inputu */}
-                <div className="relative flex-1 min-w-[180px]">
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="İşlem başlığı, mülk, müşteri veya danışman ara..."
-                    className="sharp-input w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50/50"
-                  />
-                  {searchQuery && (
+            {/* 1. Üst Satır: Arama Çubuğu + Satılık/Kiralık Segment Toggle + Sıralama Menüsü + Filtreleri Sıfırla */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+              {/* Arama Input */}
+              <div className="relative flex-1 min-w-[260px]">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Başlık, bölge, adres, ilan no veya müşteri ara..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="sharp-input w-full pl-9 pr-8 py-2 text-xs font-mono bg-slate-50/50 hover:bg-white focus:bg-white focus:border-[#00adb5] transition"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-rose-500 cursor-pointer p-0.5"
+                    title="Aramayı Temizle"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                {/* Satılık / Kiralık Durumu Segment Toggle */}
+                <div className="inline-flex items-center bg-slate-100 p-0.5 border border-slate-200">
+                  {[
+                    { id: "ALL", label: "Tümü" },
+                    { id: "sale", label: "Satılık" },
+                    { id: "rent", label: "Kiralık" },
+                  ].map((t) => (
                     <button
+                      key={t.id}
                       type="button"
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      onClick={() => setDealTypeFilter(t.id)}
+                      className={`px-3 py-1.5 text-xs font-mono font-semibold transition-all cursor-pointer ${
+                        dealTypeFilter === t.id
+                          ? "bg-[#1d2566] text-white shadow-2xs font-bold"
+                          : "text-slate-600 hover:text-[#1d2566]"
+                      }`}
                     >
-                      <X className="w-3.5 h-3.5" />
+                      {t.label}
                     </button>
-                  )}
+                  ))}
                 </div>
 
-                {/* Danışman Filtreleme Dropdown */}
-                <div className="relative min-w-[175px] shrink-0">
-                  <div className="flex items-center sharp-input bg-white px-2 py-1 text-xs border border-slate-300">
-                    <UserCheck className="w-3.5 h-3.5 text-[#00adb5] mr-1.5 shrink-0" />
-                    <select
-                      value={advisorFilter}
-                      onChange={(e) => setAdvisorFilter(e.target.value)}
-                      className="w-full bg-transparent border-none outline-hidden text-xs text-slate-800 font-medium cursor-pointer"
-                      title="Danışmana göre filtrele"
-                    >
-                      <option value="ALL">👤 Tüm Danışmanlar</option>
-                      {users
-                        .filter((u) => u.active && !isOfficeSystemAccount(u))
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name} {u.role === "ADMIN" ? "(Broker)" : ""}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Portföy Menşei Filtresi */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
-                <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
-                  Menşe:
-                </span>
-                {[
-                  { id: "ALL", label: "Tüm Menşeler" },
-                  { id: "advisor", label: "Danışman (%60)" },
-                  { id: "office", label: "Ofis (%50)" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setOriginFilter(item.id)}
-                    className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
-                      originFilter === item.id
-                        ? "bg-[#1d2566] text-white font-bold shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Hızlı Dönem Seçimi */}
-              <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
-                <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
-                  Dönem:
-                </span>
-                {[
-                  { id: "ALL", label: "Tümü" },
-                  { id: "1M", label: "Bu Ay" },
-                  { id: "3M", label: "3 Aylık" },
-                  { id: "6M", label: "6 Aylık" },
-                  { id: "12M", label: "12 Aylık" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setPeriodFilter(item.id as "ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH");
-                      setSelectedMonth("");
+                {/* Sıralama Seçenekleri (En Son Eklenenler Varsayılan) */}
+                <div className="relative flex items-center">
+                  <span className="text-slate-400 absolute left-2.5 pointer-events-none">
+                    <ArrowUpDown className="w-3.5 h-3.5" />
+                  </span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSortBy(val);
+                      if (val === "newest") {
+                        setSortField("date");
+                        setSortOrder("desc");
+                      } else if (val === "oldest") {
+                        setSortField("date");
+                        setSortOrder("asc");
+                      } else if (val === "price_desc") {
+                        setSortField("agreedPrice");
+                        setSortOrder("desc");
+                      } else if (val === "price_asc") {
+                        setSortField("agreedPrice");
+                        setSortOrder("asc");
+                      } else if (val === "comm_desc") {
+                        setSortField("commissionExpected");
+                        setSortOrder("desc");
+                      } else if (val === "comm_asc") {
+                        setSortField("commissionExpected");
+                        setSortOrder("asc");
+                      }
                     }}
-                    className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
-                      periodFilter === item.id && !selectedMonth
-                        ? "bg-[#00adb5] text-white font-bold shadow-2xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
+                    className="sharp-input pl-8 pr-3 py-1.5 text-xs font-mono font-bold bg-white text-[#1d2566] border border-slate-200 focus:border-[#00adb5]"
+                    title="Sıralama Ölçütü"
                   >
-                    {item.label}
+                    <option value="newest">Sırala: En Son Eklenen (Varsayılan)</option>
+                    <option value="oldest">Sırala: En Eski Eklenen</option>
+                    <option value="price_desc">Sırala: Bedel (Yüksekten Düşüğe)</option>
+                    <option value="price_asc">Sırala: Bedel (Düşükten Yükseğe)</option>
+                    <option value="comm_desc">Sırala: Komisyon (Yüksekten Düşüğe)</option>
+                    <option value="comm_asc">Sırala: Komisyon (Düşükten Yükseğe)</option>
+                  </select>
+                </div>
+
+                {/* Filtreleri Sıfırla Butonu (Hızlı) */}
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                    title="Uygulanan tüm filtreleri temizle"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Temizle ({activeFilterCount})</span>
                   </button>
-                ))}
+                )}
               </div>
             </div>
 
-            {/* 2. Ay Filtresi: Sağlı Sollu Ok ve Ortada İşaretli Ay Kutusu */}
-            <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+            {/* 2. Orta Satır: Portföy Yönetimindeki Dropdown Filtreler (İlçe, Bölge/Mahalle, Mülk Tipi, Danışman) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+              {/* 1. Konum: İlçe */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#00adb5]" />
+                  <span>İlçe (Şehir)</span>
+                </label>
+                <select
+                  value={districtFilter}
+                  onChange={(e) => {
+                    setDistrictFilter(e.target.value);
+                    setSubRegionFilter("ALL");
+                  }}
+                  className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+                >
+                  <option value="ALL">Tüm İlçeler</option>
+                  {KKTC_DISTRICTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Konum: Mahalle / Bölge */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#00adb5]" />
+                  <span>Mahalle / Bölge</span>
+                </label>
+                <select
+                  value={subRegionFilter}
+                  onChange={(e) => setSubRegionFilter(e.target.value)}
+                  disabled={districtFilter === "ALL"}
+                  className={`sharp-input w-full py-1.5 px-2.5 text-xs font-mono border-slate-200 ${
+                    districtFilter === "ALL"
+                      ? "bg-slate-50 text-slate-400 cursor-not-allowed"
+                      : "bg-white text-[#1d2566] font-semibold"
+                  }`}
+                >
+                  <option value="ALL">
+                    {districtFilter === "ALL" ? "Önce İlçe Seçin" : "Tüm Bölgeler"}
+                  </option>
+                  {availableSubRegions.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. Mülk Tipi */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <Building className="w-3 h-3 text-[#00adb5]" />
+                  <span>Mülk Tipi</span>
+                </label>
+                <select
+                  value={propertyTypeFilter}
+                  onChange={(e) => setPropertyTypeFilter(e.target.value)}
+                  className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+                >
+                  <option value="ALL">Tüm Tipler</option>
+                  {availablePropertyTypes.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 4. Danışman */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                  <User className="w-3 h-3 text-[#00adb5]" />
+                  <span>Danışman</span>
+                </label>
+                <select
+                  value={advisorFilter}
+                  onChange={(e) => setAdvisorFilter(e.target.value)}
+                  className="sharp-input w-full py-1.5 px-2.5 text-xs font-mono bg-white text-[#1d2566] font-semibold border-slate-200"
+                >
+                  <option value="ALL">Tüm Danışmanlar</option>
+                  {availableAdvisors.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role === "ADMIN" ? "Broker" : "Danışman"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* 3. Alt Satır: Ay Filtresi (Ok Kutusu) + Portföy Menşei + Hızlı Dönem Seçimi */}
+            <div className="pt-2 border-t border-slate-200 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Ay Filtresi: Sağlı Sollu Ok Kutusu ve Bu Ay Butonu */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-mono text-slate-500 font-bold uppercase hidden sm:inline flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5 text-[#00adb5]" />
                   Ay Filtresi:
                 </span>
 
-                {/* Sağlı Sollu Ok Kutusu */}
                 <BoxedDateNavigator
                   label={monthDisplayText}
                   onPrev={handlePrevMonth}
@@ -960,9 +1170,67 @@ export function FinanceView() {
                   )}
                 </div>
               </div>
+
+              {/* Menşe ve Hızlı Dönem Seçimi Grupları */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Portföy Menşei */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
+                  <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
+                    Menşe:
+                  </span>
+                  {[
+                    { id: "ALL", label: "Tüm Menşeler" },
+                    { id: "advisor", label: "Danışman (%60)" },
+                    { id: "office", label: "Ofis (%50)" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setOriginFilter(item.id)}
+                      className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                        originFilter === item.id
+                          ? "bg-[#1d2566] text-white font-bold shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Hızlı Dönem Seçimi */}
+                <div className="flex items-center gap-1 bg-slate-100 p-1 border border-slate-200 shrink-0">
+                  <span className="text-[11px] font-mono text-slate-500 px-2 font-bold uppercase hidden sm:inline">
+                    Dönem:
+                  </span>
+                  {[
+                    { id: "ALL", label: "Tümü" },
+                    { id: "1M", label: "Bu Ay" },
+                    { id: "3M", label: "3 Aylık" },
+                    { id: "6M", label: "6 Aylık" },
+                    { id: "12M", label: "12 Aylık" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setPeriodFilter(item.id as "ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH");
+                        setSelectedMonth("");
+                      }}
+                      className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                        periodFilter === item.id && !selectedMonth
+                          ? "bg-[#00adb5] text-white font-bold shadow-2xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
-            {/* 3. Aktif Filtre Bilgilendirme ve Sıfırlama */}
+            {/* 4. Aktif Filtre Bilgilendirme ve Sıfırlama */}
             {hasActiveFilter && (
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs font-mono">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -970,6 +1238,57 @@ export function FinanceView() {
                     <Filter className="w-3 h-3 text-[#00adb5]" />
                     Aktif Filtreler:
                   </span>
+                  {dealTypeFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-[#1d2566] text-white flex items-center gap-1 font-bold">
+                      {dealTypeFilter === "sale" ? "Satılık" : "Kiralık"}
+                      <button
+                        type="button"
+                        onClick={() => setDealTypeFilter("ALL")}
+                        className="hover:text-amber-300 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {districtFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-[#00adb5]/10 text-[#008288] border border-[#00adb5]/30 flex items-center gap-1 font-bold">
+                      İlçe: {districtFilter}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDistrictFilter("ALL");
+                          setSubRegionFilter("ALL");
+                        }}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {subRegionFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-[#00adb5]/10 text-[#008288] border border-[#00adb5]/30 flex items-center gap-1 font-bold">
+                      Bölge: {subRegionFilter}
+                      <button
+                        type="button"
+                        onClick={() => setSubRegionFilter("ALL")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {propertyTypeFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-slate-200 text-slate-800 border border-slate-300 flex items-center gap-1 font-bold">
+                      Tip: {propertyTypeFilter}
+                      <button
+                        type="button"
+                        onClick={() => setPropertyTypeFilter("ALL")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
                   {originFilter !== "ALL" && (
                     <span className="px-2 py-0.5 bg-[#1d2566]/10 text-[#1d2566] border border-[#1d2566]/20 flex items-center gap-1">
                       Menşe: {originFilter === "advisor" ? "Danışman (%60)" : "Ofis (%50)"}

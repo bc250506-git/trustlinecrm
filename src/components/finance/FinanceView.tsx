@@ -12,7 +12,7 @@ import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
-import { formatDateTR } from "@/lib/formatters";
+import { formatDateTR, convertToGbp } from "@/lib/formatters";
 import {
   Calculator,
   Plus,
@@ -35,6 +35,10 @@ import {
   Sparkles,
   Camera,
   Image as ImageIcon,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  UserCheck,
 } from "lucide-react";
 
 // Ay listesi şablonu (Geçmiş ve Cari Yıl)
@@ -120,9 +124,23 @@ export function FinanceView() {
 
   // === FİLTRELEME STATELERİ ===
   const [searchQuery, setSearchQuery] = useState("");
+  const [advisorFilter, setAdvisorFilter] = useState<string>("ALL"); // ALL | userId
   const [originFilter, setOriginFilter] = useState<string>("ALL"); // ALL | advisor | office
   const [periodFilter, setPeriodFilter] = useState<"ALL" | "1M" | "3M" | "6M" | "12M" | "MONTH">("ALL");
   const [selectedMonth, setSelectedMonth] = useState<string>(""); // YYYY-MM
+
+  // === SIRALAMA STATELERİ (Tarih, Anlaşılan Bedel, Toplam Komisyon) ===
+  const [sortField, setSortField] = useState<"date" | "agreedPrice" | "commissionExpected" | null>("date");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const handleToggleSort = (field: "date" | "agreedPrice" | "commissionExpected") => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
 
   // Danışman hesabı ise sadece kendi işlemlerini ve 2. danışman olarak dahil olduğu ortak işlemleri görür; Ofis / Broker hesabı ise tüm ofisin işlemlerini görür.
   const visibleDeals = useMemo(() => {
@@ -227,6 +245,18 @@ export function FinanceView() {
         return false;
       }
 
+      // 1.5. Danışman Filtresi
+      if (advisorFilter !== "ALL") {
+        const adv = users.find((u) => u.id === advisorFilter);
+        const advNameNorm = adv ? adv.name.trim().toLowerCase() : "";
+        const isMatch =
+          d.createdById === advisorFilter ||
+          d.partnerAdvisorId === advisorFilter ||
+          (d.createdByName && advNameNorm && d.createdByName.trim().toLowerCase() === advNameNorm) ||
+          (d.partnerAdvisorName && advNameNorm && d.partnerAdvisorName.trim().toLowerCase() === advNameNorm);
+        if (!isMatch) return false;
+      }
+
       // 2. Arama Filtresi (Başlık, Mülk, Müşteri, Danışman)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -267,7 +297,35 @@ export function FinanceView() {
 
       return true;
     });
-  }, [visibleDeals, originFilter, searchQuery, periodFilter, selectedMonth, getDealDate, getDealMonthKey]);
+  }, [visibleDeals, originFilter, advisorFilter, users, searchQuery, periodFilter, selectedMonth, getDealDate, getDealMonthKey]);
+
+  // Sıralanmış İşlemler (Tarih, Anlaşılan Bedel, Toplam Komisyon)
+  const sortedDeals = useMemo(() => {
+    if (!sortField) return filteredDeals;
+
+    return [...filteredDeals].sort((a, b) => {
+      let valA = 0;
+      let valB = 0;
+
+      if (sortField === "date") {
+        valA = getDealDate(a).getTime();
+        valB = getDealDate(b).getTime();
+      } else if (sortField === "agreedPrice") {
+        const currA = a.priceCurrency || a.currency || "GBP";
+        const currB = b.priceCurrency || b.currency || "GBP";
+        valA = convertToGbp(a.agreedPrice || 0, currA);
+        valB = convertToGbp(b.agreedPrice || 0, currB);
+      } else if (sortField === "commissionExpected") {
+        const currA = a.commissionCurrency || a.currency || "GBP";
+        const currB = b.commissionCurrency || b.currency || "GBP";
+        valA = convertToGbp(a.commissionExpected || 0, currA);
+        valB = convertToGbp(b.commissionExpected || 0, currB);
+      }
+
+      if (valA === valB) return 0;
+      return sortOrder === "asc" ? (valA > valB ? 1 : -1) : (valA < valB ? 1 : -1);
+    });
+  }, [filteredDeals, sortField, sortOrder, getDealDate]);
 
   // Filtrelenmiş Finans Özeti (GBP Ağırlıklı Göstergeler)
   const gbpFilteredDeals = filteredDeals.filter((d) => d.currency === "GBP");
@@ -322,6 +380,7 @@ export function FinanceView() {
   // Filtreleri sıfırlama
   const handleResetFilters = () => {
     setSearchQuery("");
+    setAdvisorFilter("ALL");
     setOriginFilter("ALL");
     setPeriodFilter("ALL");
     setSelectedMonth("");
@@ -329,6 +388,7 @@ export function FinanceView() {
 
   const hasActiveFilter =
     searchQuery.trim() !== "" ||
+    advisorFilter !== "ALL" ||
     originFilter !== "ALL" ||
     periodFilter !== "ALL" ||
     selectedMonth !== "";
@@ -706,27 +766,52 @@ export function FinanceView() {
 
           {/* === GELİŞMİŞ FİLTRELEME MERKEZİ === */}
           <div className="sharp-card p-4 bg-white border border-slate-300 space-y-3.5 shadow-xs">
-            {/* 1. Üst Filtre Satırı: Arama, Portföy Menşei ve Zaman Aralığı */}
+            {/* 1. Üst Filtre Satırı: Arama, Danışman Seçimi, Portföy Menşei ve Zaman Aralığı */}
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 text-xs">
-              {/* Arama Inputu */}
-              <div className="relative flex-1 min-w-[220px]">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="İşlem başlığı, mülk, müşteri veya danışman ara..."
-                  className="sharp-input w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50/50"
-                />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
+              {/* Arama Inputu ve Danışman Filtresi Grubu */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1">
+                {/* Arama Inputu */}
+                <div className="relative flex-1 min-w-[180px]">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="İşlem başlığı, mülk, müşteri veya danışman ara..."
+                    className="sharp-input w-full pl-8 pr-3 py-1.5 text-xs bg-slate-50/50"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Danışman Filtreleme Dropdown */}
+                <div className="relative min-w-[175px] shrink-0">
+                  <div className="flex items-center sharp-input bg-white px-2 py-1 text-xs border border-slate-300">
+                    <UserCheck className="w-3.5 h-3.5 text-[#00adb5] mr-1.5 shrink-0" />
+                    <select
+                      value={advisorFilter}
+                      onChange={(e) => setAdvisorFilter(e.target.value)}
+                      className="w-full bg-transparent border-none outline-hidden text-xs text-slate-800 font-medium cursor-pointer"
+                      title="Danışmana göre filtrele"
+                    >
+                      <option value="ALL">👤 Tüm Danışmanlar</option>
+                      {users
+                        .filter((u) => u.active && !isOfficeSystemAccount(u))
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} {u.role === "ADMIN" ? "(Broker)" : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Portföy Menşei Filtresi */}
@@ -852,6 +937,18 @@ export function FinanceView() {
                       <button
                         type="button"
                         onClick={() => setOriginFilter("ALL")}
+                        className="hover:text-rose-600 cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
+                  {advisorFilter !== "ALL" && (
+                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1 font-bold">
+                      Danışman: {users.find((u) => u.id === advisorFilter)?.name || advisorFilter}
+                      <button
+                        type="button"
+                        onClick={() => setAdvisorFilter("ALL")}
                         className="hover:text-rose-600 cursor-pointer"
                       >
                         ×
@@ -987,19 +1084,83 @@ export function FinanceView() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-mono text-[11px] uppercase tracking-wider font-bold">
-                  <th className="py-3 px-4">Mülk & İşlem</th>
+                  <th className="py-3 px-4">Mülk &amp; İşlem</th>
                   <th className="py-3 px-4">Taraflar</th>
-                  <th className="py-3 px-4">Menşe & Paylaşım</th>
-                  <th className="py-3 px-4">Tarih</th>
-                  <th className="py-3 px-4">Anlaşılan Bedel</th>
-                  <th className="py-3 px-4">Toplam Komisyon</th>
+                  <th className="py-3 px-4">Menşe &amp; Paylaşım</th>
+
+                  {/* Sıralanabilir Tarih Sütunu */}
+                  <th
+                    onClick={() => handleToggleSort("date")}
+                    className={`py-3 px-4 cursor-pointer select-none transition hover:bg-slate-100 ${
+                      sortField === "date" ? "text-[#1d2566] bg-slate-100/80" : ""
+                    }`}
+                    title="Tarihe göre sırala (Tıklayarak Azalan / Artan değiştirin)"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Tarih</span>
+                      {sortField === "date" ? (
+                        sortOrder === "desc" ? (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#00adb5]" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#00adb5]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+
+                  {/* Sıralanabilir Anlaşılan Bedel Sütunu */}
+                  <th
+                    onClick={() => handleToggleSort("agreedPrice")}
+                    className={`py-3 px-4 cursor-pointer select-none transition hover:bg-slate-100 ${
+                      sortField === "agreedPrice" ? "text-[#1d2566] bg-slate-100/80" : ""
+                    }`}
+                    title="Anlaşılan bedele göre sırala (Tıklayarak Azalan / Artan değiştirin)"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Anlaşılan Bedel</span>
+                      {sortField === "agreedPrice" ? (
+                        sortOrder === "desc" ? (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#00adb5]" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#00adb5]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+
+                  {/* Sıralanabilir Toplam Komisyon Sütunu */}
+                  <th
+                    onClick={() => handleToggleSort("commissionExpected")}
+                    className={`py-3 px-4 cursor-pointer select-none transition hover:bg-slate-100 ${
+                      sortField === "commissionExpected" ? "text-[#1d2566] bg-slate-100/80" : ""
+                    }`}
+                    title="Toplam komisyona göre sırala (Tıklayarak Azalan / Artan değiştirin)"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Toplam Komisyon</span>
+                      {sortField === "commissionExpected" ? (
+                        sortOrder === "desc" ? (
+                          <ArrowDown className="w-3.5 h-3.5 text-[#00adb5]" />
+                        ) : (
+                          <ArrowUp className="w-3.5 h-3.5 text-[#00adb5]" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+
                   <th className="py-3 px-4">Hakediş Dağılımı</th>
                   <th className="py-3 px-4 text-center">Broker Onayı</th>
                   <th className="py-3 px-4 text-center">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredDeals.map((d) => {
+                {sortedDeals.map((d) => {
                   const totalComm = d.commissionExpected;
                   const isVolkan = isVolkanDeal(d);
 
@@ -1267,7 +1428,7 @@ export function FinanceView() {
                   );
                 })}
 
-                {filteredDeals.length === 0 && (
+                {sortedDeals.length === 0 && (
                   <tr>
                     <td colSpan={9} className="py-12 text-center text-slate-500 font-mono text-xs">
                       <div className="space-y-2 max-w-sm mx-auto">

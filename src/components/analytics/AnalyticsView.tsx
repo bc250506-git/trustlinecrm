@@ -31,6 +31,9 @@ import {
   Globe,
   Radio,
   FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  Crown,
 } from "lucide-react";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import {
@@ -139,6 +142,52 @@ export function AnalyticsView() {
     }
   }, [selectedMonth]);
 
+  // İşlem Podyumu Özel Dönem Seçimi (Aylık, 3 Aylık, 6 Aylık, 12 Aylık + Ay Kaydırıcı)
+  const [podiumTimeRange, setPodiumTimeRange] = useState<"30d" | "3m" | "6m" | "1y" | "month">("6m");
+  const [podiumSelectedMonth, setPodiumSelectedMonth] = useState<string | null>(null);
+
+  const handlePrevPodiumMonth = () => {
+    const baseKey = podiumSelectedMonth || defaultAnalyticsMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    setPodiumSelectedMonth(prevKey);
+    setPodiumTimeRange("month");
+  };
+
+  const handleNextPodiumMonth = () => {
+    const baseKey = podiumSelectedMonth || defaultAnalyticsMonthKey;
+    const [y, m] = baseKey.split("-").map(Number);
+    const nextDate = new Date(y, m, 1);
+    const nextKey = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+    setPodiumSelectedMonth(nextKey);
+    setPodiumTimeRange("month");
+  };
+
+  const handleGoThisPodiumMonth = () => {
+    setPodiumSelectedMonth(defaultAnalyticsMonthKey);
+    setPodiumTimeRange("month");
+  };
+
+  const handleClearPodiumMonth = () => {
+    setPodiumSelectedMonth(null);
+    setPodiumTimeRange("6m");
+  };
+
+  const podiumMonthDisplayText = useMemo(() => {
+    if (!podiumSelectedMonth) return "TÜM DÖNEM";
+    try {
+      const [y, m] = podiumSelectedMonth.split("-").map(Number);
+      const d = new Date(y, m - 1, 1);
+      return d.toLocaleDateString("tr-TR", {
+        month: "long",
+        year: "numeric",
+      }).toLocaleUpperCase("tr-TR");
+    } catch {
+      return podiumSelectedMonth;
+    }
+  }, [podiumSelectedMonth]);
+
   // Tüm Kapanan / İşlem Kapaması Yapılan Anlaşmalar (Won Deals)
   const allClosedDeals = useMemo(() => {
     return deals.filter(
@@ -168,7 +217,11 @@ export function AnalyticsView() {
   };
 
   // Anlaşmanın seçili döneme düşüp düşmediğini kontrol eden evrensel fonksiyon
-  const isDealInPeriod = (d: Deal, range: "30d" | "6m" | "1y" | "month", monthKey: string | null): boolean => {
+  const isDealInPeriod = (
+    d: Deal,
+    range: "30d" | "3m" | "6m" | "1y" | "month",
+    monthKey: string | null
+  ): boolean => {
     const dt = getDealDate(d);
     const now = new Date();
 
@@ -183,6 +236,11 @@ export function AnalyticsView() {
     if (range === "30d") {
       const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
       return dt >= thirtyDaysAgo;
+    }
+
+    if (range === "3m") {
+      const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      return dt >= threeMonthsAgo;
     }
 
     if (range === "6m") {
@@ -203,10 +261,10 @@ export function AnalyticsView() {
     return baseDealsForView.filter((d) => isDealInPeriod(d, timeRange, selectedMonth));
   }, [baseDealsForView, timeRange, selectedMonth]);
 
-  // Podyum sıralaması için seçili dönemdeki tüm ofis kapanan işlemleri
+  // Podyum sıralaması için podyumun seçili dönemindeki tüm ofis kapanan işlemleri
   const periodAllClosedDeals = useMemo(() => {
-    return allClosedDeals.filter((d) => isDealInPeriod(d, timeRange, selectedMonth));
-  }, [allClosedDeals, timeRange, selectedMonth]);
+    return allClosedDeals.filter((d) => isDealInPeriod(d, podiumTimeRange, podiumSelectedMonth));
+  }, [allClosedDeals, podiumTimeRange, podiumSelectedMonth]);
 
   // 1. AYLIK VEYA SEÇİLİ AYA AİT CİRO VE KOMİSYON TRENDİ (GBP BAZINDA - TAM GERÇEK VERİLER)
   const monthlyTrendData = useMemo(() => {
@@ -485,10 +543,12 @@ export function AnalyticsView() {
             d.createdById === user.id ||
             (d.createdByName && d.createdByName.trim().toLowerCase() === uNameNorm) ||
             (d.createdById === "usr-ofis" && user.id === "usr-volkan");
-          const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency);
+          const priceCurr = d.priceCurrency || d.currency || "GBP";
+          const commCurr = d.commissionCurrency || d.currency || "GBP";
+          const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice || 0, priceCurr);
           const commGbp = convertToGbp(
-            d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
-            d.currency
+            d.commissionExpected || (d.agreedPrice ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05) : 0),
+            commCurr
           );
 
           totalVolumeGbp += priceGbp;
@@ -512,11 +572,11 @@ export function AnalyticsView() {
               const offRate = d.officeShareRate ?? 40;
               advisorEarningsGbp +=
                 d.advisorShareAmount !== undefined
-                  ? convertToGbp(d.advisorShareAmount, d.currency)
+                  ? convertToGbp(d.advisorShareAmount, commCurr)
                   : Math.round((commGbp * advRate) / 100);
               officeContributionGbp +=
                 d.officeShareAmount !== undefined
-                  ? convertToGbp(d.officeShareAmount, d.currency)
+                  ? convertToGbp(d.officeShareAmount, commCurr)
                   : Math.round((commGbp * offRate) / 100);
             }
           } else {
@@ -524,7 +584,7 @@ export function AnalyticsView() {
             const partRate = d.partnerShareRate ?? 25;
             advisorEarningsGbp +=
               d.partnerShareAmount !== undefined
-                ? convertToGbp(d.partnerShareAmount, d.currency)
+                ? convertToGbp(d.partnerShareAmount, commCurr)
                 : Math.round((commGbp * partRate) / 100);
           }
 
@@ -577,8 +637,35 @@ export function AnalyticsView() {
           activeListingsCount,
         };
       })
-      .sort((a, b) => b.volumeGbp - a.volumeGbp || b.totalDeals - a.totalDeals);
+      .sort((a, b) => b.commissionGbp - a.commissionGbp || b.totalDeals - a.totalDeals || b.volumeGbp - a.volumeGbp);
   }, [users, periodAllClosedDeals, properties]);
+
+  // En çok ciro (üretilen komisyon) ve en çok işlem yapan liderleri tespit et
+  const { topCommissionAdvisorIds, topDealsAdvisorIds, maxCommissionGbp, maxDealsCount } = useMemo(() => {
+    let maxComm = 0;
+    let maxDeals = 0;
+    advisorRankings.forEach((adv) => {
+      if (adv.commissionGbp > maxComm) maxComm = adv.commissionGbp;
+      if (adv.totalDeals > maxDeals) maxDeals = adv.totalDeals;
+    });
+
+    const topCommIds = new Set<string>();
+    const topDealIds = new Set<string>();
+
+    if (maxComm > 0) {
+      advisorRankings.filter((a) => a.commissionGbp === maxComm).forEach((a) => topCommIds.add(a.id));
+    }
+    if (maxDeals > 0) {
+      advisorRankings.filter((a) => a.totalDeals === maxDeals).forEach((a) => topDealIds.add(a.id));
+    }
+
+    return {
+      topCommissionAdvisorIds: topCommIds,
+      topDealsAdvisorIds: topDealIds,
+      maxCommissionGbp: maxComm,
+      maxDealsCount: maxDeals,
+    };
+  }, [advisorRankings]);
 
   // 5. İŞLEM TÜRÜ & BÖLÜŞÜM MODELLERİ ANALİZİ (PORTFOLIO ORIGIN & SPLIT)
   const dealEconomics = useMemo(() => {
@@ -1282,22 +1369,95 @@ export function AnalyticsView() {
 
       {/* GRAFİK BÖLÜMÜ 4: EN ÇOK İŞLEM KAPATAN DANIŞMANLAR & PODYUM */}
       <div className="sharp-card p-5 bg-white border border-slate-200 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Trophy className="w-4 h-4 text-amber-500" />
               <h3 className="text-sm font-bold text-[#1d2566] font-mono">
-                En Çok İşlem Kapatan Danışmanlar & Performans Podyumu
+                En Çok İşlem Kapatan Danışmanlar &amp; Performans Podyumu
               </h3>
             </div>
             <p className="text-[11px] text-slate-500">
-              Ofis içi danışmanların kapattığı satış/kiralama adedi, brüt satış hacmi, üretilen komisyon ve prim dağılımı.
+              Ofis içi danışmanların kapattığı satış/kiralama adedi, brüt satış hacmi, üretilen komisyon ve prim dağılımı. Sıralama üretilen toplam komisyona göredir.
             </p>
           </div>
-          <span className="text-[11px] font-mono text-amber-800 font-bold bg-amber-50 px-2.5 py-1 border border-amber-200 self-start sm:self-auto flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            {advisorRankings.length} Danışman Sıralamada
-          </span>
+
+          {/* DÖNEM SEÇİCİ TOOLBAR (Aylık, 3 Aylık, 6 Aylık, 12 Aylık + Ay Kaydırıcı) */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Hızlı Dönem Butonları */}
+            <div className="flex items-center border border-slate-300 bg-white shadow-2xs">
+              {[
+                { id: "30d", label: "Aylık" },
+                { id: "3m", label: "3 Aylık" },
+                { id: "6m", label: "6 Aylık" },
+                { id: "1y", label: "12 Aylık" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setPodiumTimeRange(tab.id as any);
+                    setPodiumSelectedMonth(null);
+                  }}
+                  className={`px-2.5 py-1 text-xs font-mono transition cursor-pointer ${
+                    podiumTimeRange === tab.id && !podiumSelectedMonth
+                      ? "bg-[#1d2566] text-white font-bold"
+                      : "text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Ay Kaydırıcı Kutu: < [TÜM DÖNEM / AY] > */}
+            <div className="flex items-center border border-slate-300 bg-white shadow-2xs">
+              <button
+                type="button"
+                onClick={handlePrevPodiumMonth}
+                className="p-1 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-r border-slate-300 cursor-pointer transition"
+                title="Önceki Ay"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <div
+                onClick={() => {
+                  if (podiumSelectedMonth) handleClearPodiumMonth();
+                  else handleGoThisPodiumMonth();
+                }}
+                className="px-3 py-1 text-xs font-mono font-bold text-[#1d2566] cursor-pointer hover:bg-slate-50 select-none min-w-[100px] text-center"
+                title={podiumSelectedMonth ? "Filtreyi temizle (Tüm Dönem)" : "Cari aya git"}
+              >
+                {podiumMonthDisplayText}
+              </div>
+              <button
+                type="button"
+                onClick={handleNextPodiumMonth}
+                className="p-1 hover:bg-slate-100 text-slate-600 hover:text-slate-900 border-l border-slate-300 cursor-pointer transition"
+                title="Sonraki Ay"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Bu Ay Butonu */}
+            <button
+              type="button"
+              onClick={handleGoThisPodiumMonth}
+              className={`px-2.5 py-1 text-xs font-mono border transition cursor-pointer font-bold ${
+                podiumSelectedMonth === defaultAnalyticsMonthKey
+                  ? "bg-[#00adb5] text-white border-[#00adb5]"
+                  : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+              }`}
+            >
+              Bu Ay
+            </button>
+
+            <span className="text-[11px] font-mono text-amber-800 font-bold bg-amber-50 px-2.5 py-1 border border-amber-200 self-start sm:self-auto flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              {advisorRankings.length} Danışman Sıralamada
+            </span>
+          </div>
         </div>
 
         {/* İLK 3 DANIŞMAN PODYUM KARTLARI */}
@@ -1324,6 +1484,8 @@ export function AnalyticsView() {
               adv.id === currentUser.id ||
               Boolean(currentUser.name && adv.name.trim().toLowerCase() === currentUser.name.trim().toLowerCase());
             const canSeeNumbers = isBroker || isAdvisorMe;
+            const isTopCommission = topCommissionAdvisorIds.has(adv.id);
+            const isTopDeals = topDealsAdvisorIds.has(adv.id);
 
             return (
               <div
@@ -1331,10 +1493,30 @@ export function AnalyticsView() {
                 className={`sharp-card p-4 border-2 ${borderAccent} flex flex-col justify-between relative shadow-xs`}
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`px-2 py-0.5 text-[10px] font-mono font-bold border ${badgeBg}`}>
-                      {medalEmoji}
-                    </span>
+                  <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`px-2 py-0.5 text-[10px] font-mono font-bold border ${badgeBg}`}>
+                        {medalEmoji}
+                      </span>
+                      {isTopCommission && isTopDeals ? (
+                        <span className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-0.5">
+                          👑 Çifte Şampiyon
+                        </span>
+                      ) : (
+                        <>
+                          {isTopCommission && (
+                            <span className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-0.5">
+                              💎 Ciro Şampiyonu
+                            </span>
+                          )}
+                          {isTopDeals && (
+                            <span className="px-1.5 py-0.5 text-[9.5px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-0.5">
+                              🏆 İşlem Lideri
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
                     <span className="text-xs font-mono font-bold text-slate-500">
                       {adv.totalDeals} Kapanan İşlem
                     </span>
@@ -1456,18 +1638,43 @@ export function AnalyticsView() {
                   >
                     <td className="py-3 px-3 text-center font-bold">{medal}</td>
                     <td className="py-3 px-3">
-                      <div className="font-bold text-[#1d2566] text-xs font-sans flex items-center gap-1.5">
+                      <div className="font-bold text-[#1d2566] text-xs font-sans flex items-center gap-1.5 flex-wrap">
                         {agent.name}
                         {isAgentMe && (
                           <span className="px-1.5 py-0.2 bg-[#00adb5] text-white text-[9px] font-mono font-bold">
                             SİZ
                           </span>
                         )}
+                        {topCommissionAdvisorIds.has(agent.id) && topDealsAdvisorIds.has(agent.id) ? (
+                          <span className="px-1.5 py-0.2 bg-purple-100 text-purple-900 border border-purple-300 text-[9.5px] font-mono font-bold flex items-center gap-0.5 shadow-2xs">
+                            👑 Çifte Şampiyon
+                          </span>
+                        ) : (
+                          <>
+                            {topCommissionAdvisorIds.has(agent.id) && (
+                              <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-900 border border-emerald-300 text-[9.5px] font-mono font-bold flex items-center gap-0.5 shadow-2xs">
+                                💎 Ciro Şampiyonu
+                              </span>
+                            )}
+                            {topDealsAdvisorIds.has(agent.id) && (
+                              <span className="px-1.5 py-0.2 bg-amber-100 text-amber-900 border border-amber-300 text-[9.5px] font-mono font-bold flex items-center gap-0.5 shadow-2xs">
+                                🏆 İşlem Lideri
+                              </span>
+                            )}
+                          </>
+                        )}
                       </div>
                       <div className="text-[10px] text-slate-500 font-mono">{agent.title}</div>
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-slate-900">
-                      {agent.totalDeals} İşlem
+                      <div className="flex items-center justify-end gap-1">
+                        {topDealsAdvisorIds.has(agent.id) && (
+                          <span className="text-amber-600 text-xs" title="En çok işlem kapatan danışman">🏆</span>
+                        )}
+                        <span className={topDealsAdvisorIds.has(agent.id) ? "text-amber-800 font-bold" : ""}>
+                          {agent.totalDeals} İşlem
+                        </span>
+                      </div>
                       <span className="text-[10px] text-slate-400 font-normal block">
                         ({agent.saleCount} Satış • {agent.rentCount} Kira)
                       </span>
@@ -1482,13 +1689,20 @@ export function AnalyticsView() {
                       )}
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-emerald-700">
-                      {canSeeAgentNumbers ? (
-                        `£${agent.commissionGbp.toLocaleString("tr-TR")}`
-                      ) : (
-                        <span className="text-slate-400 font-normal select-none tracking-widest">
-                          £ ••••••
+                      <div className="flex items-center justify-end gap-1">
+                        {topCommissionAdvisorIds.has(agent.id) && (
+                          <span className="text-emerald-600 text-xs" title="En çok ciro / komisyon üreten danışman">💎</span>
+                        )}
+                        <span>
+                          {canSeeAgentNumbers ? (
+                            `£${agent.commissionGbp.toLocaleString("tr-TR")}`
+                          ) : (
+                            <span className="text-slate-400 font-normal select-none tracking-widest">
+                              £ ••••••
+                            </span>
+                          )}
                         </span>
-                      )}
+                      </div>
                     </td>
                     <td className="py-3 px-3 text-right font-bold text-purple-700">
                       {canSeeAgentNumbers ? (

@@ -355,3 +355,22 @@ export function formatFollowUpDate(dueAtStr?: string): string {
   return extractLocalDateAndTime(dueAtStr).date;
 }
 
+/**
+ * Verilen para birimini yaklaşık kur üzerinden GBP (Sterlin) karşılığına çevirir
+ */
+export function convertToGbp(amount: number, currency: string = "GBP"): number {
+  if (!amount) return 0;
+  switch (currency.toUpperCase()) {
+    case "GBP":
+      return amount;
+    case "EUR":
+      return Math.round(amount * 0.85);
+    case "USD":
+      return Math.round(amount * 0.78);
+    case "TRY":
+      return Math.round(amount / 43); // yaklaşık sterlin kuru
+    default:
+      return amount;
+  }
+}
+

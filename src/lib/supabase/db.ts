@@ -260,20 +260,27 @@ export async function getDeals(): Promise<Deal[]> {
       let priceCurr = d.priceCurrency || d.price_currency;
       let commCurr = d.commissionCurrency || d.commission_currency;
       let cleanNotes = d.notes;
+      let exchangeRate = d.exchangeRate || d.exchange_rate;
+      let commissionGbpLocked = d.commissionGbpLocked || d.commission_gbp_locked;
+      let priceGbpLocked = d.priceGbpLocked || d.price_gbp_locked;
 
-      // notes içindeki [HISTORICAL:...] metadata etiketini çözümle
-      if (d.notes && typeof d.notes === "string" && d.notes.startsWith("[HISTORICAL:")) {
+      // notes içindeki [HISTORICAL:...] veya [DEAL_META:...] metadata etiketini çözümle
+      if (d.notes && typeof d.notes === "string" && (d.notes.startsWith("[HISTORICAL:") || d.notes.startsWith("[DEAL_META:"))) {
+        const startTag = d.notes.startsWith("[HISTORICAL:") ? "[HISTORICAL:" : "[DEAL_META:";
         const endIdx = d.notes.indexOf("]");
         if (endIdx !== -1) {
           try {
-            const metaStr = d.notes.substring(12, endIdx);
+            const metaStr = d.notes.substring(startTag.length, endIdx);
             const meta = JSON.parse(metaStr);
-            isHist = meta.isHistorical ?? true;
+            isHist = meta.isHistorical ?? isHist;
             repDate = meta.reportDate || repDate;
             archName = meta.archiveDocumentName || archName;
             archUrl = meta.archiveDocumentUrl || archUrl;
             priceCurr = meta.priceCurrency || priceCurr;
             commCurr = meta.commissionCurrency || commCurr;
+            exchangeRate = meta.exchangeRate ?? exchangeRate;
+            commissionGbpLocked = meta.commissionGbpLocked ?? commissionGbpLocked;
+            priceGbpLocked = meta.priceGbpLocked ?? priceGbpLocked;
             cleanNotes = d.notes.substring(endIdx + 1).replace(/^\n+/, "");
           } catch {}
         }
@@ -287,6 +294,9 @@ export async function getDeals(): Promise<Deal[]> {
         archiveDocumentUrl: archUrl,
         priceCurrency: priceCurr || (d.currency === "TRY" ? "GBP" : d.currency) || "GBP",
         commissionCurrency: commCurr || d.currency || "TRY",
+        exchangeRate: exchangeRate ? Number(exchangeRate) : undefined,
+        commissionGbpLocked: commissionGbpLocked !== undefined && commissionGbpLocked !== null ? Number(commissionGbpLocked) : undefined,
+        priceGbpLocked: priceGbpLocked !== undefined && priceGbpLocked !== null ? Number(priceGbpLocked) : undefined,
         notes: cleanNotes,
       } as Deal;
     });
@@ -304,25 +314,29 @@ export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
     );
     let rawNotes = deal.notes || "";
 
-    // Mevcut bir [HISTORICAL:...] etiketi varsa temizle
-    if (rawNotes.startsWith("[HISTORICAL:")) {
+    // Mevcut bir [HISTORICAL:...] veya [DEAL_META:...] etiketi varsa temizle
+    if (rawNotes.startsWith("[HISTORICAL:") || rawNotes.startsWith("[DEAL_META:")) {
       const endIdx = rawNotes.indexOf("]");
       if (endIdx !== -1) {
         rawNotes = rawNotes.substring(endIdx + 1).replace(/^\n+/, "");
       }
     }
 
+    const meta: Record<string, any> = {};
+    if (isHist) meta.isHistorical = true;
+    if (deal.reportDate) meta.reportDate = deal.reportDate;
+    if (deal.archiveDocumentName) meta.archiveDocumentName = deal.archiveDocumentName;
+    if (deal.archiveDocumentUrl) meta.archiveDocumentUrl = deal.archiveDocumentUrl;
+    if (deal.priceCurrency) meta.priceCurrency = deal.priceCurrency;
+    if (deal.commissionCurrency) meta.commissionCurrency = deal.commissionCurrency;
+    if (deal.exchangeRate) meta.exchangeRate = deal.exchangeRate;
+    if (deal.commissionGbpLocked !== undefined && deal.commissionGbpLocked !== null) meta.commissionGbpLocked = deal.commissionGbpLocked;
+    if (deal.priceGbpLocked !== undefined && deal.priceGbpLocked !== null) meta.priceGbpLocked = deal.priceGbpLocked;
+
     let payloadNotes = rawNotes;
-    if (isHist) {
-      const meta = {
-        isHistorical: true,
-        reportDate: deal.reportDate,
-        archiveDocumentName: deal.archiveDocumentName,
-        archiveDocumentUrl: deal.archiveDocumentUrl,
-        priceCurrency: deal.priceCurrency,
-        commissionCurrency: deal.commissionCurrency,
-      };
-      payloadNotes = `[HISTORICAL:${JSON.stringify(meta)}]` + (rawNotes ? `\n${rawNotes}` : "");
+    if (Object.keys(meta).length > 0) {
+      const prefix = isHist ? "[HISTORICAL:" : "[DEAL_META:";
+      payloadNotes = `${prefix}${JSON.stringify(meta)}]` + (rawNotes ? `\n${rawNotes}` : "");
     }
 
     // Yalnızca Supabase PostgreSQL tablosunda tanımlı olan sütunları gönder

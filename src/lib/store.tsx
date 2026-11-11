@@ -77,6 +77,8 @@ import {
   checkAndCreateDailySnapshot,
 } from "./backup/snapshotEngine";
 import { idbGet, idbSet } from "./indexedDbCache";
+import { getCurrentExchangeRates, updateLiveExchangeRates } from "./currency";
+import { convertToGbp } from "./formatters";
 
 interface StoreContextType {
   currentUser: User;
@@ -818,6 +820,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
                   priceCurrency: cd.priceCurrency || ld.priceCurrency || "GBP",
                   commissionCurrency: cd.commissionCurrency || ld.commissionCurrency || "GBP",
                   currency: cd.commissionCurrency || cd.currency || ld.currency || "GBP",
+                  exchangeRate: cd.exchangeRate ?? ld.exchangeRate,
+                  commissionGbpLocked: cd.commissionGbpLocked ?? ld.commissionGbpLocked,
+                  priceGbpLocked: cd.priceGbpLocked ?? ld.priceGbpLocked,
                 });
               }
             }
@@ -967,27 +972,34 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
           }
           const normalizedRecord = normalizeVolkanDeal(newRecord);
 
-          // notes içindeki [HISTORICAL:...] metadata etiketini çözümle
+          // notes içindeki [HISTORICAL:...] veya [DEAL_META:...] metadata etiketini çözümle
           let isHist = Boolean(newRecord.isHistorical || newRecord.is_historical);
           let repDate = newRecord.reportDate || newRecord.report_date;
           let archName = newRecord.archiveDocumentName || newRecord.archive_document_name;
           let archUrl = newRecord.archiveDocumentUrl || newRecord.archive_document_url;
           let priceCurr = newRecord.priceCurrency || newRecord.price_currency;
           let commCurr = newRecord.commissionCurrency || newRecord.commission_currency;
+          let exchangeRate = newRecord.exchangeRate || newRecord.exchange_rate;
+          let commGbpLocked = newRecord.commissionGbpLocked || newRecord.commission_gbp_locked;
+          let priceGbpLocked = newRecord.priceGbpLocked || newRecord.price_gbp_locked;
           let cleanNotes = newRecord.notes;
 
-          if (newRecord.notes && typeof newRecord.notes === "string" && newRecord.notes.startsWith("[HISTORICAL:")) {
+          if (newRecord.notes && typeof newRecord.notes === "string" && (newRecord.notes.startsWith("[HISTORICAL:") || newRecord.notes.startsWith("[DEAL_META:"))) {
+            const startTag = newRecord.notes.startsWith("[HISTORICAL:") ? "[HISTORICAL:" : "[DEAL_META:";
             const endIdx = newRecord.notes.indexOf("]");
             if (endIdx !== -1) {
               try {
-                const metaStr = newRecord.notes.substring(12, endIdx);
+                const metaStr = newRecord.notes.substring(startTag.length, endIdx);
                 const meta = JSON.parse(metaStr);
-                isHist = meta.isHistorical ?? true;
+                isHist = meta.isHistorical ?? isHist;
                 repDate = meta.reportDate || repDate;
                 archName = meta.archiveDocumentName || archName;
                 archUrl = meta.archiveDocumentUrl || archUrl;
                 priceCurr = meta.priceCurrency || priceCurr;
                 commCurr = meta.commissionCurrency || commCurr;
+                exchangeRate = meta.exchangeRate ?? exchangeRate;
+                commGbpLocked = meta.commissionGbpLocked ?? commGbpLocked;
+                priceGbpLocked = meta.priceGbpLocked ?? priceGbpLocked;
                 cleanNotes = newRecord.notes.substring(endIdx + 1).replace(/^\n+/, "");
               } catch {}
             }
@@ -1008,6 +1020,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
               archiveDocumentUrl: finalArchUrl,
               priceCurrency: priceCurr || (normalizedRecord.currency === "TRY" ? "GBP" : normalizedRecord.currency) || "GBP",
               commissionCurrency: commCurr || normalizedRecord.currency || "TRY",
+              exchangeRate: exchangeRate ? Number(exchangeRate) : existing?.exchangeRate,
+              commissionGbpLocked: commGbpLocked !== undefined && commGbpLocked !== null ? Number(commGbpLocked) : existing?.commissionGbpLocked,
+              priceGbpLocked: priceGbpLocked !== undefined && priceGbpLocked !== null ? Number(priceGbpLocked) : existing?.priceGbpLocked,
               notes: cleanNotes,
             };
 
@@ -3022,6 +3037,31 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
     setDeals((prev) =>
       prev.map((d) => {
         if (d.id !== id) return d;
+        const currentRate = d.exchangeRate || getCurrentExchangeRates().rates.GBP || 67.11;
+        const priceCurr = d.priceCurrency || d.currency || "GBP";
+        const commCurr = d.commissionCurrency || d.currency || "GBP";
+        const commExpected =
+          d.commissionExpected !== undefined && d.commissionExpected !== null
+            ? d.commissionExpected
+            : d.agreedPrice
+            ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05)
+            : 0;
+        const priceAmount = d.agreedPrice || d.offeredPrice || d.askingPrice || 0;
+
+        let lockedPriceGbp = d.priceGbpLocked;
+        if (lockedPriceGbp === undefined || lockedPriceGbp === null) {
+          if (priceCurr === "GBP") lockedPriceGbp = priceAmount;
+          else if (priceCurr === "TRY") lockedPriceGbp = Math.round(priceAmount / currentRate);
+          else lockedPriceGbp = convertToGbp(priceAmount, priceCurr);
+        }
+
+        let lockedCommGbp = d.commissionGbpLocked;
+        if (lockedCommGbp === undefined || lockedCommGbp === null) {
+          if (commCurr === "GBP") lockedCommGbp = commExpected;
+          else if (commCurr === "TRY") lockedCommGbp = Math.round(commExpected / currentRate);
+          else lockedCommGbp = convertToGbp(commExpected, commCurr);
+        }
+
         const updated: Deal = {
           ...d,
           stage: newStage,
@@ -3030,6 +3070,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
             newStage === "won" || newStage === "lost"
               ? new Date().toISOString().split("T")[0]
               : d.closingDate,
+          exchangeRate: newStage === "won" ? (d.exchangeRate || currentRate) : d.exchangeRate,
+          priceGbpLocked: newStage === "won" ? (d.priceGbpLocked ?? lockedPriceGbp) : d.priceGbpLocked,
+          commissionGbpLocked: newStage === "won" ? (d.commissionGbpLocked ?? lockedCommGbp) : d.commissionGbpLocked,
         };
         targetDeal = updated;
         saveDeal(updated).catch(() => {});
@@ -3127,6 +3170,31 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       offAmount = 0;
     }
 
+    const currentRate = dealData.exchangeRate || getCurrentExchangeRates().rates.GBP || 67.11;
+    const priceCurr = dealData.priceCurrency || dealData.currency || "GBP";
+    const commCurr = dealData.commissionCurrency || dealData.currency || "GBP";
+    const commExpected =
+      dealData.commissionExpected !== undefined && dealData.commissionExpected !== null
+        ? dealData.commissionExpected
+        : dealData.agreedPrice
+        ? dealData.agreedPrice * (dealData.dealType === "rent" ? 1.0 : 0.05)
+        : 0;
+    const priceAmount = dealData.agreedPrice || dealData.offeredPrice || dealData.askingPrice || 0;
+
+    let lockedPriceGbp = dealData.priceGbpLocked;
+    if (lockedPriceGbp === undefined || lockedPriceGbp === null) {
+      if (priceCurr === "GBP") lockedPriceGbp = priceAmount;
+      else if (priceCurr === "TRY") lockedPriceGbp = Math.round(priceAmount / currentRate);
+      else lockedPriceGbp = convertToGbp(priceAmount, priceCurr);
+    }
+
+    let lockedCommGbp = dealData.commissionGbpLocked;
+    if (lockedCommGbp === undefined || lockedCommGbp === null) {
+      if (commCurr === "GBP") lockedCommGbp = commExpected;
+      else if (commCurr === "TRY") lockedCommGbp = Math.round(commExpected / currentRate);
+      else lockedCommGbp = convertToGbp(commExpected, commCurr);
+    }
+
     const dealDateIso = dealData.closingDate
       ? `${dealData.closingDate}T12:00:00.000Z`
       : new Date().toISOString();
@@ -3142,6 +3210,9 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
       officeShareAmount: offAmount,
       partnerShareRate: partRate,
       partnerShareAmount: partAmount,
+      exchangeRate: currentRate,
+      priceGbpLocked: lockedPriceGbp,
+      commissionGbpLocked: lockedCommGbp,
     };
     removeDeletedId(DELETED_DEALS_KEY, newDeal.id);
     setDeals((prev) => {

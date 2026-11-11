@@ -371,11 +371,11 @@ export function convertToGbp(amount: number, currency: string = "GBP"): number {
   } catch {}
   switch (curr) {
     case "EUR":
-      return Math.round(amount * 0.85);
+      return Math.round(amount * (56.13 / 67.11)); // ~0.836
     case "USD":
-      return Math.round(amount * 0.77);
+      return Math.round(amount * (50.24 / 67.11)); // ~0.748
     case "TRY":
-      return Math.round(amount / 65);
+      return Math.round(amount / 67.11); // KKTCMB Güncel Referans Kuru: 1 GBP ≈ 67 TL
     default:
       return amount;
   }
@@ -383,19 +383,19 @@ export function convertToGbp(amount: number, currency: string = "GBP"): number {
 
 /**
  * İşlem (Deal) için geçerli kurları ve canlı kurlara göre GBP karşılıklarını
- * akıllı koruma (Safeguard) mekanizmasıyla çözer.
+ * akıllı koruma ve işlem anında kilitlenen kur mekanizmasıyla çözer.
  */
 export function resolveDealCurrencies(d: Deal): {
   priceCurr: Currency;
   commCurr: Currency;
   commGbp: number;
   priceGbp: number;
+  rateUsed: number;
 } {
   let priceCurr: Currency = (d.priceCurrency || d.currency || "GBP") as Currency;
   let commCurr: Currency = (d.commissionCurrency || d.currency || "GBP") as Currency;
 
   // Safeguard 1: Kiralık işlemde 5.000'den büyük komisyon varsa ve GBP işaretlenmişse bu TL'dir
-  // (KKTC piyasasında 5.000+ GBP kira hizmet bedeli olamaz, kağıt formdan TL olarak girilmiştir)
   if (d.dealType === "rent" && (d.commissionExpected || 0) > 5000 && commCurr === "GBP") {
     commCurr = "TRY";
   }
@@ -405,26 +405,58 @@ export function resolveDealCurrencies(d: Deal): {
     priceCurr = "TRY";
   }
 
-  const priceGbp = convertToGbp(d.agreedPrice || d.offeredPrice || d.askingPrice || 0, priceCurr);
+  // İşlem girildiği andaki kilitli kur (varsa o, yoksa güncel referans 67.11)
+  let dealRate = d.exchangeRate;
+  if (!dealRate && d.notes && d.notes.includes('"exchangeRate"')) {
+    try {
+      const match = d.notes.match(/"exchangeRate":\s*([0-9.]+)/);
+      if (match) dealRate = parseFloat(match[1]);
+    } catch {}
+  }
+  const rateUsed = dealRate || 67.11;
+
+  let priceGbp = d.priceGbpLocked;
+  if (priceGbp === undefined || priceGbp === null) {
+    if (priceCurr === "GBP") {
+      priceGbp = d.agreedPrice || d.offeredPrice || d.askingPrice || 0;
+    } else if (priceCurr === "TRY") {
+      priceGbp = Math.round((d.agreedPrice || d.offeredPrice || d.askingPrice || 0) / rateUsed);
+    } else {
+      priceGbp = convertToGbp(d.agreedPrice || d.offeredPrice || d.askingPrice || 0, priceCurr);
+    }
+  }
+
   const commExpected =
     d.commissionExpected !== undefined && d.commissionExpected !== null
       ? d.commissionExpected
       : d.agreedPrice
       ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05)
       : 0;
-  const commGbp = convertToGbp(commExpected, commCurr);
 
-  return { priceCurr, commCurr, commGbp, priceGbp };
+  let commGbp = d.commissionGbpLocked;
+  if (commGbp === undefined || commGbp === null) {
+    if (commCurr === "GBP") {
+      commGbp = commExpected;
+    } else if (commCurr === "TRY") {
+      commGbp = Math.round(commExpected / rateUsed);
+    } else {
+      commGbp = convertToGbp(commExpected, commCurr);
+    }
+  }
+
+  return { priceCurr, commCurr, commGbp, priceGbp, rateUsed };
 }
 
 /**
  * Tabloda farklı para birimlerindeki tutarları (TL, USD, EUR) orijinal para birimiyle
- * ve parantez içinde kur çevrimiyle gösterir (Örn: "28.667 TL (÷65=441 GBP)").
+ * ve parantez içinde kur çevrimiyle gösterir (Örn: "28.667 TL (÷67=427 GBP)").
  * Para birimi zaten GBP ise sadece "28.667 GBP" döndürür.
  */
 export function formatWithGbpConversion(
   amount: number,
-  currency: string = "GBP"
+  currency: string = "GBP",
+  customRate?: number,
+  lockedGbp?: number
 ): {
   primary: string;
   conversionNote: string | null;
@@ -443,14 +475,22 @@ export function formatWithGbpConversion(
     };
   }
 
-  const gbpAmount = convertToGbp(amount, curr);
+  const rate = customRate || 67.11;
+  const rateRounded = Math.round(rate);
+  const gbpAmount =
+    lockedGbp !== undefined && lockedGbp !== null
+      ? lockedGbp
+      : curr === "TRY"
+      ? Math.round(amount / rate)
+      : convertToGbp(amount, curr);
+
   let formula = "";
   if (curr === "TRY") {
-    formula = `÷65=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+    formula = `÷${rateRounded}=${gbpAmount.toLocaleString("tr-TR")} GBP`;
   } else if (curr === "USD") {
-    formula = `÷1.30=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+    formula = `÷1.33=${gbpAmount.toLocaleString("tr-TR")} GBP`;
   } else if (curr === "EUR") {
-    formula = `÷1.18=${gbpAmount.toLocaleString("tr-TR")} GBP`;
+    formula = `÷1.20=${gbpAmount.toLocaleString("tr-TR")} GBP`;
   } else {
     formula = `=${gbpAmount.toLocaleString("tr-TR")} GBP`;
   }

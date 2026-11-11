@@ -483,7 +483,10 @@ export function FinanceView() {
   }, 0);
 
   const totalAdvisorGbp = filteredDeals.reduce((sum, d) => {
-    const { commGbp, commCurr } = resolveDealCurrencies(d);
+    const { commGbp, commCurr, rateUsed } = resolveDealCurrencies(d);
+    const toGbp = (amt: number) =>
+      commCurr === "GBP" ? amt : commCurr === "TRY" ? Math.round(amt / rateUsed) : convertToGbp(amt, commCurr);
+
     const isVolkan = isVolkanDeal(d);
     if (isVolkan) {
       const partRate = d.sharingType === "external" ? 0.5 : d.sharingType === "internal" ? 0.25 : 0;
@@ -497,12 +500,12 @@ export function FinanceView() {
         return (
           sum +
           (d.partnerShareAmount !== undefined
-            ? convertToGbp(d.partnerShareAmount, commCurr)
+            ? toGbp(d.partnerShareAmount)
             : Math.round(commGbp * 0.25))
         );
       }
       if (d.advisorShareAmount !== undefined) {
-        return sum + convertToGbp(d.advisorShareAmount, commCurr);
+        return sum + toGbp(d.advisorShareAmount);
       }
       const rate = d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
       return sum + Math.round(commGbp * rate);
@@ -510,12 +513,12 @@ export function FinanceView() {
       // Broker tüm danışmanlara ödenecek toplam danışman hakedişini görür (Danışman 1 + Danışman 2)
       const advShare =
         d.advisorShareAmount !== undefined
-          ? convertToGbp(d.advisorShareAmount, commCurr)
+          ? toGbp(d.advisorShareAmount)
           : Math.round(commGbp * (d.portfolioOrigin === "advisor" ? 0.6 : 0.5));
       const internalPartShare =
         d.sharingType === "internal"
           ? (d.partnerShareAmount !== undefined
-              ? convertToGbp(d.partnerShareAmount, commCurr)
+              ? toGbp(d.partnerShareAmount)
               : Math.round(commGbp * 0.25))
           : 0;
       return sum + advShare + internalPartShare;
@@ -524,9 +527,12 @@ export function FinanceView() {
 
   const totalOfficeGbp = filteredDeals.reduce((sum, d) => {
     if (isVolkanDeal(d)) return sum + 0;
-    const { commGbp, commCurr } = resolveDealCurrencies(d);
+    const { commGbp, commCurr, rateUsed } = resolveDealCurrencies(d);
+    const toGbp = (amt: number) =>
+      commCurr === "GBP" ? amt : commCurr === "TRY" ? Math.round(amt / rateUsed) : convertToGbp(amt, commCurr);
+
     if (d.officeShareAmount !== undefined) {
-      return sum + convertToGbp(d.officeShareAmount, commCurr);
+      return sum + toGbp(d.officeShareAmount);
     }
     const rate = d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
     return sum + Math.round(commGbp * rate);
@@ -535,11 +541,14 @@ export function FinanceView() {
   const totalPartnerGbp = filteredDeals.reduce((sum, d) => {
     // Dış şirket ortaklığı payı
     if (d.sharingType === "external") {
-      const { commGbp, commCurr } = resolveDealCurrencies(d);
+      const { commGbp, commCurr, rateUsed } = resolveDealCurrencies(d);
+      const toGbp = (amt: number) =>
+        commCurr === "GBP" ? amt : commCurr === "TRY" ? Math.round(amt / rateUsed) : convertToGbp(amt, commCurr);
+
       return (
         sum +
         (d.partnerShareAmount !== undefined
-          ? convertToGbp(d.partnerShareAmount, commCurr)
+          ? toGbp(d.partnerShareAmount)
           : Math.round(commGbp * 0.5))
       );
     }
@@ -1658,8 +1667,8 @@ export function FinanceView() {
                       {/* 5. Anlaşılan Bedel */}
                       <td className="py-3 px-4 font-mono font-bold text-[#1d2566]">
                         {(() => {
-                          const { priceCurr } = resolveDealCurrencies(d);
-                          const formatted = formatWithGbpConversion(d.agreedPrice || 0, priceCurr);
+                          const { priceCurr, priceGbp, rateUsed } = resolveDealCurrencies(d);
+                          const formatted = formatWithGbpConversion(d.agreedPrice || 0, priceCurr, rateUsed, priceGbp);
                           return (
                             <div>
                               <span>{formatted.primary}</span>
@@ -1676,14 +1685,14 @@ export function FinanceView() {
                       {/* 6. Toplam Komisyon */}
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         {(() => {
-                          const { commCurr } = resolveDealCurrencies(d);
+                          const { commCurr, commGbp, rateUsed } = resolveDealCurrencies(d);
                           const commExpected =
                             d.commissionExpected !== undefined && d.commissionExpected !== null
                               ? d.commissionExpected
                               : d.agreedPrice
                               ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05)
                               : 0;
-                          const formatted = formatWithGbpConversion(commExpected, commCurr);
+                          const formatted = formatWithGbpConversion(commExpected, commCurr, rateUsed, commGbp);
                           return (
                             <div>
                               <span className="text-[#1d2566]">{formatted.primary}</span>
@@ -1700,10 +1709,14 @@ export function FinanceView() {
                       {/* 7. Hakediş Dağılımı */}
                       <td className="py-3 px-4 font-mono text-[11px] space-y-0.5">
                         {(() => {
-                          const { commCurr } = resolveDealCurrencies(d);
-                          const advFormatted = formatWithGbpConversion(advShare, commCurr);
-                          const offFormatted = formatWithGbpConversion(offShare, commCurr);
-                          const partFormatted = formatWithGbpConversion(partShare, commCurr);
+                          const { commCurr, rateUsed } = resolveDealCurrencies(d);
+                          const advShareGbp = commCurr === "GBP" ? advShare : Math.round(advShare / rateUsed);
+                          const offShareGbp = commCurr === "GBP" ? offShare : Math.round(offShare / rateUsed);
+                          const partShareGbp = commCurr === "GBP" ? partShare : Math.round(partShare / rateUsed);
+
+                          const advFormatted = formatWithGbpConversion(advShare, commCurr, rateUsed, advShareGbp);
+                          const offFormatted = formatWithGbpConversion(offShare, commCurr, rateUsed, offShareGbp);
+                          const partFormatted = formatWithGbpConversion(partShare, commCurr, rateUsed, partShareGbp);
 
                           return (
                             <>

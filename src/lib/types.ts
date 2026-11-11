@@ -264,6 +264,9 @@ export interface Deal {
   closingDate?: string;
   closingNotes?: string;
   reportDate?: string; // İşlem Sonrası Ofis Rapor Tarihi
+  exchangeRate?: number; // İşlemin sisteme girildiği / onaylandığı andaki kilitli kur (1 GBP = ? TL)
+  commissionGbpLocked?: number; // İşlem anında kilitlenen GBP komisyon karşılığı
+  priceGbpLocked?: number; // İşlem anında kilitlenen GBP bedel karşılığı
   isHistorical?: boolean; // Geçmiş fiziki arşiv işlemi (Aktif havuzu kirletmeyen)
   archiveDocumentUrl?: string; // Taranmış fiziki kağıt form görseli (Base64 / URL)
   archiveDocumentName?: string;

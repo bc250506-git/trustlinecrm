@@ -7,12 +7,12 @@ export interface ExchangeRates {
   GBP: number;
 }
 
-// 1 Birim Döviz = Kaç TL (Varsayılan Piyasa / KKTC MB Referans Kurları)
+// 1 Birim Döviz = Kaç TL (KKTCMB & Piyasa Güncel Referans Kurları: 1 GBP ≈ 67 TL)
 export const DEFAULT_RATES: ExchangeRates = {
   TRY: 1,
-  USD: 49.36,
-  EUR: 55.10,
-  GBP: 65.23,
+  USD: 50.24,
+  EUR: 56.13,
+  GBP: 67.11,
 };
 
 let currentRates: ExchangeRates = { ...DEFAULT_RATES };

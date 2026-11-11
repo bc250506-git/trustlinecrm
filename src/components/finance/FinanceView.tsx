@@ -1057,67 +1057,6 @@ export function FinanceView() {
             )}
           </div>
 
-          {/* Komisyon Paylaşım Kuralı Bilgi Çubuğu */}
-          <div className="sharp-card p-3.5 bg-slate-50 border border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
-            <div className="flex items-start gap-2.5">
-              <Percent className="w-4 h-4 text-[#00adb5] shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-[#1d2566] block">1. Tek Danışman</strong>
-                <span className="text-slate-600 text-[11px]">
-                  {isBroker ? (
-                    <>
-                      Kendi Portföyü: %60 GD / %40 Ofis<br />
-                      Ofis Portföyü: %50 GD / %50 Ofis
-                    </>
-                  ) : (
-                    <>
-                      Kendi Portföyünüz: %60 Danışman Primi<br />
-                      Ofis Portföyü: %50 Danışman Primi
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5 md:border-l md:border-slate-200 md:pl-3">
-              <Handshake className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-[#1d2566] block">2. Dış Paylaşım (%50 Dış Ortak)</strong>
-                <span className="text-slate-600 text-[11px]">
-                  {isBroker ? (
-                    <>
-                      Kendi Portföyü: %30 GD / %20 Ofis<br />
-                      Ofis Portföyü: %25 GD / %25 Ofis
-                    </>
-                  ) : (
-                    <>
-                      Kendi Portföyünüz: %30 Danışman Primi<br />
-                      Ofis Portföyü: %25 Danışman Primi
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
-            <div className="flex items-start gap-2.5 md:border-l md:border-slate-200 md:pl-3">
-              <Users className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
-              <div>
-                <strong className="text-[#1d2566] block">3. Şirket İçi 2 Danışman</strong>
-                <span className="text-slate-600 text-[11px]">
-                  {isBroker ? (
-                    <>
-                      Kendi Portföyü: %30 GD1 / %45 Ofis<br />
-                      Ofis Portföyü: %25 GD1 / %50 Ofis
-                    </>
-                  ) : (
-                    <>
-                      Portföy Danışmanı (GD1): %30 veya %25 Prim<br />
-                      Müşteri Danışmanı (GD2): %25 Prim
-                    </>
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
-
           {/* Finansal İşlemler Tablosu */}
           <div className="sharp-card overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">

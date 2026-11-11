@@ -118,6 +118,8 @@ export function FinanceView() {
   const [editPaymentDue, setEditPaymentDue] = useState("");
   const [editAdvisorId, setEditAdvisorId] = useState<string>(currentUser.id);
   const [editBrokerApproval, setEditBrokerApproval] = useState(false);
+  const [editArchiveUrl, setEditArchiveUrl] = useState<string | undefined>(undefined);
+  const [editArchiveName, setEditArchiveName] = useState<string | undefined>(undefined);
 
   // İşlem Sonrası Ofis Raporu (Resmi PDF) Modalı State
   const [selectedDealForReport, setSelectedDealForReport] = useState<Deal | null>(null);
@@ -431,6 +433,8 @@ export function FinanceView() {
         : deal.createdById;
     setEditAdvisorId(dealAdvisorId);
     setEditBrokerApproval(!!deal.brokerApproval);
+    setEditArchiveUrl(deal.archiveDocumentUrl);
+    setEditArchiveName(deal.archiveDocumentName);
   };
 
   const editAgreedNum = Number(editAgreedPrice) || 0;
@@ -587,6 +591,8 @@ export function FinanceView() {
       closingDate: editPaymentDue,
       createdById: selectedAdvisor.id,
       createdByName: selectedAdvisor.name,
+      archiveDocumentUrl: editArchiveUrl,
+      archiveDocumentName: editArchiveName,
     });
 
     setEditingDeal(null);
@@ -1401,7 +1407,7 @@ export function FinanceView() {
                             </span>
                           )}
 
-                          {d.archiveDocumentUrl && (
+                          {d.archiveDocumentUrl ? (
                             <button
                               type="button"
                               onClick={() => setViewingArchiveUrl(d.archiveDocumentUrl!)}
@@ -1411,7 +1417,33 @@ export function FinanceView() {
                               <ImageIcon className="w-3 h-3 text-purple-600" />
                               <span>Form Fotoğrafı</span>
                             </button>
-                          )}
+                          ) : (d.isHistorical || d.archiveDocumentName) ? (
+                            <label
+                              className="px-1.5 py-0.5 bg-purple-50/70 hover:bg-purple-100 text-purple-800 border border-purple-300 transition cursor-pointer inline-flex items-center gap-1 text-[10px] font-mono mt-0.5 shadow-2xs"
+                              title={`Fiziki Kağıt Form Fotoğrafını Yükle / Bağla (${d.archiveDocumentName || "Arşiv Belgesi"})`}
+                            >
+                              <Camera className="w-3 h-3 text-purple-600" />
+                              <span>{d.archiveDocumentName ? "Fotoğrafı Bağla" : "+ Fotoğraf"}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    const b64 = reader.result as string;
+                                    updateDeal(d.id, {
+                                      archiveDocumentUrl: b64,
+                                      archiveDocumentName: file.name,
+                                    });
+                                  };
+                                  reader.readAsDataURL(file);
+                                }}
+                              />
+                            </label>
+                          ) : null}
                         </div>
                       </td>
 
@@ -1933,6 +1965,94 @@ export function FinanceView() {
                     {editCalculatedOfficeShare.toLocaleString("tr-TR")} {editCurrency}
                   </div>
                 </div>
+              </div>
+
+              {/* Fiziki Kağıt Rapor / Arşiv Belgesi Fotoğrafı */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-slate-700 font-mono text-[11px] font-semibold flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-purple-600" />
+                    Fiziki Kağıt Rapor / Evrak Fotoğrafı
+                  </label>
+                  {editArchiveUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setViewingArchiveUrl(editArchiveUrl)}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 underline font-mono cursor-pointer"
+                    >
+                      Büyük Boyut Görüntüle
+                    </button>
+                  )}
+                </div>
+                {editArchiveUrl ? (
+                  <div className="flex items-center gap-3 p-2 bg-purple-50/60 border border-purple-200">
+                    <img
+                      src={editArchiveUrl}
+                      alt="Form Evrakı"
+                      className="w-12 h-12 object-cover rounded border border-purple-300 shadow-2xs cursor-pointer"
+                      onClick={() => setViewingArchiveUrl(editArchiveUrl)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-mono font-bold text-purple-900 truncate">
+                        {editArchiveName || "Fiziki Form Taraması"}
+                      </p>
+                      <p className="text-[10px] text-purple-700 font-mono">
+                        Fiziki belge sisteme ekli.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <label className="px-2 py-1 bg-white border border-purple-300 hover:bg-purple-100 text-purple-800 text-[10px] font-mono cursor-pointer transition">
+                        Değiştir
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              setEditArchiveUrl(reader.result as string);
+                              setEditArchiveName(file.name);
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditArchiveUrl(undefined);
+                          setEditArchiveName(undefined);
+                        }}
+                        className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 transition"
+                        title="Fotoğrafı Kaldır"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-purple-300 bg-purple-50/30 hover:bg-purple-50 text-purple-800 text-xs font-mono cursor-pointer transition">
+                    <Camera className="w-4 h-4 text-purple-600" />
+                    <span>Fiziki kağıt form fotoğrafı yükle veya bağla</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setEditArchiveUrl(reader.result as string);
+                          setEditArchiveName(file.name);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               {/* Broker Onayı Checkbox */}

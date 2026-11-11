@@ -965,11 +965,59 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
             return;
           }
           const normalizedRecord = normalizeVolkanDeal(newRecord);
+
+          // notes içindeki [HISTORICAL:...] metadata etiketini çözümle
+          let isHist = Boolean(newRecord.isHistorical || newRecord.is_historical);
+          let repDate = newRecord.reportDate || newRecord.report_date;
+          let archName = newRecord.archiveDocumentName || newRecord.archive_document_name;
+          let archUrl = newRecord.archiveDocumentUrl || newRecord.archive_document_url;
+          let priceCurr = newRecord.priceCurrency || newRecord.price_currency;
+          let commCurr = newRecord.commissionCurrency || newRecord.commission_currency;
+          let cleanNotes = newRecord.notes;
+
+          if (newRecord.notes && typeof newRecord.notes === "string" && newRecord.notes.startsWith("[HISTORICAL:")) {
+            const endIdx = newRecord.notes.indexOf("]");
+            if (endIdx !== -1) {
+              try {
+                const metaStr = newRecord.notes.substring(12, endIdx);
+                const meta = JSON.parse(metaStr);
+                isHist = meta.isHistorical ?? true;
+                repDate = meta.reportDate || repDate;
+                archName = meta.archiveDocumentName || archName;
+                archUrl = meta.archiveDocumentUrl || archUrl;
+                priceCurr = meta.priceCurrency || priceCurr;
+                commCurr = meta.commissionCurrency || commCurr;
+                cleanNotes = newRecord.notes.substring(endIdx + 1).replace(/^\n+/, "");
+              } catch {}
+            }
+          }
+
           setDeals((prev) => {
-            const exists = prev.some((d) => d.id === normalizedRecord.id);
-            return exists
-              ? prev.map((d) => (d.id === normalizedRecord.id ? { ...d, ...normalizedRecord } : d))
-              : [normalizedRecord, ...prev];
+            const existing = prev.find((d) => d.id === normalizedRecord.id);
+            // DİKKAT: Yerel Base64 görselini ASLA buluttan gelen null ile ezme!
+            const finalArchUrl = existing?.archiveDocumentUrl || archUrl;
+            const finalArchName = existing?.archiveDocumentName || archName;
+
+            const updatedRecord: Deal = {
+              ...existing,
+              ...normalizedRecord,
+              isHistorical: isHist,
+              reportDate: repDate,
+              archiveDocumentName: finalArchName,
+              archiveDocumentUrl: finalArchUrl,
+              priceCurrency: priceCurr || (normalizedRecord.currency === "TRY" ? "GBP" : normalizedRecord.currency) || "GBP",
+              commissionCurrency: commCurr || normalizedRecord.currency || "TRY",
+              notes: cleanNotes,
+            };
+
+            const updatedList = existing
+              ? prev.map((d) => (d.id === normalizedRecord.id ? updatedRecord : d))
+              : [updatedRecord, ...prev];
+
+            if (typeof window !== "undefined") {
+              idbSet("trustline_crm_deals_v2", updatedList);
+            }
+            return updatedList;
           });
         } else if (table === "rentals" && newRecord) {
           const deletedRentalIds = getDeletedIds(DELETED_RENTALS_KEY);

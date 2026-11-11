@@ -240,6 +240,9 @@ const SUPABASE_DEAL_COLUMNS = new Set([
   "brokerApproval", "brokerApprovedAt", "brokerApprovedBy", "paymentDue",
   "closingDate", "closingNotes", "notes", "dealDate", "createdById",
   "createdByName", "createdAt",
+  "priceCurrency", "commissionCurrency", "isHistorical", "reportDate",
+  "archiveDocumentUrl", "archiveDocumentName",
+  "archive_document_url", "archive_document_name", "is_historical", "report_date"
 ]);
 
 export async function getDeals(): Promise<Deal[]> {
@@ -253,6 +256,7 @@ export async function getDeals(): Promise<Deal[]> {
       let isHist = Boolean(d.isHistorical || d.is_historical);
       let repDate = d.reportDate || d.report_date;
       let archName = d.archiveDocumentName || d.archive_document_name;
+      let archUrl = d.archiveDocumentUrl || d.archive_document_url;
       let priceCurr = d.priceCurrency || d.price_currency;
       let commCurr = d.commissionCurrency || d.commission_currency;
       let cleanNotes = d.notes;
@@ -267,6 +271,7 @@ export async function getDeals(): Promise<Deal[]> {
             isHist = meta.isHistorical ?? true;
             repDate = meta.reportDate || repDate;
             archName = meta.archiveDocumentName || archName;
+            archUrl = meta.archiveDocumentUrl || archUrl;
             priceCurr = meta.priceCurrency || priceCurr;
             commCurr = meta.commissionCurrency || commCurr;
             cleanNotes = d.notes.substring(endIdx + 1).replace(/^\n+/, "");
@@ -279,6 +284,7 @@ export async function getDeals(): Promise<Deal[]> {
         isHistorical: isHist,
         reportDate: repDate,
         archiveDocumentName: archName,
+        archiveDocumentUrl: archUrl,
         priceCurrency: priceCurr || (d.currency === "TRY" ? "GBP" : d.currency) || "GBP",
         commissionCurrency: commCurr || d.currency || "TRY",
         notes: cleanNotes,
@@ -312,6 +318,7 @@ export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
         isHistorical: true,
         reportDate: deal.reportDate,
         archiveDocumentName: deal.archiveDocumentName,
+        archiveDocumentUrl: deal.archiveDocumentUrl,
         priceCurrency: deal.priceCurrency,
         commissionCurrency: deal.commissionCurrency,
       };
@@ -329,6 +336,17 @@ export async function saveDeal(deal: Partial<Deal>): Promise<boolean> {
 
     const { error } = await supabase.from("deals").upsert(cleanPayload);
     if (error) {
+      // Eğer archiveDocumentUrl kolonu henüz veritabanında yoksa veya payload boyutu büyük geldiyse, onu hariç tutarak tekrar dene
+      if (cleanPayload.archiveDocumentUrl || cleanPayload.archive_document_url) {
+        delete cleanPayload.archiveDocumentUrl;
+        delete cleanPayload.archive_document_url;
+        const retryRes = await supabase.from("deals").upsert(cleanPayload);
+        if (retryRes.error) {
+          console.warn("Supabase deals fallback upsert error:", retryRes.error.message);
+          return false;
+        }
+        return true;
+      }
       console.warn("Supabase deals upsert error:", error.message);
       return false;
     }

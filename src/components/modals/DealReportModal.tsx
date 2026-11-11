@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Deal } from "@/lib/types";
 import {
   X,
@@ -54,8 +54,100 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
     return "";
   })();
 
+  // Notlar alanından [HISTORICAL:...] metadata etiketini temizle
+  const cleanNotes = useMemo(() => {
+    let raw = deal.notes || "";
+    if (raw.startsWith("[HISTORICAL:")) {
+      const endIdx = raw.indexOf("]");
+      if (endIdx !== -1) {
+        raw = raw.substring(endIdx + 1).replace(/^\n+/, "");
+      }
+    }
+    return raw.trim();
+  }, [deal.notes]);
+
   const handlePrint = () => {
-    window.print();
+    const reportElement = document.getElementById("printable-deal-report");
+    if (!reportElement) {
+      window.print();
+      return;
+    }
+
+    // Temiz, izole bir yazdırma iframe'i oluştur (Sadece raporu 1 sayfa olarak yazdırır)
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.zIndex = "-9999";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Mevcut sayfadaki tüm stil ve font etiketlerini kopyala
+    const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+      .map((el) => el.outerHTML)
+      .join("\n");
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html lang="tr">
+        <head>
+          <meta charset="utf-8" />
+          <title>İşlem Sonrası Ofis Raporu - ${deal.dealNumber || deal.id}</title>
+          ${styles}
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 4mm 6mm;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              height: auto !important;
+              overflow: visible !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            #printable-deal-report {
+              width: 100% !important;
+              max-width: 100% !important;
+              margin: 0 !important;
+              padding: 3mm 4mm !important;
+              border: none !important;
+              box-shadow: none !important;
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              font-size: 10px !important;
+            }
+          </style>
+        </head>
+        <body>
+          ${reportElement.outerHTML}
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 2000);
+    }, 350);
   };
 
   const handleDownloadPDF = async () => {
@@ -221,11 +313,11 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
         </div>
 
         {/* Belge Görüntüleme Alanı */}
-        <div className="overflow-y-auto p-4 sm:p-6 bg-slate-100/70 flex justify-center">
+        <div className="overflow-y-auto p-4 sm:p-6 pb-20 bg-slate-200/70 flex flex-col items-center">
           {/* FİZİKSEL FORM ŞABLONU (A4 Orantılı Antetli Belge) */}
           <div
             id="printable-deal-report"
-            className="bg-white text-slate-900 w-full max-w-[210mm] p-5 sm:p-6 border border-slate-300 shadow-md font-sans text-[10.5px] leading-tight"
+            className="bg-white text-slate-900 w-full max-w-[210mm] p-6 sm:p-8 border border-slate-300 shadow-2xl font-sans text-[10.5px] leading-tight mb-16"
           >
             {/* 1. ÜST ANTET VE LOGO */}
             <div className="border-b-2 border-slate-900 pb-2 mb-2">
@@ -485,10 +577,10 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                 </span>
               </div>
 
-              {deal.notes && (
-                <div className="text-[10px] text-slate-600 italic mt-0.5">
-                  <span className="font-bold text-slate-700 not-italic">NOTLAR: </span>
-                  {deal.notes}
+              {cleanNotes && (
+                <div className="text-[10px] text-slate-800 bg-slate-50/80 p-1.5 border border-slate-300 mt-1.5 leading-relaxed">
+                  <span className="font-bold text-slate-900">NOTLAR: </span>
+                  {cleanNotes}
                 </div>
               )}
             </div>
@@ -601,36 +693,36 @@ export function DealReportModal({ deal, onClose }: DealReportModalProps) {
                   </tr>
                 </tbody>
               </table>
+            </div>
 
-              {/* İMZALAR VE ONAYLAR */}
-              <div className="grid grid-cols-2 gap-4 border border-slate-400 p-3 bg-slate-50/50 mt-2">
-                <div className="border-r border-slate-300 pr-3 flex flex-col justify-between min-h-[55px]">
-                  <div>
-                    <div className="font-bold text-[10px] text-slate-600 uppercase mb-0.5">
-                      GD ADI SOYADI / İMZA:
-                    </div>
-                    <div className="font-bold text-xs text-slate-900">
-                      {deal.createdByName || "Danışman"}
-                    </div>
+            {/* İMZALAR VE ONAYLAR (Ayrı Alt Bölüm) */}
+            <div className="grid grid-cols-2 gap-4 border-2 border-slate-900 p-3 bg-slate-50/70 mt-3">
+              <div className="border-r border-slate-300 pr-3 flex flex-col justify-between min-h-[55px]">
+                <div>
+                  <div className="font-bold text-[10px] text-slate-600 uppercase mb-0.5">
+                    GD ADI SOYADI / İMZA:
                   </div>
-                  <div className="mt-3 pt-1 border-t border-slate-400 text-[10px] text-slate-500 font-medium">
-                    İmza:
+                  <div className="font-bold text-xs text-slate-900">
+                    {deal.createdByName || "Danışman"}
                   </div>
                 </div>
+                <div className="mt-3 pt-1 border-t border-slate-400 text-[10px] text-slate-500 font-medium">
+                  İmza:
+                </div>
+              </div>
 
-                <div className="pl-2 flex flex-col justify-between min-h-[55px]">
-                  <div>
-                    <div className="font-bold text-[10px] text-slate-600 uppercase mb-0.5">
-                      BROKER ONAYI / TARİH / İMZA:
-                    </div>
-                    <div className="font-bold text-xs text-slate-900">
-                      {deal.brokerApprovedBy || "Volkan Affan Kanıgür"}
-                    </div>
+              <div className="pl-2 flex flex-col justify-between min-h-[55px]">
+                <div>
+                  <div className="font-bold text-[10px] text-slate-600 uppercase mb-0.5">
+                    BROKER ONAYI / TARİH / İMZA:
                   </div>
-                  <div className="mt-3 pt-1 border-t border-slate-400 text-[10px] text-slate-500 font-medium flex items-center justify-between">
-                    <span>Tarih: {reportDate}</span>
-                    <span>İmza:</span>
+                  <div className="font-bold text-xs text-slate-900">
+                    {deal.brokerApprovedBy || "Volkan Affan Kanıgür (Ofis Yönetimi Arşiv)"}
                   </div>
+                </div>
+                <div className="mt-3 pt-1 border-t border-slate-400 text-[10px] text-slate-500 font-medium flex items-center justify-between">
+                  <span>Tarih: {reportDate}</span>
+                  <span>İmza:</span>
                 </div>
               </div>
             </div>

@@ -12,7 +12,7 @@ import { DealReportModal } from "@/components/modals/DealReportModal";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
-import { formatDateTR, convertToGbp } from "@/lib/formatters";
+import { formatDateTR, convertToGbp, resolveDealCurrencies } from "@/lib/formatters";
 import { updateLiveExchangeRates } from "@/lib/currency";
 import { KKTC_DISTRICTS, getRegionsByDistrict } from "@/lib/kktcLocations";
 import {
@@ -441,18 +441,15 @@ export function FinanceView() {
 
   // Filtrelenmiş Finans Özeti (Tüm Para Birimleri Canlı Kurlarla GBP'ye Çevrilerek Hesaplanır)
   const totalAgreedGbp = filteredDeals.reduce((sum, d) => {
-    const priceCurr = (d.priceCurrency || (d.currency === "TRY" ? "GBP" : d.currency) || "GBP") as Currency;
-    return sum + convertToGbp(d.agreedPrice || 0, priceCurr);
+    return sum + resolveDealCurrencies(d).priceGbp;
   }, 0);
 
   const totalCommissionGbp = filteredDeals.reduce((sum, d) => {
-    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
-    return sum + convertToGbp(d.commissionExpected || 0, commCurr);
+    return sum + resolveDealCurrencies(d).commGbp;
   }, 0);
 
   const totalAdvisorGbp = filteredDeals.reduce((sum, d) => {
-    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
-    const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
+    const { commGbp, commCurr } = resolveDealCurrencies(d);
     const isVolkan = isVolkanDeal(d);
     if (isVolkan) {
       const partRate = d.sharingType === "external" ? 0.5 : d.sharingType === "internal" ? 0.25 : 0;
@@ -493,8 +490,7 @@ export function FinanceView() {
 
   const totalOfficeGbp = filteredDeals.reduce((sum, d) => {
     if (isVolkanDeal(d)) return sum + 0;
-    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
-    const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
+    const { commGbp, commCurr } = resolveDealCurrencies(d);
     if (d.officeShareAmount !== undefined) {
       return sum + convertToGbp(d.officeShareAmount, commCurr);
     }
@@ -505,8 +501,7 @@ export function FinanceView() {
   const totalPartnerGbp = filteredDeals.reduce((sum, d) => {
     // Dış şirket ortaklığı payı
     if (d.sharingType === "external") {
-      const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
-      const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
+      const { commGbp, commCurr } = resolveDealCurrencies(d);
       return (
         sum +
         (d.partnerShareAmount !== undefined

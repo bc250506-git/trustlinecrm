@@ -809,14 +809,14 @@ function sanitizeLoadedProperties(list: Property[]): Property[] {
                 mergedMap.set(cd.id, cd);
               } else {
                 mergedMap.set(cd.id, {
-                  ...cd,
                   ...ld,
-                  isHistorical: ld.isHistorical ?? cd.isHistorical,
-                  reportDate: ld.reportDate || cd.reportDate,
-                  archiveDocumentUrl: ld.archiveDocumentUrl || cd.archiveDocumentUrl,
-                  archiveDocumentName: ld.archiveDocumentName || cd.archiveDocumentName,
-                  priceCurrency: ld.priceCurrency || cd.priceCurrency,
-                  commissionCurrency: ld.commissionCurrency || cd.commissionCurrency,
+                  ...cd,
+                  isHistorical: cd.isHistorical ?? ld.isHistorical,
+                  reportDate: cd.reportDate || ld.reportDate,
+                  archiveDocumentUrl: cd.archiveDocumentUrl || ld.archiveDocumentUrl,
+                  archiveDocumentName: cd.archiveDocumentName || ld.archiveDocumentName,
+                  priceCurrency: cd.priceCurrency || ld.priceCurrency || "GBP",
+                  commissionCurrency: cd.commissionCurrency || ld.commissionCurrency || "GBP",
                 });
               }
             }

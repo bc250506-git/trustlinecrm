@@ -1,4 +1,4 @@
-import { CustomerCategory, PropertyStatus, Currency } from "./types";
+import { CustomerCategory, PropertyStatus, Currency, Deal } from "./types";
 import { convertCurrency } from "./currency";
 
 /**
@@ -380,4 +380,41 @@ export function convertToGbp(amount: number, currency: string = "GBP"): number {
       return amount;
   }
 }
+
+/**
+ * İşlem (Deal) için geçerli kurları ve canlı kurlara göre GBP karşılıklarını
+ * akıllı koruma (Safeguard) mekanizmasıyla çözer.
+ */
+export function resolveDealCurrencies(d: Deal): {
+  priceCurr: Currency;
+  commCurr: Currency;
+  commGbp: number;
+  priceGbp: number;
+} {
+  let priceCurr: Currency = (d.priceCurrency || d.currency || "GBP") as Currency;
+  let commCurr: Currency = (d.commissionCurrency || d.currency || "GBP") as Currency;
+
+  // Safeguard 1: Kiralık işlemde 5.000'den büyük komisyon varsa ve GBP işaretlenmişse bu TL'dir
+  // (KKTC piyasasında 5.000+ GBP kira hizmet bedeli olamaz, kağıt formdan TL olarak girilmiştir)
+  if (d.dealType === "rent" && (d.commissionExpected || 0) > 5000 && commCurr === "GBP") {
+    commCurr = "TRY";
+  }
+
+  // Safeguard 2: Kiralık işlemde 10.000'den büyük kira bedeli varsa ve GBP işaretlenmişse bu TL'dir
+  if (d.dealType === "rent" && (d.agreedPrice || 0) > 10000 && priceCurr === "GBP") {
+    priceCurr = "TRY";
+  }
+
+  const priceGbp = convertToGbp(d.agreedPrice || d.offeredPrice || d.askingPrice || 0, priceCurr);
+  const commExpected =
+    d.commissionExpected !== undefined && d.commissionExpected !== null
+      ? d.commissionExpected
+      : d.agreedPrice
+      ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05)
+      : 0;
+  const commGbp = convertToGbp(commExpected, commCurr);
+
+  return { priceCurr, commCurr, commGbp, priceGbp };
+}
+
 

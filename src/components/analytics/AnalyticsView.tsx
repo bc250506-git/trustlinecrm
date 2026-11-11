@@ -36,7 +36,7 @@ import {
   Crown,
 } from "lucide-react";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
-import { convertToGbp } from "@/lib/formatters";
+import { convertToGbp, resolveDealCurrencies } from "@/lib/formatters";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -275,45 +275,37 @@ export function AnalyticsView() {
       });
 
       const volume = monthDeals.reduce(
-        (sum, d) => sum + convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency),
+        (sum, d) => sum + resolveDealCurrencies(d).priceGbp,
         0
       );
       const commission = monthDeals.reduce(
-        (sum, d) =>
-          sum +
-          convertToGbp(d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0), d.currency),
+        (sum, d) => sum + resolveDealCurrencies(d).commGbp,
         0
       );
       const advisor = monthDeals.reduce((sum, d) => {
-        const comm = convertToGbp(
-          d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
-          d.currency
-        );
+        const { commGbp, commCurr } = resolveDealCurrencies(d);
         const isVolkan = isVolkanDeal(d);
         if (isVolkan) {
           const partRate = d.sharingType === "external" ? 50 : d.sharingType === "internal" ? 25 : 0;
           const advRate = 100 - partRate;
-          return sum + Math.round((comm * advRate) / 100);
+          return sum + Math.round((commGbp * advRate) / 100);
         }
         if (!isBroker) {
           if (d.partnerAdvisorId === currentUser.id) {
-            return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25));
+            return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, commCurr) : Math.round(commGbp * 0.25));
           }
-          return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, d.currency) : Math.round((comm * (d.advisorShareRate ?? 60)) / 100));
+          return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, commCurr) : Math.round((commGbp * (d.advisorShareRate ?? 60)) / 100));
         }
         const rate = d.advisorShareRate ?? 60;
-        return sum + Math.round((comm * rate) / 100);
+        return sum + Math.round((commGbp * rate) / 100);
       }, 0);
       const office = isBroker
         ? monthDeals.reduce((oSum, d) => {
             if (isVolkanDeal(d)) return oSum;
-            const comm = convertToGbp(
-              d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
-              d.currency
-            );
-            if (d.officeShareAmount !== undefined) return oSum + convertToGbp(d.officeShareAmount, d.currency);
+            const { commGbp, commCurr } = resolveDealCurrencies(d);
+            if (d.officeShareAmount !== undefined) return oSum + convertToGbp(d.officeShareAmount, commCurr);
             const offRate = d.officeShareRate ?? (d.portfolioOrigin === "advisor" ? 40 : 50);
-            return oSum + Math.round((comm * offRate) / 100);
+            return oSum + Math.round((commGbp * offRate) / 100);
           }, 0)
         : 0;
 
@@ -410,8 +402,7 @@ export function AnalyticsView() {
         typeMap[rawType] = { count: 0, volumeGbp: 0, commissionGbp: 0, color: "#64748b", icon: "Building" };
       }
 
-      const priceGbp = convertToGbp(d.agreedPrice || d.offeredPrice || d.askingPrice, d.currency);
-      const commGbp = convertToGbp(d.commissionExpected || (d.agreedPrice * 0.05), d.currency);
+      const { priceGbp, commGbp } = resolveDealCurrencies(d);
 
       typeMap[rawType].count += 1;
       typeMap[rawType].volumeGbp += priceGbp;
@@ -468,8 +459,7 @@ export function AnalyticsView() {
         channelMap[channel] = { count: 0, volumeGbp: 0, commissionGbp: 0, color: "#64748b" };
       }
 
-      const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice, d.currency);
-      const commGbp = convertToGbp(d.commissionExpected || (d.agreedPrice * 0.05), d.currency);
+      const { priceGbp, commGbp } = resolveDealCurrencies(d);
 
       channelMap[channel].count += 1;
       channelMap[channel].volumeGbp += priceGbp;
@@ -534,13 +524,7 @@ export function AnalyticsView() {
             d.createdById === user.id ||
             (d.createdByName && d.createdByName.trim().toLowerCase() === uNameNorm) ||
             (d.createdById === "usr-ofis" && user.id === "usr-volkan");
-          const priceCurr = d.priceCurrency || d.currency || "GBP";
-          const commCurr = d.commissionCurrency || d.currency || "GBP";
-          const priceGbp = convertToGbp(d.agreedPrice || d.askingPrice || 0, priceCurr);
-          const commGbp = convertToGbp(
-            d.commissionExpected || (d.agreedPrice ? d.agreedPrice * (d.dealType === "rent" ? 1.0 : 0.05) : 0),
-            commCurr
-          );
+          const { priceGbp, commGbp, commCurr } = resolveDealCurrencies(d);
 
           totalVolumeGbp += priceGbp;
           totalCommissionGbp += commGbp;
@@ -723,40 +707,35 @@ export function AnalyticsView() {
   // Genel KPI Toplamları (Doğrudan filtrelenmiş anlaşmalardan kesin tutarlılıkla hesaplanır)
   const totalVolumeSum = useMemo(() => {
     return filteredDeals.reduce(
-      (sum, d) => sum + convertToGbp(d.agreedPrice || d.askingPrice || 0, d.currency),
+      (sum, d) => sum + resolveDealCurrencies(d).priceGbp,
       0
     );
   }, [filteredDeals]);
 
   const totalCommissionSum = useMemo(() => {
     return filteredDeals.reduce(
-      (sum, d) =>
-        sum +
-        convertToGbp(d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0), d.currency),
+      (sum, d) => sum + resolveDealCurrencies(d).commGbp,
       0
     );
   }, [filteredDeals]);
 
   const totalAdvisorShareSum = useMemo(() => {
     return filteredDeals.reduce((sum, d) => {
-      const comm = convertToGbp(
-        d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
-        d.currency
-      );
+      const { commGbp, commCurr } = resolveDealCurrencies(d);
       const isVolkan = isVolkanDeal(d);
       if (isVolkan) {
         const partRate = d.sharingType === "external" ? 50 : d.sharingType === "internal" ? 25 : 0;
         const advRate = 100 - partRate;
-        return sum + Math.round((comm * advRate) / 100);
+        return sum + Math.round((commGbp * advRate) / 100);
       }
       if (!isBroker) {
         if (d.partnerAdvisorId === currentUser.id) {
-          return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25));
+          return sum + (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, commCurr) : Math.round(commGbp * 0.25));
         }
-        return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, d.currency) : Math.round((comm * (d.advisorShareRate ?? 60)) / 100));
+        return sum + (d.advisorShareAmount !== undefined ? convertToGbp(d.advisorShareAmount, commCurr) : Math.round((commGbp * (d.advisorShareRate ?? 60)) / 100));
       }
       const rate = d.advisorShareRate ?? 60;
-      return sum + Math.round((comm * rate) / 100);
+      return sum + Math.round((commGbp * rate) / 100);
     }, 0);
   }, [filteredDeals, isBroker, currentUser]);
 
@@ -764,18 +743,15 @@ export function AnalyticsView() {
     if (!isBroker) return 0;
     return filteredDeals.reduce((sum, d) => {
       if (isVolkanDeal(d)) return sum + 0;
-      const comm = convertToGbp(
-        d.commissionExpected || (d.agreedPrice ? d.agreedPrice * 0.05 : 0),
-        d.currency
-      );
+      const { commGbp, commCurr } = resolveDealCurrencies(d);
       if (d.officeShareAmount !== undefined) {
-        return sum + convertToGbp(d.officeShareAmount, d.currency);
+        return sum + convertToGbp(d.officeShareAmount, commCurr);
       }
-      const advShare = Math.round((comm * (d.advisorShareRate ?? 60)) / 100);
+      const advShare = Math.round((commGbp * (d.advisorShareRate ?? 60)) / 100);
       const partShare = d.sharingType === "internal"
-        ? (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, d.currency) : Math.round(comm * 0.25))
+        ? (d.partnerShareAmount !== undefined ? convertToGbp(d.partnerShareAmount, commCurr) : Math.round(commGbp * 0.25))
         : 0;
-      return sum + Math.max(0, comm - advShare - partShare);
+      return sum + Math.max(0, commGbp - advShare - partShare);
     }, 0);
   }, [filteredDeals, isBroker]);
 

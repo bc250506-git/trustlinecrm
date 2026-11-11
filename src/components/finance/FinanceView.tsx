@@ -906,12 +906,12 @@ export function FinanceView() {
               </div>
             </div>
 
-            <div className="sharp-card p-4 border-t-3 border-t-indigo-600">
+            <div className="sharp-card p-4 border-t-3 border-t-[#1d2566]">
               <div className="flex items-center justify-between text-xs font-mono mb-2">
-                <span className="font-bold text-indigo-900 px-2 py-0.5 bg-indigo-50 border border-indigo-200 uppercase">
+                <span className="font-bold text-[#1d2566] px-2 py-0.5 bg-slate-100 border border-slate-200 uppercase">
                   {isBroker ? "Komisyon Dağılımı (GBP)" : "Prim Hak Edişim (GBP)"}
                 </span>
-                <Coins className="w-4 h-4 text-indigo-600" />
+                <Coins className="w-4 h-4 text-[#00adb5]" />
               </div>
               {isBroker ? (
                 <div className="space-y-1 mt-1 font-mono text-xs">
@@ -929,8 +929,8 @@ export function FinanceView() {
                   </div>
                   {totalPartnerGbp > 0 && (
                     <div className="flex justify-between items-center pt-1 border-t border-slate-100">
-                      <span className="text-indigo-600">Dış / Ortak Payı:</span>
-                      <span className="text-indigo-700 font-bold">
+                      <span className="text-slate-500">Dış / Ortak Payı:</span>
+                      <span className="text-amber-700 font-bold">
                         {totalPartnerGbp.toLocaleString("tr-TR")} GBP
                       </span>
                     </div>
@@ -938,11 +938,11 @@ export function FinanceView() {
                 </div>
               ) : (
                 <>
-                  <div className="text-xl font-bold font-mono text-indigo-700 mt-2">
+                  <div className="text-xl font-bold font-mono text-[#1d2566] mt-2">
                     {totalAdvisorGbp.toLocaleString("tr-TR")}{" "}
                     <span className="text-xs font-normal text-slate-500">GBP</span>
                   </div>
-                  <div className="text-[11px] font-mono text-indigo-600 mt-1">
+                  <div className="text-[11px] font-mono text-slate-500 mt-1">
                     Onaylı net prim hak edişiniz
                   </div>
                 </>
@@ -1559,19 +1559,14 @@ export function FinanceView() {
                             {d.dealType === "rent" ? "KİRALIK" : "SATILIK"}
                           </span>
                           {d.isHistorical && (
-                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-[#00adb5]/10 text-[#008288] border border-[#00adb5]/30 inline-flex items-center gap-1">
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 bg-slate-100 text-[#1d2566] border border-slate-300 inline-flex items-center gap-1">
                               <FileText className="w-3 h-3 text-[#00adb5]" />
-                              Fiziki Arşiv
+                              Arşiv
                             </span>
                           )}
                         </div>
                         <div className="font-bold text-[#1d2566] mt-1 flex items-center gap-1.5 flex-wrap">
                           <span>{d.propertyTitle || d.title}</span>
-                          {d.isHistorical && (
-                            <span className="px-1.5 py-0.2 text-[9px] font-mono font-bold bg-[#00adb5]/10 text-[#008288] border border-[#00adb5]/20">
-                              📜 Arşiv
-                            </span>
-                          )}
                         </div>
                         <div className="text-[11px] text-slate-500 line-clamp-1 flex items-center gap-1.5 mt-0.5">
                           {isBroker && (
@@ -1606,8 +1601,8 @@ export function FinanceView() {
                       <td className="py-3 px-4">
                         {d.sharingType === "external" ? (
                           <div className="space-y-0.5">
-                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-indigo-50 text-indigo-700 border-indigo-200 inline-flex items-center gap-1">
-                              <Handshake className="w-3 h-3 text-indigo-600" />
+                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-amber-50 text-amber-900 border-amber-300 inline-flex items-center gap-1">
+                              <Handshake className="w-3 h-3 text-amber-700" />
                               Dış Paylaşım (%50)
                             </span>
                             <div className="text-[11px] text-slate-700 font-medium font-mono">
@@ -1619,8 +1614,8 @@ export function FinanceView() {
                           </div>
                         ) : d.sharingType === "internal" ? (
                           <div className="space-y-1">
-                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-indigo-50 text-indigo-700 border-indigo-200 inline-flex items-center gap-1">
-                              <Users className="w-3 h-3 text-indigo-600" />
+                            <span className="text-[10px] font-mono uppercase px-2 py-0.5 border font-bold bg-[#00adb5]/10 text-[#008288] border-[#00adb5]/30 inline-flex items-center gap-1">
+                              <Users className="w-3 h-3 text-[#00adb5]" />
                               İç Paylaşım (%25)
                             </span>
                             {d.partnerAdvisorId === currentUser.id && (
@@ -1630,7 +1625,7 @@ export function FinanceView() {
                             )}
                             <div className="text-[11px] text-slate-700 font-medium font-mono">
                               <div>Portföy (GD1): <span className="font-semibold">{d.createdByName || "Danışman 1"}</span></div>
-                              <div>Müşteri (GD2): <span className="font-semibold text-indigo-700">{d.partnerAdvisorName || "Danışman 2"}</span></div>
+                              <div>Müşteri (GD2): <span className="font-semibold text-[#00adb5]">{d.partnerAdvisorName || "Danışman 2"}</span></div>
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono">
                               {d.portfolioOrigin === "advisor" ? "Portföy %30 / Müşteri %25" : "Portföy %25 / Müşteri %25"}
@@ -1693,7 +1688,7 @@ export function FinanceView() {
                             className={
                               d.partnerAdvisorId === currentUser.id
                                 ? "text-emerald-700 font-bold bg-emerald-50 px-1 py-0.5 border border-emerald-200"
-                                : "text-indigo-600 font-bold"
+                                : "text-[#00adb5] font-bold"
                             }
                           >
                             {d.sharingType === "internal"
@@ -2283,7 +2278,7 @@ export function FinanceView() {
                     {editCalculatedAdvisorShare.toLocaleString("tr-TR")} {editCurrency}
                   </div>
                   {editCalculatedPartnerShare > 0 && (
-                    <div className="text-indigo-600 font-bold">
+                    <div className="text-[#00adb5] font-bold">
                       {editSharingType === "external" ? "Dış Ortak" : "2. Danışman"} (%{Math.round(editPartnerRate * 100)}):<br />
                       {editCalculatedPartnerShare.toLocaleString("tr-TR")} {editCurrency}
                     </div>

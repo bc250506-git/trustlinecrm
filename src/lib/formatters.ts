@@ -1,4 +1,5 @@
-import { CustomerCategory, PropertyStatus } from "./types";
+import { CustomerCategory, PropertyStatus, Currency } from "./types";
+import { convertCurrency } from "./currency";
 
 /**
  * Müşteri kategorisi (BUYER, SELLER, TENANT) Türkçe gösterim
@@ -356,19 +357,25 @@ export function formatFollowUpDate(dueAtStr?: string): string {
 }
 
 /**
- * Verilen para birimini yaklaşık kur üzerinden GBP (Sterlin) karşılığına çevirir
+ * Verilen para birimini güncel kurlar üzerinden GBP (Sterlin) karşılığına çevirir
  */
 export function convertToGbp(amount: number, currency: string = "GBP"): number {
-  if (!amount) return 0;
-  switch (currency.toUpperCase()) {
-    case "GBP":
-      return amount;
+  if (!amount || !Number.isFinite(amount)) return 0;
+  const curr = (currency || "GBP").toUpperCase() as Currency;
+  if (curr === "GBP") return amount;
+  try {
+    const val = convertCurrency(amount, curr, "GBP");
+    if (Number.isFinite(val) && val > 0) {
+      return Math.round(val);
+    }
+  } catch {}
+  switch (curr) {
     case "EUR":
       return Math.round(amount * 0.85);
     case "USD":
-      return Math.round(amount * 0.78);
+      return Math.round(amount * 0.77);
     case "TRY":
-      return Math.round(amount / 43); // yaklaşık sterlin kuru
+      return Math.round(amount / 65);
     default:
       return amount;
   }

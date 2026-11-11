@@ -36,6 +36,7 @@ import {
   Crown,
 } from "lucide-react";
 import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
+import { convertToGbp } from "@/lib/formatters";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -75,16 +76,6 @@ function getYearMonthList(year: number = 2026) {
     short: `${mInfo.short} ${String(year).slice(2)}`,
   }));
 }
-
-// KKTC Sterlin (GBP) bazlı para birimi dönüştürücüsü
-const convertToGbp = (amount: number, currency: Currency): number => {
-  if (!amount) return 0;
-  if (currency === "GBP") return amount;
-  if (currency === "EUR") return Math.round(amount * 0.85);
-  if (currency === "USD") return Math.round(amount * 0.77);
-  if (currency === "TRY") return Math.round(amount / 45); // Ortalama döviz kuru dönüşümü
-  return amount;
-};
 
 export function AnalyticsView() {
   const { deals, properties, users, currentUser, isBroker } = useStore();

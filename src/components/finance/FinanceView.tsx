@@ -13,6 +13,7 @@ import { BoxedDateNavigator } from "@/components/common/BoxedDateNavigator";
 import { PhoneInput } from "@/components/common/PhoneInput";
 import { DateInput } from "@/components/common/DateInput";
 import { formatDateTR, convertToGbp } from "@/lib/formatters";
+import { updateLiveExchangeRates } from "@/lib/currency";
 import {
   Calculator,
   Plus,
@@ -123,6 +124,10 @@ export function FinanceView() {
 
   // İşlem Sonrası Ofis Raporu (Resmi PDF) Modalı State
   const [selectedDealForReport, setSelectedDealForReport] = useState<Deal | null>(null);
+
+  useEffect(() => {
+    updateLiveExchangeRates();
+  }, []);
 
   // === FİLTRELEME STATELERİ ===
   const [searchQuery, setSearchQuery] = useState("");
@@ -329,16 +334,25 @@ export function FinanceView() {
     });
   }, [filteredDeals, sortField, sortOrder, getDealDate]);
 
-  // Filtrelenmiş Finans Özeti (GBP Ağırlıklı Göstergeler)
-  const gbpFilteredDeals = filteredDeals.filter((d) => d.currency === "GBP");
-  const totalAgreedGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.agreedPrice, 0);
-  const totalCommissionGbp = gbpFilteredDeals.reduce((sum, d) => sum + d.commissionExpected, 0);
-  const totalAdvisorGbp = gbpFilteredDeals.reduce((sum, d) => {
+  // Filtrelenmiş Finans Özeti (Tüm Para Birimleri Canlı Kurlarla GBP'ye Çevrilerek Hesaplanır)
+  const totalAgreedGbp = filteredDeals.reduce((sum, d) => {
+    const priceCurr = (d.priceCurrency || (d.currency === "TRY" ? "GBP" : d.currency) || "GBP") as Currency;
+    return sum + convertToGbp(d.agreedPrice || 0, priceCurr);
+  }, 0);
+
+  const totalCommissionGbp = filteredDeals.reduce((sum, d) => {
+    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
+    return sum + convertToGbp(d.commissionExpected || 0, commCurr);
+  }, 0);
+
+  const totalAdvisorGbp = filteredDeals.reduce((sum, d) => {
+    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
+    const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
     const isVolkan = isVolkanDeal(d);
     if (isVolkan) {
       const partRate = d.sharingType === "external" ? 0.5 : d.sharingType === "internal" ? 0.25 : 0;
       const advRate = 1 - partRate;
-      return sum + Math.round(d.commissionExpected * advRate);
+      return sum + Math.round(commGbp * advRate);
     }
 
     if (!isBroker) {
@@ -347,34 +361,53 @@ export function FinanceView() {
         return (
           sum +
           (d.partnerShareAmount !== undefined
-            ? d.partnerShareAmount
-            : Math.round(d.commissionExpected * 0.25))
+            ? convertToGbp(d.partnerShareAmount, commCurr)
+            : Math.round(commGbp * 0.25))
         );
       }
-      if (d.advisorShareAmount !== undefined) return sum + d.advisorShareAmount;
+      if (d.advisorShareAmount !== undefined) {
+        return sum + convertToGbp(d.advisorShareAmount, commCurr);
+      }
       const rate = d.portfolioOrigin === "advisor" ? 0.6 : 0.5;
-      return sum + Math.round(d.commissionExpected * rate);
+      return sum + Math.round(commGbp * rate);
     } else {
       // Broker tüm danışmanlara ödenecek toplam danışman hakedişini görür (Danışman 1 + Danışman 2)
       const advShare =
         d.advisorShareAmount !== undefined
-          ? d.advisorShareAmount
-          : Math.round(d.commissionExpected * (d.portfolioOrigin === "advisor" ? 0.6 : 0.5));
+          ? convertToGbp(d.advisorShareAmount, commCurr)
+          : Math.round(commGbp * (d.portfolioOrigin === "advisor" ? 0.6 : 0.5));
       const internalPartShare =
-        d.sharingType === "internal" ? (d.partnerShareAmount || 0) : 0;
+        d.sharingType === "internal"
+          ? (d.partnerShareAmount !== undefined
+              ? convertToGbp(d.partnerShareAmount, commCurr)
+              : Math.round(commGbp * 0.25))
+          : 0;
       return sum + advShare + internalPartShare;
     }
   }, 0);
-  const totalOfficeGbp = gbpFilteredDeals.reduce((sum, d) => {
+
+  const totalOfficeGbp = filteredDeals.reduce((sum, d) => {
     if (isVolkanDeal(d)) return sum + 0;
-    if (d.officeShareAmount !== undefined) return sum + d.officeShareAmount;
+    const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
+    const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
+    if (d.officeShareAmount !== undefined) {
+      return sum + convertToGbp(d.officeShareAmount, commCurr);
+    }
     const rate = d.portfolioOrigin === "advisor" ? 0.4 : 0.5;
-    return sum + Math.round(d.commissionExpected * rate);
+    return sum + Math.round(commGbp * rate);
   }, 0);
-  const totalPartnerGbp = gbpFilteredDeals.reduce((sum, d) => {
+
+  const totalPartnerGbp = filteredDeals.reduce((sum, d) => {
     // Dış şirket ortaklığı payı
     if (d.sharingType === "external") {
-      return sum + (d.partnerShareAmount || 0);
+      const commCurr = (d.commissionCurrency || d.currency || "TRY") as Currency;
+      const commGbp = convertToGbp(d.commissionExpected || 0, commCurr);
+      return (
+        sum +
+        (d.partnerShareAmount !== undefined
+          ? convertToGbp(d.partnerShareAmount, commCurr)
+          : Math.round(commGbp * 0.5))
+      );
     }
     return sum;
   }, 0);
@@ -690,7 +723,7 @@ export function FinanceView() {
                 {filteredDeals.length} <span className="text-xs font-normal text-slate-500">İşlem</span>
               </div>
               <div className="text-[11px] font-mono text-slate-500 mt-1">
-                {isBroker ? `${gbpFilteredDeals.length} GBP Portföy Satışı` : `${gbpFilteredDeals.length} GBP İşleminiz`}
+                {isBroker ? "Kapanan toplam işlem adedi" : "Kişisel kapanan işlem adediniz"}
               </div>
             </div>
 

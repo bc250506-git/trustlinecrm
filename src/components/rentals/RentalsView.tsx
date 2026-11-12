@@ -110,7 +110,7 @@ export function RentalsView() {
         sublabel: `${formatPhoneWithPrefix(c.phone) || c.phone || "Tel yok"} • ${c.region || "KKTC"}`,
         group: c.category === "SELLER" ? "👤 MAL SAHİPLERİ (Öncelikli)" : "👥 DİĞER MÜŞTERİLER",
         badge: c.category === "SELLER" ? "Mal Sahibi" : c.category === "TENANT" ? "Kiracı" : "Müşteri",
-        badgeColor: c.category === "SELLER" ? "bg-purple-50 text-purple-800 border-purple-200" : undefined,
+        badgeColor: c.category === "SELLER" ? "bg-slate-100 text-[#1d2566] border-slate-300" : undefined,
         keywords: `${c.fullName} ${c.phone || ""} ${c.whatsapp || ""} ${c.region || ""}`,
       }));
   }, [customers]);
@@ -1057,30 +1057,13 @@ export function RentalsView() {
       {/* Üst Bilgi Başlığı */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-mono text-xs text-emerald-700 font-bold tracking-wider uppercase">
-              YILLIK FİNANSAL YÖNETİM
-            </span>
-            <span className="text-slate-300">•</span>
-            <span className="text-xs text-emerald-800 font-mono font-bold bg-emerald-50 px-2.5 py-0.5 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              Şahsi Kira Defteriniz ({filteredRentals.length} Sözleşme)
-            </span>
-            <span className="text-[10px] text-slate-500 font-mono bg-slate-100 px-2 py-0.5 border border-slate-200">
-              🔒 Kira İzolasyonu: Yalnızca kendi kira sözleşmelerinizi görüntülüyorsunuz
-            </span>
-          </div>
           <h1 className="text-xl font-bold text-[#1d2566] tracking-tight flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-emerald-600" />
+            <KeyRound className="w-5 h-5 text-[#00adb5]" />
             Kira Takip Matrisi ve Dekont Defteri
           </h1>
-          <p className="text-xs text-slate-600 mt-0.5">
-            Sorumlu olduğunuz şahsi kira sözleşmelerinizin 12 aylık kira tahsilat tablosu, ödeme durumları ve banka dekontları defteri.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-
           {/* KKTC Vergi Dairesi Damga Pulu & Günü Geçenler Filtresi */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 border border-slate-200">
             <button
@@ -1135,21 +1118,6 @@ export function RentalsView() {
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>Pullatılmadı ({unstampedCount})</span>
             </button>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 text-xs font-mono font-bold">
-            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-300">
-              Ödendi
-            </span>
-            <span className="px-2 py-0.5 bg-rose-50 text-rose-800 border border-rose-300">
-              Gecikmiş / Vadesi Gelmiş
-            </span>
-            <span className="px-2 py-0.5 bg-slate-50 text-slate-600 border border-slate-200">
-              Ödenmedi
-            </span>
-            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-800 border border-indigo-200">
-              🏢 Aidat Takibi
-            </span>
           </div>
 
           <button
@@ -1503,10 +1471,10 @@ export function RentalsView() {
                       <div className="mt-2 pt-1.5 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
                         {/* 5. Kira Ödeme Tarihi */}
                         <span
-                          className="text-[9.5px] font-mono font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 inline-flex items-center gap-1 shadow-2xs"
+                          className="text-[9.5px] font-mono font-bold text-[#1d2566] bg-slate-100 border border-slate-200 px-1.5 py-0.5 inline-flex items-center gap-1 shadow-2xs"
                           title={`Bu mülk için her ayın ${r.dueDay || 5}. gününde kira ödemesi tekrarlanır.`}
                         >
-                          <Calendar className="w-2.5 h-2.5 text-indigo-600 shrink-0" />
+                          <Calendar className="w-2.5 h-2.5 text-[#00adb5] shrink-0" />
                           <span>Ayın {r.dueDay || 5}. günü</span>
                         </span>
 
@@ -1557,7 +1525,7 @@ export function RentalsView() {
                         {r.monthlyRent.toLocaleString("tr-TR")} {r.currency}
                       </div>
                       {r.hasDues && r.duesAmount ? (
-                        <div className="text-[10px] font-sans font-semibold text-indigo-700 bg-indigo-50/90 px-1.5 py-0.5 mt-1 border border-indigo-200 inline-block shadow-2xs">
+                        <div className="text-[10px] font-sans font-semibold text-[#00adb5] bg-cyan-50/90 px-1.5 py-0.5 mt-1 border border-cyan-200 inline-block shadow-2xs">
                           Aidat: {r.duesAmount.toLocaleString("tr-TR")} {r.duesCurrency || "TRY"}
                         </div>
                       ) : (
@@ -1715,7 +1683,7 @@ export function RentalsView() {
                               <div
                                 className={`w-full mt-1 pt-0.5 border-t flex items-center justify-between px-1 text-[9px] font-mono transition ${
                                   isDuesPaid
-                                    ? "border-indigo-200 bg-indigo-50/70 text-indigo-900 font-semibold"
+                                    ? "border-cyan-200 bg-cyan-50/70 text-cyan-900 font-semibold"
                                     : isDuesOverdue
                                     ? "border-rose-300 bg-rose-200/70 text-rose-950 font-semibold"
                                     : "border-slate-200/80 bg-slate-50/60 text-slate-500"
@@ -1746,7 +1714,7 @@ export function RentalsView() {
                                       : `${m.fullName} ${m.year}: Aidat ödendi olarak işaretle`
                                   }
                                   className={`w-3 h-3 rounded-none cursor-pointer shrink-0 ${
-                                    isDuesOverdue ? "accent-rose-600" : "accent-indigo-600"
+                                    isDuesOverdue ? "accent-rose-600" : "accent-[#00adb5]"
                                   }`}
                                 />
                               </div>
@@ -2143,15 +2111,15 @@ export function RentalsView() {
                       htmlFor="hasDuesAdd"
                       className="text-xs font-semibold text-slate-800 cursor-pointer flex items-center gap-1.5"
                     >
-                      <Building className="w-3.5 h-3.5 text-indigo-600" />
+                      <Building className="w-3.5 h-3.5 text-[#00adb5]" />
                       <span>Aidat Ödemesi Var mı? (Site / Bina Aidatı)</span>
                     </label>
                   </div>
 
                   {formData.hasDues && (
-                    <div className="p-2.5 bg-indigo-50/70 border border-indigo-200 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in">
+                    <div className="p-2.5 bg-cyan-50/70 border border-cyan-200 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in">
                       <div>
-                        <label className="block text-[11px] font-semibold text-indigo-950 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#1d2566] mb-1">
                           Aylık Aidat Tutarı *
                         </label>
                         <input
@@ -2169,7 +2137,7 @@ export function RentalsView() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-indigo-950 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#1d2566] mb-1">
                           Aidat Para Birimi
                         </label>
                         <select
@@ -2188,7 +2156,7 @@ export function RentalsView() {
                           <option value="USD">USD ($)</option>
                         </select>
                       </div>
-                      <div className="sm:col-span-2 text-[10px] text-indigo-800 font-mono">
+                      <div className="sm:col-span-2 text-[10px] text-slate-600 font-mono">
                         ℹ️ Aidat tutarı kira bedelinin altında listelenecek ve her ay kiradan bağımsız olarak &quot;Ödendi / Ödenmedi&quot; olarak takip edilecektir.
                       </div>
                     </div>
